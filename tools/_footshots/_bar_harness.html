@@ -1,0 +1,1143 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+/* 五子棋计算器 —— 浅色沿用参考站（啊刚五子棋）的配色，深色为灰棕棋盘 + 亮白轮廓。
+   字体统一走 rem：JS 按窗口尺寸改 html 的 font-size，于是「棋盘和里面的一些文字
+   都是可以随窗口而变小变大的」（用户要求）。
+
+   2026-09-18 版面改版：
+     · 仪表盘卡片**可拖动**（标题栏按住拖）→ 可在左/右停靠栏之间搬、可上下换序；
+     · 卡片右下角 grip 可改大小（横向 = 整栏宽度，纵向 = 卡片高度）；
+     · 标题栏 ◀ / ▶ 一键固定到窗口左 / 右；
+     · 历史改成顶栏一个按键，点开是一条**竖向长抽屉**，可勾选后存进「保存历史」。 */
+
+:root{
+  /* ★ 字体统一走**思源黑体**（Source Han Sans / Noto Sans SC，SIL OFL —— **可商用**）。
+     不写死微软雅黑：那个字体只能随 Windows 授权使用，不能跟着本软件分发。
+     机器没装思源时按后面的顺序回落（苹方 / 雅黑 / 系统默认），界面不会散。 */
+  --font:"Source Han Sans SC","Source Han Sans CN","Noto Sans SC","思源黑体","Source Han Sans",
+         "PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --bg:#f6f6f4; --card:#ffffff; --border:#e8e8e6; --ink:#191919; --sub:#8a8a86;
+  /* 彩色按键从橙红改成 蓝/天蓝 系（用户要求） */
+  --accent:#2f86d6; --accent-ink:#ffffff;
+  --guide:#3aa0e8;                       /* 开局流程的虚线引导色（天蓝） */
+  /* ★ 2026-09-20（用户要求）：「当前的深色还有浅色的棋盘，其他的颜色不太正规，默认用大多正规的
+       五子棋棋盘，类似与牛皮纸暗舒适护眼黄色」「深色、浅色都用一种棋盘颜色，棋盘颜色不管在
+       深色还是浅色，都应该是简洁不伤眼的」「棋盘上的白色棋子要稍微的灰上一点点（有点像象牙
+       棋子），要不然，看起来有点刺眼」。
+     ⇒ 这一组（棋盘底色 / 网格线 / 星位 / 坐标轴 / 黑白子 / 连珠标线 / 开局引导线）**只在这里
+       定义一次**，[data-theme="dark"] 里**不再重复** —— 它们是画在**棋盘上**的，
+       而棋盘本身深浅两套主题共用同一块牛皮纸护眼黄，所以它们的取值也必须与主题无关。
+       取值思路：底色是低饱和的暖黄（#d9b878，牛皮纸档），网格线取同色系深棕
+       （#8a6f42，对比够看清但一点也不抢棋子），星位再深一档，坐标轴介于两者之间；
+       黑白子都刻意**回避纯黑/纯白**（黑子 #1b1916、白子 #eeeadf 象牙白），久看不刺眼；
+       黑子留一圈浅米色轮廓（#f2eee7）把子和深色网格线分开。
+       用户自己调过色之后，本段会被 calc.js 写上的**行内变量**覆盖（见 applyColors）。 */
+  --board:#d9b878; --line:#8a6f42; --star:#4a3a1e; --axis:#7a6338;
+  --blk:#1b1916; --blk-edge:#f2eee7; --wht:#eeeadf; --wht-edge:#c3bda9;
+  --chip:#f2f2ef; --chip-on:#191919; --chip-on-ink:#ffffff;
+  --miss:#ff5f9e;
+  --missbox-bg:#cfe7fb; --missbox-ink:#1d5d99; --missbox-bd:#9ecdf2;
+  /* 连珠标线 = **天蓝色**（用户要求）。标线是**半透明**压在棋盘上（alpha .68，见 calc.js），
+     所以看到的颜色 = 天蓝与棋盘底的混色 —— 棋盘 2026-09-20 换成牛皮纸护眼黄（#d9b878，G 通道很高）
+     之后，原来那档 #29a8e0 混出来会偏青（实测 rgb(98,173,190)，B 只比 G 高 17，看着发闷）。
+     故把这档整体**往蓝里推**：B 通道拉高、G 压一点 → 混出来仍是干净的天蓝
+     （实测 rgb(90,164,202)，B-R=112）。深浅两套主题共用这一档（棋盘色本身与主题无关）。 */
+  --winline:#1e9bf0;
+  /* 启动页那行软件英文名的「灰蓝色」：浅底上要压得住，故偏深的蓝灰 */
+  --boot-fg:#5b7a99;
+  --r:14px;
+  --fs:1rem;
+}
+[data-theme="dark"]{
+  /* 深底上的灰蓝要提亮一档，否则会糊在 #26272a 里（放首行，紧贴块头） */
+  --boot-fg:#8ca6c0;
+  /* 深色 = 深灰底 + 深蓝系彩色按键（用户要求）。
+     ★ 2026-09-20：棋盘那一组变量（--board/--line/--star/--axis/--blk/--wht/--winline/--guide）
+     已经**从这里删掉** —— 用户要求「深色、浅色都用一种棋盘颜色」，它们统一在 :root 里定义。
+     本块只留**页面外壳**（底色 / 卡片 / 文字 / 按键 / 提示框）的深色取值。 */
+  --bg:#26272a; --card:#2f3134; --border:#40434a; --ink:#e7e9ec; --sub:#9aa0a6;
+  --accent:#2e6da4; --accent-ink:#ffffff;
+  --chip:#383b40; --chip-on:#e7e9ec; --chip-on-ink:#26272a;
+  --missbox-bg:#1f3d5c; --missbox-ink:#a8d4f5; --missbox-bd:#2e6da4;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:400 var(--fs)/1.5 var(--font);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+
+/* ---------------- 启动遮罩（一行软件英文名） ----------------
+   ★ 2026-09-19（用户要求）：「启动时要瞬间显示窗口，如果还是黑屏，在黑屏上显示些什么」
+     —— 本轮的最终形态是**一行软件英文名**（Gomoku Trainer），不写「加载中…」、不放动画。
+   它是**静态 DOM** —— HTML 一被解析就存在，calc.js 还没跑就已经盖在页面上了；
+   boot() / bootReview() 干完活调 bootDone() 给它加 .off 再移除。
+   底色取 --bg，所以深浅两套主题各自贴合
+   （body[data-theme] 由 <body> 里的内联脚本提前定好）。 */
+.boot{
+  position:fixed; inset:0; z-index:9999;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--bg); color:var(--sub);
+  transition:opacity .18s linear;
+}
+.boot.off{opacity:0}
+/* ★ 2026-09-19（用户定稿）：启动页就一行**软件英文名** —— 首字母大写、斜体、稍粗、
+   字号比正文大一号、灰蓝色（--bootFg）。不加任何动画、不加「加载中…」字样。
+   宿主那边 GDI 画的是同一行字（host.cpp PaintSplash），两边要一眼看上去是同一个东西。 */
+.boot .brand{
+  font-size:1.9rem;
+  font-style:italic;
+  font-weight:600;
+  letter-spacing:.02em;
+  color:var(--boot-fg);
+  user-select:none;
+}
+/* ★ 2026-09-21（用户要求）：软件名换成「Meter Gomoku Trainer」，前缀「Meter」单独涂天蓝
+   （与前瞻键同一族蓝 #3d9bd6）。宿主 GDI 那层（PaintSplash）同样分段分色，两边要一致。 */
+.boot .brand i{
+  font-style:inherit;
+  color:#3d9bd6;
+}
+
+/* ---------------- 「关于」浮层 ----------------
+    ★ 2026-09-19（用户要求）：版本号 / 功能 / 开源组件 / 许可。
+      复用 [hidden] 那套（display:none），与历史抽屉一个路子。 */
+.modal{
+  position:fixed; inset:0; z-index:9000;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.38); padding:1.2rem;
+}
+/* ★ 必须：.modal 的 display:flex 类选择器会盖掉浏览器对 [hidden] 的默认 display:none ——
+   不补这条，浮层一启动就弹出来、closeAbout() 里 hidden=true 也关不掉（2026-09-19 实测踩坑）。 */
+.modal[hidden]{display:none}
+.modal-card{
+  width:min(600px,100%); max-height:100%;
+  display:flex; flex-direction:column;
+  background:var(--card); color:var(--ink);
+  border:1px solid var(--border); border-radius:var(--r); overflow:hidden;
+}
+.modal-head{
+  flex:0 0 auto; display:flex; align-items:center; gap:.6rem;
+  padding:.7rem .9rem; border-bottom:1px solid var(--border);
+}
+.modal-title{font-weight:600; font-size:1.05rem}
+.modal-body{padding:.8rem 1rem 1.1rem; overflow:auto; font-size:.92rem; line-height:1.65}
+.ab-app{font-size:1.06rem; font-weight:600}
+.ab-ver{color:var(--sub); margin:.15rem 0 .7rem}
+.ab-h2{
+  margin:.85rem 0 .4rem; font-weight:600; font-size:.95rem;
+  padding-bottom:.25rem; border-bottom:1px solid var(--border);
+}
+.ab-ul{margin:0; padding-left:1.15rem}
+.ab-ul li{margin:.16rem 0}
+/* ★ 2026-09-21（用户要求）：「关于」里的「最近更新」列表 —— 圆点用天蓝强调色，一眼区分 */
+.ab-news li::marker{color:var(--accent)}
+.ab-tb{width:100%; border-collapse:collapse; font-size:.86rem}
+.ab-tb td{padding:.28rem .4rem; border-bottom:1px solid var(--border); vertical-align:top}
+.ab-tb tr:last-child td{border-bottom:0}
+.ab-tb .ab-n{white-space:nowrap; font-weight:600}
+.ab-tb .ab-d{color:var(--sub)}
+.ab-tb .ab-l{text-align:right; white-space:nowrap; font-family:ui-monospace,Consolas,monospace}
+.ab-lic{color:var(--sub); font-size:.86rem}
+
+/* ---------------- 顶栏 ---------------- */
+#hdr{
+  flex:0 0 auto; display:flex; align-items:center; gap:.75rem;
+  padding:.6rem .9rem; border-bottom:1px solid var(--border); background:var(--card);
+}
+#hdr .brand{display:flex; align-items:baseline; gap:.6rem; min-width:0}
+#hdr .brand>span:first-child{font-weight:700; font-size:1.2rem; letter-spacing:.02em}
+.hdr-actions{margin-left:auto; display:flex; gap:.45rem}
+
+/* ---------------- 主体：左停靠栏 / 棋盘 / 右停靠栏 ---------------- */
+/* 整页**永不滚动**：高度全部收敛到视口内（用户要求：全屏时功能栏完整适配、没有滑动条；
+   窗口再细窄也不许板块把页面撑高）。模块内容超出时在**模块自己内部**滚动。 */
+#stage{flex:1 1 auto; display:flex; gap:.85rem; padding:.8rem; min-height:0; overflow:hidden}
+.dock{
+  display:flex; flex-direction:column; gap:.7rem;
+  overflow-y:auto; overflow-x:hidden; padding-right:.2rem; min-height:0;
+}
+/* ★ 停靠栏**左右完全对称**：谁有卡片谁才占位，空栏必须收干净（宽度 0）。
+   老写法把右栏宽度写死成 23rem —— 卡片全搬到左边后它照样占着那一块，
+   棋盘被挤扁、右边还留一大片空白，这就是用户说的「移到左边尺寸不协调」。
+   用 .has 类而不是 CSS :empty —— 卡片搬走后栏里还剩换行空白文本节点，:empty 永远不成立。
+   ★ 每侧**永远单列**（用户 2026-09-18 要求：「全屏状态下左右各一列，不能左边两列右边一列，
+   也不能右边两列左边一列」）。原先那段「栏内 ≥2 个板块就摊成双列」的 @media 网格已删除，
+   默认分布也改成「左=对局设置，右=引擎仪表盘+评估曲线」，两列自然等高。 */
+.dock:not(.has){flex:0 0 0; width:0; min-width:0; padding:0; overflow:hidden}
+.dock.has{flex:0 0 auto; width:20rem; min-width:15rem; max-width:26rem}
+#boardCol{flex:1 1 auto; display:flex; flex-direction:column; gap:.5rem; min-width:0; min-height:0; overflow:hidden; position:relative}
+/* 万不得已才出现的滚动条做细（正常全屏时不会出现） */
+/* ★ 2026-09-20（用户反馈，三轮）：滑动条（滚动条）也要跟随深浅 / 自定义颜色 ——
+   原来只给了 .dock/.card-b 两处，调色窗 .modal-body、历史抽屉等容器全是系统默认白条。
+   改成**全局**统一，全部走变量（--border/--sub 都会被 applyColors 派生重算）。 */
+*::-webkit-scrollbar{width:8px; height:8px}
+*::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px}
+*::-webkit-scrollbar-thumb:hover{background:var(--sub)}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-corner{background:transparent}
+
+/* 窗口变窄**不换行、不堆叠**（堆叠会把模块挤到屏幕下方、页面出现竖滑动条）。
+   只把停靠栏收窄，永远保持「单屏一横排」。 */
+@media (max-width:1100px){
+  .dock.has{width:17rem; min-width:12rem}
+}
+@media (max-width:860px){
+  #stage{gap:.5rem; padding:.5rem}
+  .dock.has{width:14rem; min-width:10.5rem}
+}
+
+#boardWrap{
+  flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center;
+  background:var(--card); border:1px solid var(--border); border-radius:var(--r);
+  padding:.4rem; overflow:hidden;
+}
+#board{display:block; border-radius:6px; touch-action:none}
+
+/* 棋盘底栏 = **一行居中的对局按键**。
+   ★ 2026-09-19 用户要求：状态提示（「轮到我方」/「AI 思考中…」/「已暂停」…）从
+     「棋盘下面的左边」搬到「引擎仪表盘的下面」—— 于是底栏不再有左端那一格，
+     原来为了「提示框贴左、按键**仍然真正居中**」而特意写的 1fr / auto / 1fr 三列网格
+     也一并去掉：没有左端占位物，flex 居中就是真正的居中。
+   ★ 同时复盘相关的按键（背诵/回顾/背错/重来/关闭…）整组搬进了**独立的复盘窗口**
+     （见文件末尾的 `.rv` 段）—— 主窗口里不再有任何复盘按键。 */
+/* ★ 2026-09-27（用户要求）：底栏改**左 / 中 / 右**三段 ——
+   左段「分析计算」、中段原有对局按键、右段「AI 执子」+「设置」；
+   键变多了 → 全部合理缩小一档（padding / 字号）。 */
+/* ★ 2026-09-28（用户要求）：窗口很小时**整段换行**，绝不再堆成一坨 ——
+   旧写法（nowrap + 两侧 flex:1 1 0 + 横向滚动）实测在 640 视口下把左右两段压到 **34px**，
+   而段里的键本身要 55px ⇒ 键被裁掉、互相压住（就是用户看到的「堆叠 / 被遮住」）。
+   ⇒ 现在：这一段本身允许 `flex-wrap:wrap`，左右两段 `flex:0 0 auto`（保持自然宽度，
+     塞不下的话整段挪到下一行），中段 #boardBtns 自己内部也允许换行。 */
+#boardFoot{display:flex; align-items:center; justify-content:center; gap:.42rem .55rem;
+           flex-wrap:wrap; min-width:0; overflow-x:visible}
+#boardFoot .bf-side{display:flex; align-items:center; gap:.4rem; flex:0 0 auto; min-width:0;
+                    flex-wrap:wrap; justify-content:center}
+#boardFoot .bf-l{justify-content:flex-start}
+#boardFoot .bf-r{justify-content:flex-end}
+#boardFoot .btn{padding:.16rem .5rem; font-size:.86rem}
+#boardFoot .btn.ico{padding:.16rem .45rem}
+#boardFoot .btn.on{color:var(--accent); border-color:var(--accent)}
+/* ★ 2026-09-20（用户要求）：「保存局面按键被别的按键遮挡了」。
+   根因：#boardCol 是 flex 列，而 #boardFoot 只有默认的 `flex:0 1 auto` —— 它是**可以被压缩的**，
+   窗口一矮、棋盘（flex:1 1 auto）要空间时就把底栏压到比内容还矮，几个键于是挤成一堆、
+   互相压住（看起来就是「保存局面被别的键遮住」）。这里把底栏钉成 `0 0 auto`：
+   它的高度只由键本身决定，永远不参与压缩，也不跟上面的棋盘抢空间。 */
+#boardFoot{flex:0 0 auto}
+/* ★ 2026-09-28（用户要求）：窄窗口时**内部按键换行**（不再 nowrap + 横向滚动）。
+   flex:0 1 auto + min-width:0 ⇒ 空间不够时它先被收窄，内部 dig-fold 到第二行，
+   而不是把左右两段压扁（旧 bug）。 */
+#boardBtns{
+  display:flex; align-items:center; justify-content:center; gap:.42rem; flex-wrap:wrap;
+  flex:0 1 auto; min-width:0;
+}
+#boardBtns[hidden]{display:none}
+/* 状态提示的落脚点：引擎仪表盘卡片底部，独占一行（结构见 calc.html 的 #turnPillRow） */
+#turnPillRow{display:flex; align-items:flex-start; gap:.4rem; margin-top:.34rem}
+/* ★ 2026-09-28（用户要求）：文字框**恢复**，且**最多只出两行**（再长就截断，卡片不被撑高）——
+   -webkit-line-clamp:2 正是「最多两行」的钳制；圆角从 999px 放宽到 12px，两行不破相。
+   ★ 注：#turnPill 同时带 .pill（nowrap），这里必须显式改回 normal 才能换行。 */
+#turnPill{max-width:100%; white-space:normal; overflow:hidden; text-overflow:ellipsis;
+          line-height:1.4; border-radius:12px;
+          display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2}
+
+/* ---------------- 复盘窗口（独立窗口，页面带 ?rv=1） ----------------
+   用户要求：复盘弹**一个新的窗口**，那个窗口里**只有一张棋盘 + 下面几个复盘功能键**，
+   不参与任何功能连接 —— 没有顶栏、没有左右仪表盘、没有 AI、没有禁手/规则。
+   两个窗口共用同一套 calc.html / calc.css / calc.js（宿主把同一个目录映射给两个 WebView2），
+   所以这里用 body.rv 这条开关把「只有复盘该有的东西」显出来、把别的一律收掉。 */
+#rvBar{display:none}
+/* ★ 2026-09-19：`#drawer` 从这条「一律收掉」里**摘出来了** —— 复盘窗的「历史」键要能打开它
+   （用户原话：「打开复盘这个独立窗口，再选择历史，背诵复盘、回顾复盘这几个按键又会重新出现」）。
+   抽屉在复盘窗里**默认仍是收着的**（HTML 上带 hidden），只有用户点「历史」才滑出来。 */
+body.rv :is(#hdr,#dockL,#dockR){display:none}
+/* ★ 2026-09-19（用户要求）：交换先后手小弹窗 —— 交换类规则交换完成后出现在**棋盘下方**
+   （#boardCol 内、棋盘正下方，margin auto 水平居中）。样式要求：
+   **半透明**小卡（color-mix 卡片色 86% + 背景模糊，磨砂玻璃质感），
+   两个按钮（先手/后手）**同一颜色** —— 都是普通 .btn，不做主色强调。
+   复用主题变量（--card/--border），深浅两套主题自动贴合；不做遮罩、不挡棋盘。 */
+.swappop{
+  margin:.55rem auto 0; width:fit-content; max-width:94%;
+  background:color-mix(in srgb, var(--card) 86%, transparent);
+  border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 8px 26px rgba(0,0,0,.16);
+  padding:.55rem .95rem;
+  display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; justify-content:center;
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  animation:spIn .18s ease-out;
+}
+.swappop[hidden]{display:none !important}
+.swappop .sp-ttl{font-size:.88rem; color:var(--sub)}
+.swappop .sp-btns{display:inline-flex; gap:.45rem}
+.swappop .sp-btns .btn{background:var(--chip)}   /* 两键同色（用户要求） */
+@keyframes spIn{from{opacity:0; transform:translateY(-4px)}to{opacity:1; transform:none}}
+
+/* ★ 2026-09-25（用户要求，三轮简化）：⇄ / ✥ 两颗键弹出的磨砂小弹窗 ——
+   四颗变换键**排成一行**（省空间）+ ✕ 关闭键；两弹窗共用同一套卡样式。 */
+#mirrorPop, #shiftPop{
+  margin:.55rem auto 0; width:fit-content; max-width:94%;
+  background:color-mix(in srgb, var(--card) 86%, transparent);
+  border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 8px 26px rgba(0,0,0,.16);
+  padding:.55rem .95rem;
+  display:flex; flex-direction:column; align-items:center; gap:.45rem;
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  animation:spIn .18s ease-out;
+}
+#mirrorPop[hidden], #shiftPop[hidden]{display:none !important}
+#mirrorPop .sp-ttl, #shiftPop .sp-ttl{font-size:.88rem; color:var(--sub)}
+#mirrorPop .sp-btns, #shiftPop .sp-btns{display:inline-flex; gap:.45rem}
+#mirrorPop .sp-btns .btn, #shiftPop .sp-btns .btn{background:var(--chip); white-space:nowrap}
+
+/* ★ 2026-09-27（用户要求）：「AI 执子」/「设置」两个小弹窗 —— 与交换弹窗同款磨砂小卡：
+   横向一排；#aiSidePop 里前三个键各套**虚线框**（.ai-grp），无任何提示文字；
+   #setPop 三键 = 对局设置 / 计算评估 / 引擎仪表盘，点亮的键描主色边。 */
+#aiSidePop, #setPop{
+  margin:.55rem auto 0; width:fit-content; max-width:94%;
+  background:color-mix(in srgb, var(--card) 86%, transparent);
+  border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 8px 26px rgba(0,0,0,.16);
+  padding:.45rem .7rem;
+  display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; justify-content:center;
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  animation:spIn .18s ease-out;
+}
+#aiSidePop[hidden], #setPop[hidden]{display:none !important}
+#aiSidePop .ai-grp{
+  display:inline-flex; align-items:center; gap:.45rem; padding:.24rem .5rem;
+  border:1px dashed var(--border); border-radius:.55rem;
+}
+#aiSidePop .ai-turn{font-size:.82rem; color:var(--sub); white-space:nowrap}
+#aiSidePop .ainum{position:relative; width:4.8rem; display:flex; min-width:0}
+#aiSidePop .ainum input{width:100%; padding-right:1.15rem}
+#aiSidePop .ainum .unit{position:absolute; right:.35rem; top:50%; transform:translateY(-50%); font-size:.78rem; color:var(--sub)}
+#setPop .btn.on{color:var(--accent); border-color:var(--accent)}
+#aiSidePop .tglbtn .tgl-txt{font-size:.84rem}
+
+/* ★ 2026-09-25（用户要求，四轮）：底栏按键分组 ——
+   ‹ › 导航组与 ↻/⇄/✥ 布局组各框一组（虚线方框保留，**浅蓝/浅紫涂色取消**）；
+   两组各留外边距，与「重新开始」「保存局面」拉开间距。‹ › 放大（gomocalc 风格）。 */
+.bgroup{display:inline-flex; align-items:center; gap:.25rem;
+  padding:.18rem .5rem; border-radius:10px;
+  border:1.6px dashed var(--border); margin:0 .3rem}
+/* ★ 2026-09-28（用户要求）：底栏一行要**尽量紧凑好居中** —— 分组外边距收窄（.9→.45），
+   ‹ › 之间的**内部间距保留**（.42rem，那是上一轮「间距加大」要的）；↻/⇄/✥ 组同样贴近邻键。
+   ★ 目的：窄窗口下这一行不换行、不被挤成一堆。 */
+.nav-group{margin:0 .45rem; gap:.42rem}
+.lay-group{margin:0 .3rem}
+/* ★ 2026-09-28（用户要求）：‹ › 的**按键本身高一点**，于是符号自然大一号 —— 但符号不必夸张。
+   用户原话：「上一步，下一步，本身这个按钮的高度就不算高（按钮稍微高一点，这样符号会大一点），
+   因此上一步，下一步的符号不会特别大」。
+   ⇒ ① 按键**加高**（padding 竖向 .16→.3rem，并显式 min-height 兜底）——比邻键高约 1/4；
+     ② 符号只**比正文大一档**（1.35rem ≈ 正文 .86rem 的 1.6 倍），不是上一版的 2rem。
+   ★★ 选择器必须写成 `#boardFoot #btn_prev`（两个 id = 优先级 (2,0,0)）——
+     上面的 `#boardFoot .btn{font-size:.86rem; padding:.16rem .5rem}` 是 (1,1,0)，
+     单写 `#btn_prev`(1,0,0) 会被它**压掉**（旧版 2rem 就是这样完全没生效的死规则）。 */
+#boardFoot #btn_prev, #boardFoot #btn_next{
+  font-size:1.35rem; line-height:1.15; padding:.3rem .72rem;
+  min-width:2.5rem; min-height:2.1rem;
+  display:inline-flex; align-items:center; justify-content:center}
+/* ★ 2026-09-28（用户要求）：底栏所有按键**内容居中 + 自己内部绝不折行** ——
+   按键内部不能把「重新开始」这种四字键断成两行；要换行就让整颗键挪到下一行（见 #boardBtns 的 wrap）。 */
+#boardBtns .btn, #boardFoot .bf-side .btn{
+  display:inline-flex; align-items:center; justify-content:center; white-space:nowrap}
+/* ★ 2026-09-25（用户反馈）：布局键被拦下时的**底栏上方浮出提示**（AI 思考中 / 复盘模式）——
+   1.8 秒自动消散；否则用户只看到「按了没反应」，不知道原因 */
+.laytip{position:absolute; left:50%; bottom:3.4rem; transform:translateX(-50%);
+  z-index:30; pointer-events:none; white-space:nowrap;
+  background:var(--card); color:var(--ink); border:1px solid var(--border);
+  border-radius:999px; padding:.32rem .85rem; font-size:.85rem;
+  box-shadow:0 6px 18px rgba(0,0,0,.14); animation:spIn .16s ease-out}
+
+
+#openBar,
+body.rv #boardFoot{display:none !important}
+body.rv #drawer[hidden]{display:none}
+body.rv #drawer:not([hidden]){display:flex}
+body.rv #rvBar:not([hidden]){
+  display:flex; align-items:center; justify-content:center; gap:.5rem;
+  flex-wrap:wrap; min-width:0;
+}
+/* ★ 2026-09-20（用户要求）：「保存局面按钮和打开历史按键，这两个按键在复盘界面，可能会遮挡
+   导致点不到，然后就是这两个按键的大小不太适应这个页面，有点太大了」。
+   复盘窗比主窗窄得多（截图里 822×935），而 .btn 是**按主窗号**定的（padding .42rem .8rem +
+   内边距字号 .95rem）。那一行六个键在复盘窗里一排塞不下会自动换行（截图里「关闭」就被挤到
+   第二行），换行后行与行、键与键之间就容易贴住甚至压住命中区。
+   ⇒ 复盘窗整条 #rvBar 的键统一收小一档（内边距 + 字号 + 圆角），一行放得下，
+     也就没有「被挡住点不到」的问题；同时整条钉成 flex:0 0 auto，不参与压缩。 */
+body.rv #rvBar{flex:0 0 auto; gap:.38rem}
+body.rv #rvBar .btn{padding:.28rem .58rem; font-size:.85rem; border-radius:8px}
+body.rv #rvBar .missbox{padding:.24rem .5rem; font-size:.85rem; min-width:4rem}
+body.rv #rvGroup{gap:.34rem}
+/* 复盘窗里棋盘就是全部内容：外框干脆不要，让木色铺满 */
+body.rv #boardWrap{padding:0; border:0; background:transparent}
+#rvGroup{display:inline-flex; align-items:center; gap:.45rem; flex-wrap:wrap; min-width:0}
+#rvGroup[hidden]{display:none}
+/* 「背诵复盘 / 回顾复盘」选中态：变色表示当前是哪种复盘（用户要求） */
+#btn_recite.on,#btn_replay.on{
+  background:var(--accent); color:var(--accent-ink); border-color:var(--accent);
+}
+/* 「回顾复盘」进行中：左右三角 + 位置框变蓝，示意此刻**只能操控左右**（用户要求） */
+#rvBar.stepping #btn_rv_prev,#rvBar.stepping #btn_rv_next,
+#rvBar.stepping #rvPos{
+  color:var(--accent); border-color:var(--accent);
+}
+#rvBar.stepping #btn_rv_prev,#rvBar.stepping #btn_rv_next{background:rgba(47,134,214,.16)}
+/* 开局引导行（含「十打」键）：同样整行居中 */
+#openBar{display:flex; align-items:center; justify-content:center; gap:.5rem; flex-wrap:wrap}
+#openBar[hidden]{display:none}
+/* 思考时间：与数字框同一行（对齐做法见下面那段注释） */
+/* ★ 2026-09-19（用户要求）：「思考时间」的输入框要与「人机 / 黑（先手）」这些分段键**对齐**。
+   分段键那一行是 label(5.4rem) + .seg(flex:1)，左边缘 = 标签列右缘 + row 的 gap，
+   右边缘 = 整行右缘。当年这一行对不齐是两处叠加：
+     ① 曾经有一条 `#turnRow > label {flex:0 0 auto}` 把标签压成内容宽（4 个字 ≈3.7rem，比 5.4rem 窄）→ 整条左移；
+     ② `#num_turn{width:5.6rem}` 把框钉死成窄框 → 右边缘差一大块。
+   现在：**不再给 #turnRow 单独设 gap**（沿用 .row 的 .5rem，与「人机」那一行完全一致），
+   输入框与单位包成 .field（flex:1，与 .seg 同位同宽），单位绝对定位成**框内后缀**。
+   ★ 又一轮（用户要求）：「输入框长度变为原来的一半」—— 所以下面多了个 .numbox：
+     · .field 仍吃满整列（**列**仍与分段键同位同宽，左/右两条边照旧对齐）；
+     · .numbox 只占这列的 50%，框本身（#num_turn）再吃满 .numbox，单位 s 贴在框内右侧。
+     于是「列对齐」与「框短一半」两件事互不冲突。
+   （几何判据在 tools/test-calculator.js 的 B 段：列量左右两条边，框另量「≈半列宽」。） */
+#turnRow .field{position:relative; flex:1 1 auto; display:flex; min-width:0}
+#turnRow .numbox{position:relative; flex:0 0 50%; max-width:50%; display:flex; min-width:0}
+#num_turn{
+  flex:1 1 auto; width:100%; min-width:3rem;
+  font-size:.88rem; padding:.34rem 1.5rem .34rem .45rem;
+}
+/* 单位（s）：贴在**框内**右侧（pointer-events:none，点它等于点框） */
+#turnRow .unit{position:absolute; right:.5rem; top:50%; transform:translateY(-50%); pointer-events:none}
+/* 热力图颜色说明（打开热力图才出现） */
+#heatLegend{gap:.55rem; font-size:.82rem; color:var(--sub); align-items:center}
+#heatLegend .lg{display:inline-flex; align-items:center; gap:.28rem}
+#heatLegend .lg i{width:.72rem; height:.72rem; border-radius:3px; display:inline-block}
+/* ★ 2026-09-20：AI 视图的色档随「思考时间」变（2/3/4 色）→ 图例只显示**当前真会出现**的那几档
+   （指导视图固定四色，所以它开着时恒显示四档）。data-colors 由 calc.js 在重绘时写上；
+   没写（第一次打开、或还没算出热力）时保持原样，四档全显示。 */
+#heatLegend[data-colors="1"] .lg:nth-child(n+2){display:none}
+#heatLegend[data-colors="2"] .lg:nth-child(n+3){display:none}
+#heatLegend[data-colors="3"] .lg:nth-child(n+4){display:none}
+/* 「背错 N 子」：固定的小矩形浅蓝块（不是按键），数值随背诵复盘变化 */
+.missbox{
+  display:inline-block; min-width:4.6rem; text-align:center;
+  padding:.3rem .6rem; border-radius:8px; font-size:.9rem;
+  background:var(--missbox-bg); color:var(--missbox-ink); border:1px solid var(--missbox-bd);
+}
+#codeRow{margin-top:.55rem !important; padding-top:.5rem; border-top:1px dashed var(--border)}
+#codeRow>label{flex:0 0 auto !important}
+/* 局面代码：标题与三个小键同一行（等宽对齐），输入框独占一行（用户要求） */
+.codeHead{display:flex; align-items:center; gap:.32rem}
+.codeHead .btn.sq2{
+  flex:0 0 3.4em; text-align:center; padding:.2rem 0;
+  font-size:.8rem; line-height:1.3; border-radius:7px;
+}
+#inp_code{
+  width:100%; font:inherit; font-size:.9rem;
+  padding:.35rem .5rem; border-radius:8px; border:1px solid var(--border);
+  background:var(--chip); color:var(--ink);
+}
+.mini-lb{color:var(--sub); font-size:.85rem; white-space:nowrap}
+.grow{flex:1 1 auto}
+
+/* ---------------- 控件（整体放大一号：用户嫌按键和字太小） ---------------- */
+button{
+  font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--border);
+  background:var(--chip); color:var(--ink); padding:.42rem .8rem; font-size:.95rem;
+}
+button:hover{border-color:var(--sub)}
+button.on{background:var(--chip-on); color:var(--chip-on-ink); border-color:var(--chip-on)}
+button.ghost{background:transparent}
+button.sq{padding:.42rem .6rem}
+/* 图标键（AI 辅助 / 暂停）：▶ 三角与 ❚❚ 双竖杠，字距略收让双竖杠紧凑成"暂停"图形 */
+button.ico{padding:.42rem .8rem; letter-spacing:-.12em; font-weight:700}
+button.accent{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+button.danger{color:var(--accent)}
+button:disabled{opacity:.45; cursor:default}
+
+/* 分段按键改成等宽网格：同一行里「模式(3键)」与「我执(2键)」占满同一宽度，
+   于是我执两键的总长 == 模式三键的总长（用户要求），按键也统一变长。 */
+/* ★ 三十一轮：`flex-basis` 必须是 **0** 而不是 auto —— .card .row 带 flex-wrap:wrap，
+   basis:auto 时「假设主尺寸」= max-content，AI 执黑/执白 改成拨动开关后每颗宽了约一个轨道
+   （2×28px），窄栏下两颗的 max-content 一超可用宽度就整行**换行**到标签下面，
+   左右边缘于是与「思考时间」那一列错开（实测 LΔ=78）。basis:0 = 永不触发换行，
+   不够宽就由列自己收缩（下面 minmax(0,1fr) + 文字 ellipsis），对齐量测稳如磐石。 */
+.seg{flex:1 1 0; display:grid; gap:.28rem; min-width:0}
+.seg.s3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.seg.s2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.seg button{
+  padding:.34rem .3rem; font-size:.88rem; width:100%; min-width:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center;
+}
+/* ★ 三十轮（用户要求）：AI 执黑 / AI 执白 = **拨动式开关** —— 胶囊轨道 + 圆滑块，
+   开 = 滑块滑到右侧、轨道点亮主题色；关 = 滑块停在左侧、轨道灰。
+   按键本体保持中性（button.on 的整键高亮在这两颗上关闭），只有轨道变色 ——
+   高度/对齐沿用 .seg button 的既有尺寸（思考时间框对齐的量测不受影响）。 */
+/* ★ 三十一轮：这三颗（AI 执黑 / AI 执白 / 评估分数）共用同一套开关外观 ——
+   所以规则提到**通用类** .tglbtn 上，而不是挂在 #seg_side 下：
+   否则单独那颗「评估分数」会漏掉中性化规则，落到全局 button.on 的整键深色底上
+   （实测：整颗变黑色长条、轨道白块糊在文字上，完全不像开关）。 */
+.tglbtn{
+  display:flex; align-items:center; justify-content:center; gap:.45rem; min-width:0;
+}
+.tglbtn .tgl-txt{
+  min-width:0; flex:0 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+/* ★ 三十二轮（用户要求）：「模式」「AI 执子」两块各自套一个**虚线框**，标题独占一行、
+   按键整行放在下面一行 —— 横竖两段空间互不相抢，窄栏里按键文字也不会被截短。
+   .grp 只管外框；里面的 .row.head 改成 column（label 一行、.seg 一行）。 */
+.grp{
+  border:1px dashed var(--border); border-radius:10px;
+  padding:.36rem .45rem .3rem; margin:.34rem 0;
+}
+.card .row.head{flex-direction:column; align-items:stretch; gap:.3rem; margin:.1rem 0}
+.card .row.head>label{flex:0 0 auto}
+.card .row.head .seg{flex:1 1 auto}
+.grp>.row{margin:.14rem 0}
+/* 组框里的补充说明（AI 执子那几句hint）：略微收紧行距，贴着按键走 */
+.grp .row>.hint{font-size:.84rem; line-height:1.35}
+.tglbtn.on{background:var(--chip); color:var(--ink); border-color:var(--border)}
+/* ★ 三十二轮（用户要求）：AI 执黑 = **浅紫**、AI 执白 = **浅蓝** —— 打开时整颗键带底色
+   （轨道同步换成同族深一档的颜色），关着时仍是中性灰，一眼分辨谁在下谁的棋。
+   深浅两套主题各一套值：浅色是淡底 + 深边，深色用半透明底下沉，都不刺眼。 */
+:root{
+  --side-b-bg:#f2e9fd; --side-b-bd:#cbb2ef; --side-b-tgl:#8b5cf6;
+  --side-w-bg:#e6f2fd; --side-w-bd:#a9cfea; --side-w-tgl:#3b9ae1;
+}
+[data-theme="dark"]{
+  --side-b-bg:rgba(139,92,246,.30); --side-b-bd:rgba(167,139,250,.55); --side-b-tgl:#a78bfa;
+  --side-w-bg:rgba(59,154,225,.28); --side-w-bd:rgba(88,166,224,.55); --side-w-tgl:#58a6e0;
+}
+#seg_side .tglbtn[data-ai="b"].on{background:var(--side-b-bg); border-color:var(--side-b-bd); color:var(--ink)}
+#seg_side .tglbtn[data-ai="w"].on{background:var(--side-w-bg); border-color:var(--side-w-bd); color:var(--ink)}
+#seg_side .tglbtn[data-ai="b"].on .tgl{background:var(--side-b-tgl); border-color:var(--side-b-tgl)}
+#seg_side .tglbtn[data-ai="w"].on .tgl{background:var(--side-w-tgl); border-color:var(--side-w-tgl)}
+/* ★ 2026-09-28（用户要求）：AI 执子弹窗里的 AI 执黑 / AI 执白 同样跟随对局设置的浅紫 / 浅蓝涂色 */
+#aiSidePop .tglbtn[data-ai="b"].on{background:var(--side-b-bg); border-color:var(--side-b-bd); color:var(--ink)}
+#aiSidePop .tglbtn[data-ai="w"].on{background:var(--side-w-bg); border-color:var(--side-w-bd); color:var(--ink)}
+#aiSidePop .tglbtn[data-ai="b"].on .tgl{background:var(--side-b-tgl); border-color:var(--side-b-tgl)}
+#aiSidePop .tglbtn[data-ai="w"].on .tgl{background:var(--side-w-tgl); border-color:var(--side-w-tgl)}
+.tgl{
+  flex:0 0 auto; position:relative; width:2.05rem; height:1.12rem; border-radius:.6rem;
+  background:var(--border); border:1px solid var(--border);
+  transition:background .16s ease, border-color .16s ease;
+}
+/* 关态的轨道在浅色主题下只比卡片底深一点点，白滑块几乎看不出边界（实测截图里「AI 执黑」
+   关态像一颗没有轨道的空心圆）—— 补一道内阴影 + 略深的边框，关态也是清清楚楚一颗开关。 */
+.tglbtn:not(.on) .tgl{box-shadow:inset 0 1px 3px rgba(0,0,0,.22); border-color:rgba(120,120,120,.45)}
+.tgl i{
+  position:absolute; top:.06rem; left:.08rem; width:.88rem; height:.88rem; border-radius:50%;
+  background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.06);
+  transition:left .16s ease;
+}
+.tglbtn.on .tgl{background:var(--accent); border-color:var(--accent)}
+.tglbtn.on .tgl i{left:1.02rem}
+
+.card{
+  position:relative; flex:0 0 auto; min-width:0;
+  background:var(--card); border:1px solid var(--border); border-radius:var(--r);
+  padding:.5rem .6rem .55rem;
+}
+.card.floating{box-shadow:0 10px 26px rgba(0,0,0,.22); opacity:.96}
+.card-h{
+  display:flex; align-items:center; gap:.45rem; cursor:grab;
+  font-weight:600; font-size:.98rem; margin-bottom:.3rem; user-select:none;
+}
+body.dragging .card-h{cursor:grabbing}
+.card-h .ttl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+/* ★ 2026-09-28（用户要求）：引擎仪表盘标题后面那颗「空闲 / 计算中」小胶囊**整块删除** ——
+   它和卡片下方的说明行重复、且只占标题栏空间。DOM 与 JS（els.calcPill / paintLiveDash 里的写入）
+   已同步移除，这里只保留脉冲动画的定义（复盘/其它提示还在用 gbCalcPulse），避免误删导致失效。 */
+@keyframes gbCalcPulse{0%,100%{opacity:1; transform:scale(1)} 50%{opacity:.3; transform:scale(.72)}}
+/* 标题栏右端的小横杠（2026-09-20 用户要求）：
+   ① **点它 = 折叠这张卡片** —— 折叠后整张卡收成一条**长条圆角矩形**（只剩标题行 + 这根横杠），
+      再点一次展开（见下面 .card.collapsed）；
+   ② 它仍是「这块能拖」的提示：按住标题栏照样能换栏 / 调序；
+      横杠自己**不参与拖动**（onCardDown 里有 .dash 的排除判据），所以单击只折叠、不会误拖。
+   视觉仍是一根细横线，点击区用 ::after 向外扩一圈（线不用变粗就能点得准）。 */
+.card-h .dash{
+  flex:0 0 auto; position:relative; width:1.6rem; height:3px; border-radius:999px;
+  background:var(--sub); opacity:.42; cursor:pointer;
+  transition:opacity .15s, background .15s;
+}
+.card-h .dash::after{content:''; position:absolute; inset:-.55rem -.5rem}
+.card-h:hover .dash{opacity:.85}
+.card-h .dash:hover{opacity:1; background:var(--ink)}
+/* ★ 2026-09-27（用户要求）：卡片右上角的「固定 / ✕」小键 ——
+   在折叠横杠的**右边**（横杠自然左移腾位）；未固定 = 「固定」，固定后 = 「✕」（变主色）。
+   折叠态整卡收成一条时把它藏掉（长条上只留标题 + 横杠）。 */
+.card-h .pinkey{
+  flex:0 0 auto; font-size:.66rem; line-height:1; padding:.16rem .32rem;
+  border:1px solid var(--border); border-radius:.35rem; background:transparent;
+  color:var(--sub); cursor:pointer; white-space:nowrap;
+}
+.card-h .pinkey:hover{color:var(--ink)}
+.card-h .pinkey.pinned{color:var(--accent); border-color:var(--accent)}
+.card.collapsed .card-h .pinkey{display:none}
+/* 折叠态 = 「最小化的长条圆角矩形」：只留标题行，其余内容整块撤掉。
+   半高胶囊圆角（999px）让它一眼就是「被收起来的一条」，而不是变小了的卡片；
+   底色换成 --chip（比 --card 略沉）再加一点内缩，收起来的那条就更轻。 */
+.card.collapsed{padding:.3rem .7rem; border-radius:999px; background:var(--chip)}
+.card.collapsed .card-h{margin-bottom:0}
+.card.collapsed .card-h .ttl{font-size:.9rem; color:var(--sub)}
+.card.collapsed .card-b{display:none}
+.card-b{overflow:auto; min-height:0}
+
+/* 行距收紧：板块总高直接决定全屏下会不会出现滑动条（用户要求全屏无滑动条） */
+.card .row{display:flex; align-items:center; gap:.5rem; margin:.26rem 0; flex-wrap:wrap; min-width:0}
+.card .row.col{flex-direction:column; align-items:stretch; gap:.1rem}
+.card .row>label{flex:0 0 5.4rem; color:var(--sub); font-size:.92rem}
+.card .row select{min-width:0; max-width:100%}
+/* ★ 2026-09-19（用户要求）：「AI视图 / 指导视图」两个热力开关收进**一个带边框的组框**，
+   四色图例放框的下部 —— 一眼看出它们同属「热力图」这一部分。
+   复用主题变量（--chip/--border），深浅两套主题自动贴合；
+   框内行沿用 .card .row 的节奏，label 走同一 5.4rem 列宽（勾选框同列对齐）。 */
+.heatbox{margin:.4rem 0 .45rem; padding:.4rem .6rem .3rem; border:1px solid var(--border);
+  border-radius:10px; background:var(--chip)}
+/* 核心数 / 哈希表：各占一行，标签跟「模式 / 规则」一样靠左（共用 .row>label 的 5.4rem 列），
+   下拉**只按内容宽**——「稍微大一点」够放最长选项（"1024 MB" / "12"）就行，
+   不许 flex:1 拉满整行（那是用户截图里「下拉栏没必要这么大」的来源）。 */
+#sel_cores,#sel_hash{flex:0 0 auto; width:auto; min-width:4.4rem; max-width:100%}
+.row .unit{color:var(--sub); font-size:.85rem}
+/* ★ 2026-09-20（用户要求）：「AI……和用户……，分别显示 AI 与用户，不显示黑白」。
+   「对局双方」那一行是**纯展示**：两枚浅底胶囊，各带一个**棋子色小圆点**（.dot），
+   圆点颜色由 calc.js 按「先后手」写行内 background（黑先 = 用户黑点 / AI 白点，白先相反）。
+   整行不出现「黑 / 白」两个字 —— 谁执什么色，看圆点。 */
+.row .who{
+  display:inline-flex; align-items:center; gap:.32rem;
+  padding:.2rem .5rem; border-radius:999px;
+  background:var(--chip); font-size:.85rem; white-space:nowrap;
+}
+.row .who i.dot{
+  width:.78rem; height:.78rem; border-radius:50%; flex:0 0 auto;
+  border:1px solid var(--border); background:var(--ink);
+}
+/* AI 那一枚的圆点默认按白子画（象牙白），用户那一枚按黑子画 —— calc.js 会在切换先后手时
+   把两枚的颜色对调。这里只是「JS 还没跑」时的兜底外观。 */
+#whoAi i.dot{background:var(--wht); border-color:var(--wht-edge)}
+.num{font-variant-numeric:tabular-nums; font-size:.88rem; color:var(--sub); min-width:4.6rem}
+.hint{color:var(--sub); font-size:.8rem}
+
+select{
+  font:inherit; font-size:.92rem; padding:.3rem .45rem; border-radius:7px;
+  border:1px solid var(--border); background:var(--chip); color:var(--ink);
+}
+input[type=range]{flex:1 1 auto; min-width:6rem; accent-color:var(--accent)}
+input[type=number]{
+  font:inherit; font-size:.92rem; width:6.5rem; padding:.28rem .4rem; border-radius:7px;
+  border:1px solid var(--border); background:var(--chip); color:var(--ink);
+}
+input[type=checkbox]{accent-color:var(--accent); width:1.05rem; height:1.05rem}
+
+.pill{
+  padding:.24rem .6rem; border-radius:999px; background:var(--chip);
+  font-size:.86rem; color:var(--sub); white-space:nowrap;
+}
+.pill.bad{background:var(--miss); color:#fff}
+
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:.35rem}
+.stat{display:flex; flex-direction:column; background:var(--chip); border-radius:9px; padding:.26rem .5rem}
+.stat .k{color:var(--sub); font-size:.76rem}
+.stat .v{font-variant-numeric:tabular-nums; font-size:1.02rem; font-weight:600}
+#st_line{color:var(--sub); font-size:.8rem; margin-top:.3rem; word-break:break-all; min-height:1.2em}
+
+/* 曲线容器：左边轴画布固定不动，右边才是横向滚动区（用户要求：纵坐标不随滑动条移动）。
+   align-items:flex-start 让两块画布顶端对齐 —— 横向滚动条只占滚动区自己的高度，
+   否则轴会被压矮十几像素，刻度和曲线就对不上了。 */
+#curveWrap{
+  display:flex; align-items:flex-start; overflow:hidden;
+  border:1px solid var(--border); border-radius:10px; background:var(--chip); padding:.3rem;
+}
+/* ★ 2026-09-19（用户要求）：「这个卡片有一个较为舒适的高度」——
+   高度原来是**量出来**的（跟左列「对局设置」卡等高）：左列卡一高，这条曲线就被一路
+   拉到 ~490px、刻度间隔 60px，中间大片空白。现在锁死 **16rem** 这一档舒适高度
+   （JS 那边按同一个数算 H = 16 * rootFs 并内联写死；这里的值只是 JS 跑之前的兜底，
+   两边保持一致，避免首帧跳一下）。 */
+#curveAxis{display:block; flex:0 0 auto; height:16rem}
+#curveScroll{flex:1 1 auto; min-width:0; overflow-x:auto; overflow-y:hidden}
+#curveScroll::-webkit-scrollbar{height:7px}   /* 横向细一点；thumb/track 走上面的全局规则 */
+#curve{display:block; height:16rem}
+/* ★ 2026-09-28（用户要求）：评估曲线加标题 */
+.curve-head{font-size:.82rem; color:var(--sub); font-weight:600; margin:.05rem 0 .25rem}
+.legend{display:flex; align-items:center; gap:.7rem; margin-top:.3rem; font-size:.82rem; color:var(--sub)}
+.legend i{display:inline-block; width:.85rem; height:.24rem; border-radius:2px; margin-right:.28rem; vertical-align:middle}
+
+/* ---------------- 历史抽屉（★ 2026-09-20 三轮改回**全高侧栏**） ----------------
+   ★ 三轮用户原话：「历史之前是抽屉的形式，但是现在，变成弹窗了，恢复之前的」——
+   早上按「小巧悬浮」改出来的浮卡，用户实际用下来像**弹窗**；恢复成老的抽屉形态：
+   一整条**通到底**的右侧侧栏（top:0; bottom:0; 贴死右缘、border-left 分界、无圆角），
+   拉开/收起才有「抽屉」的感觉。`.dr-list` 照旧 `flex:1 1 auto` + 自己的 overflow 滚
+   （容器通到底后高度自然够，不再需要 max-height 兜底）。
+   ★ 数值逐字照抄「恢复与备份/Desktop version」里的原版抽屉（用户指定以它为准）。 */
+#drawer{position:fixed; right:0; top:0; bottom:0; width:27rem; max-width:80vw; z-index:40; background:var(--card); border-left:1px solid var(--border); box-shadow:-8px 0 26px rgba(0,0,0,.16); display:flex; flex-direction:column; padding:.7rem .8rem; gap:.5rem}
+#drawer[hidden]{display:none}
+.dr-head{display:flex; align-items:center; gap:.45rem}
+.tabs{display:flex; gap:.25rem}
+.tab{padding:.34rem .7rem; font-size:.9rem}
+.tab.on{background:var(--chip-on); color:var(--chip-on-ink); border-color:var(--chip-on)}
+/* ★ 二十轮（用户要求）：「全部选中」= 页签行里「保存历史」右边的小键（比页签矮半档）；
+   全部已选中时文字切换为「取消全选」，再点恢复 */
+.dr-allbtn{padding:.3rem .55rem; font-size:.8rem; margin-left:.35rem}
+/* ★ 功能键网格（2026-09-19 用户二轮精修：2 行 × 3 列，一行三个键）：
+   第一行 打开 / 保存选中 / 删除，第二行 导入 / 导出 / 关闭 ——
+   导入和导出同在第二行；删除、关闭都落在最右一列。 */
+.dr-actions{
+  display:grid; grid-template-columns:1fr 1fr 1fr; gap:.4rem;
+}
+.dr-actions .btn{
+  width:100%; margin:0; padding:.36rem .5rem; font-size:.9rem;
+  justify-content:center; white-space:nowrap;
+}
+/* 「保存选中」只在「历史」页有意义：切到「保存历史」页时用 visibility 藏起来 ——
+   不能用 [hidden]（display:none 会让网格重排、六键的对位全乱），占位但不可见。 */
+.dr-actions .btn.ghost-slot{visibility:hidden}
+.dr-tip{margin-top:-.2rem}
+.dr-list{flex:1 1 auto; overflow-y:auto; display:flex; flex-direction:column; gap:.3rem}
+.dr-list .item{
+  display:flex; align-items:center; gap:.5rem; padding:.4rem .55rem; border-radius:9px;
+  background:var(--chip); font-size:.88rem; cursor:pointer;
+}
+.dr-list .item.sel{outline:2px solid var(--accent)}
+/* ★ 八轮（用户要求）：抽屉方向键高亮（与勾选 .sel 区分开） */
+.dr-list .item.kb{outline:2px dashed var(--accent); outline-offset:1px; background:rgba(127,127,127,.12)}
+.dr-list .item .src{font-size:.72rem; padding:.08rem .34rem; border-radius:5px; background:var(--card); color:var(--sub)}
+/* ★ 十八轮（用户要求）：确定过的残局记录在历史里标「Endgame」（英文状态，绿色小徽标） */
+.dr-list .item .tag{font-size:.72rem; padding:.08rem .34rem; border-radius:5px;
+  background:#cbe8d2; color:#1d4a2b; font-weight:600}
+.dr-list .item .m{margin-left:auto; color:var(--sub); font-variant-numeric:tabular-nums; font-size:.78rem}
+.dr-list .item .no{font-variant-numeric:tabular-nums; color:var(--sub); min-width:2.2rem}
+.dr-list .empty{color:var(--sub); font-size:.85rem; padding:.35rem}
+.dr-list input[type=checkbox]{flex:0 0 auto}
+/* 历史条目名（用户可改）：没名字时 `.nm` 是空的 → :empty 收掉，不占位也不显示占位符 */
+.dr-list .item .nm{
+  font-weight:600; max-width:8.5rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.dr-list .item .nm:empty{display:none}
+/* 改名用的行内输入框（右键菜单 → 重命名）：直接顶掉名字那一段 */
+.dr-list .item input.rn{
+  font:inherit; font-size:.84rem; width:8.5rem; padding:.14rem .34rem;
+  border-radius:6px; border:1px solid var(--accent); background:var(--card); color:var(--ink);
+}
+/* 局面代码头的小键（复制 / 粘贴 / 载入）——抽屉功能键已改为 .dr-actions 网格，不再用 sq2 */
+button.sq2{flex:0 0 auto; padding:.22rem .52rem; font-size:.82rem; border-radius:7px}
+/* 历史条目的自绘右键菜单（宿主已关掉 WebView2 的默认菜单，所以这个必须自己画） */
+.ctx{
+  position:fixed; z-index:60; min-width:8.4rem; padding:.24rem;
+  display:flex; flex-direction:column; gap:.1rem;
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  box-shadow:0 10px 26px rgba(0,0,0,.24);
+}
+.ctx[hidden]{display:none}
+.ctx button{
+  display:block; width:100%; text-align:left; padding:.34rem .55rem;
+  font-size:.86rem; border:0; border-radius:7px; background:transparent; color:var(--ink);
+}
+.ctx button:hover{background:var(--chip)}
+.ctx button.danger{color:var(--accent)}
+
+/* ★ 指导卡（2026-09-19）：AI 站在用户视角评价上一手（顶栏「指导」键开/关）。
+   卡片本体就是 .card（复用拖动/停靠），这里只补它自己的两行。
+   ⚠ .card[hidden] 必须显式写：指导卡默认 hidden，若某天 .card 类里加了 display，
+   没有这条就会像 .modal 那样「一启动就弹出来」的经典坑。 */
+.card[hidden]{display:none}
+
+/* ================= 「卡片」功能键 + 显隐菜单（2026-09-20 用户要求） =================
+   用户原话：「在棋盘的右面添加一个卡片这个功能键，点击之后会有几个选项，分别是显示的窗口：
+   引擎仪表盘，评估曲线，计算评估」⇒ 右停靠栏顶上一颗常驻胶囊键 + 一张下拉菜单，
+   菜单里每行 = 一个面板（勾选 = 显示在棋盘右边）。默认只开「对局设置 + 计算评估」。
+   ⚠ 它**不是** .card：不参与拖动排序（它是开关，不是面板），也不该被卡片显隐逻辑藏掉；
+     但 syncDocks 必须认它 —— 否则所有卡片被关掉时右栏会塌成 0 宽，这个键自己跟着消失，
+     用户就再也点不回来了。 */
+/* ★ 2026-09-21（用户要求）：「卡片」键整块挪进顶栏、紧挨「复盘」右边 —— 它现在只是个
+   **定位容器**（菜单的锚点），不再是一条带底色的常驻条（那条在「复盘」的下面）。 */
+.cardbar{position:relative; display:inline-flex; align-items:center; flex:0 0 auto}
+#btn_cards.on{background:var(--chip-on); color:var(--chip-on-ink); border-color:var(--chip-on)}
+.cardmenu{
+  position:absolute; right:0; top:calc(100% + .3rem); z-index:30;
+  width:max-content; min-width:9.5rem;
+  flex:0 0 auto; display:flex; flex-direction:column; gap:.12rem;
+  padding:.38rem; border-radius:12px;
+  background:var(--card); border:1px solid var(--border);
+  box-shadow:0 8px 22px rgba(0,0,0,.18);
+}
+.cardmenu[hidden]{display:none}
+.cardmenu label{
+  display:flex; align-items:center; gap:.5rem; padding:.3rem .45rem;
+  border-radius:8px; font-size:.9rem; cursor:pointer; user-select:none;
+}
+.cardmenu label:hover{background:var(--chip)}
+.cardmenu label input{flex:0 0 auto}
+.cardmenu label .k{margin-left:auto; color:var(--sub); font-size:.76rem}
+
+/* ================= 计算评估（2026-09-20 用户要求） =================
+   亦心棋盘侧边栏那一套（计算 / 停止计算 / 扫描防守 / 多点分析 / 平衡一 / 平衡二）
+   收进一张卡片：六个键走 2 行 × 3 列网格，下面一行「分析点数」，再下面是结果清单。
+   清单刻意做成等宽数字 + 名次色块的紧凑表格（对应亦心右侧那几条 PV 文字）。 */
+.anbtns{display:grid; grid-template-columns:1fr 1fr; gap:.32rem; margin-bottom:.42rem}
+.anbtns .btn{width:100%; padding:.34rem .25rem; font-size:.85rem; white-space:nowrap}
+.anbtns .btn.on{background:var(--chip-on); color:var(--chip-on-ink); border-color:var(--chip-on)}
+/* 「计算/停止计算」同键独占一整行（五个键 = 2+2+1）。 */
+.anbtns .wide{grid-column:1 / -1; padding:.42rem .25rem}
+/* ★ 2026-09-20（用户要求）：「停止计算键，在点击多点分析、平衡一、平衡二时，这停止计算键是
+   亮起的，在不使用时，这个停止计算键是暗的」。
+   ⇒ 空闲 = **disabled**（暗，且点不动 —— 没东西可停）；分析进行中 = 解除 disabled 并加 .on 高亮。
+   状态由 calc.js 的 anaBusyUI() 统一切换（三处 finally 都走它，绝不会漏掉某一处把键亮着留下）。 */
+.anbtns .btn:disabled{opacity:.38; cursor:default; border-color:var(--border)}
+.anbtns .btn.on:disabled{opacity:.38}
+.anlist{
+  display:flex; flex-direction:column; gap:.12rem; margin-top:.24rem;
+  max-height:9.5rem; overflow:auto; font-variant-numeric:tabular-nums;
+}
+/* ★ 2026-09-21（用户要求）：「多点分析出现的条目，在条目第二行上且可以换行」。
+   ⇒ 第一行 = 名次徽标 + 坐标 + 评估分；第二行 = 最佳线（PV），跨满整行、允许换行
+     （原来整条 nowrap + PV 末尾省略号，长 PV 直接被裁掉）。 */
+.anlist .it{
+  display:grid; grid-template-columns:auto auto 1fr; column-gap:.42rem; row-gap:.12rem;
+  align-items:baseline;
+  padding:.22rem .38rem; border-radius:7px; background:var(--chip);
+  font-size:.78rem; min-width:0;
+}
+.anlist .it .rk{
+  grid-row:1; flex:0 0 1.05rem; text-align:center; font-weight:700; font-size:.74rem;
+  color:#fff; border-radius:2px; line-height:1.3;
+  padding:0 .16rem; min-width:1.05rem; box-sizing:border-box;
+}
+.anlist .it .co{grid-row:1; font-weight:600}
+.anlist .it .ev{grid-row:1; font-weight:600}
+.anlist .it .pv{
+  grid-row:2; grid-column:1 / -1;
+  color:var(--sub); white-space:normal; word-break:break-all; line-height:1.36;
+}
+
+/* ================= 调色窗（2026-09-20 用户要求，仿 Photoshop 取色器） =================
+   结构：主题两键 / 调色对象两键 / 「饱和×明度」方块 + 色相条 / RGB 三滑条 + 三数字框 /
+   RGB 代码框 / 预制色块 / 预览 + 恢复默认。两块画布都是 canvas（自己画、自己拖），
+   CSS 只负责把它们拉满宽度（canvas 是替换元素，width:100% + height:auto 会保原比例）。 */
+.cp-card{width:min(30rem,100%)}
+.cp-body{display:flex; flex-direction:column; gap:.5rem}
+.cp-row{display:flex; align-items:center; gap:.55rem; min-width:0}
+.cp-row>label{flex:0 0 4.7rem; color:var(--sub); font-size:.9rem}
+/* ★ 2026-09-20 修复：.cp-row{display:flex}（作者样式）会压过浏览器对 [hidden] 的
+   display:none（UA 样式）→ 「背景」时预制色整行藏不掉。必须显式补这条。 */
+.cp-row[hidden]{display:none!important}
+.cp-row .seg{flex:1 1 auto}
+.cp-picker{display:flex; flex-direction:column; gap:.3rem}
+.cp-picker canvas{
+  display:block; width:100%; height:auto;
+  border-radius:9px; border:1px solid var(--border);
+  cursor:crosshair; touch-action:none;
+}
+#cp_hue{cursor:ew-resize}
+/* ★ 2026-09-21（用户要求）：滑条已取消 → 三列（通道名/滑条/数字）压成两列。 */
+.cp-sliders{display:grid; grid-template-columns:1.15rem 5.4rem; gap:.3rem .5rem; align-items:center}
+.cp-sliders label{color:var(--sub); font-size:.86rem; font-weight:600; text-align:center}
+.cp-sliders input[type=range]{min-width:0; flex:0 0 auto; width:100%}
+.cp-sliders input[type=number]{width:100%}
+.cp-presets{display:flex; gap:.35rem; flex:1 1 auto; flex-wrap:wrap}
+.cp-presets button{
+  width:2.1rem; height:1.5rem; padding:0; border-radius:8px;
+  border:1px solid var(--border); cursor:pointer;
+}
+.cp-presets button:hover{border-color:var(--sub)}
+.cp-presets button.on{outline:2px solid var(--accent); outline-offset:1px}
+.cp-foot{display:flex; align-items:center; gap:.55rem; margin-top:.1rem}
+.cp-prev{
+  width:3.2rem; height:1.7rem; border-radius:9px; display:inline-block;
+  border:1px solid var(--border); background:var(--board);
+}
+
+/* ★ 2026-09-20 五轮（用户要求）：「计算评估」卡里的前瞻框 ——
+   左上「前瞻」开关键、右上 < > 步进；框体显示推演进度；
+   框下推演着法代码链：黑子 = 紫框白字、白子 = 浅蓝框深字，悬浮预览。
+   ★ 2026-09-21 六轮（用户要求）：前瞻键涂舒心天蓝；键旁图例（紫=黑子/浅蓝=白子）；
+   右侧空白区「确定」键（选中代码后变色）；代码链点击=选中、确定后未确定的变灰仍可点。 */
+.fwdbox{border:1px solid var(--border); border-radius:10px; padding:.5rem .55rem;
+  display:flex; flex-direction:column; gap:.45rem; background:rgba(127,127,127,.06)}
+/* ★ 2026-09-22 五轮（用户要求）：前瞻框**两行重排** ——
+   第一行 = 前瞻 + VCF/VCT + < >；第二行 = 图例 + 确定键（.fwd-h2 稍收间距）
+   ★ 2026-09-25（用户要求）：窗口很窄时**允许换行** —— < >（sq2 固定宽不许收缩）
+   挤不下时整对落到新的一行，不再溢出叠压；行距收紧让换行后不显松散 */
+.fwd-h{display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; row-gap:.25rem}
+.fwd-h2{margin-top:-.1rem}
+/* 舒心天蓝（深浅主题共用一套）：常态浅天蓝、开启后加深一档 */
+.fwdkey{background:#5fb6e6; border-color:#4aa3d9; color:#fff}
+/* ★ 2026-09-22 三轮（用户要求）：前瞻开着 = **浅紫**（关闭恢复天蓝） */
+.fwdkey.on{background:#a78bdb; color:#fff; border-color:#9678d0}
+/* 图例 ★ 五轮改版（用户要求）：色点改成**色框框住文字**，横向一行 ——
+   黑子 = 紫框、白子 = 浅蓝框（与框下代码链 .fwc 同族配色） */
+.fwd-lg{display:inline-flex; flex-direction:row; align-items:center;
+  gap:.5rem; font-size:.72rem; opacity:.9}
+.fwd-lg .lgr{display:inline-flex; align-items:center; padding:.05rem .45rem;
+  border-radius:7px; font-weight:600; line-height:1.5}
+.fwd-lg em{font-style:normal}
+.fwd-lg .lgfr-b{border:1.5px solid #7a5cc7; color:#6a4fc0; background:rgba(122,92,199,.10)}
+.fwd-lg .lgfr-w{border:1.5px solid #7fb6dd; color:#2b6f96; background:rgba(174,214,240,.22)}
+/* ★ 十八轮（用户要求）：黑框/白框改为**进攻方指示框，不可点** —— 填色高亮 = 自动判定的进攻方
+   （轮走方 / 算杀题面子多的一方）；鼠标样式恢复默认，不再有可点暗示 */
+.fwd-lg .lgr{cursor:default; user-select:none}
+.fwd-lg .lgfr-b.sel{background:#7a5cc7; color:#fff}
+.fwd-lg .lgfr-w.sel{background:#7fb6dd; color:#17364f}
+/* 确定键：默认淡置（无可确定的选中项），选中代码后变色提示 */
+.fwdok{opacity:.45; white-space:nowrap}
+.fwdkey{white-space:nowrap}
+.fwdok.on{opacity:1; background:#3d9bd6; border-color:#3388c2; color:#fff}
+.fwd-body{min-height:1.7rem; border-radius:8px; background:rgba(127,127,127,.09);
+  display:flex; align-items:center; padding:.25rem .5rem}
+.fwd-seq{display:flex; flex-wrap:wrap; gap:.3rem; max-height:8rem; overflow-y:auto}
+.fwc{border-radius:8px; padding:.16rem .5rem; font-weight:600; font-size:.85rem;
+  cursor:pointer; border:1px solid rgba(0,0,0,.15); line-height:1.4}
+.fwc.b{background:#7a5cc7; color:#fff}                 /* 黑子：紫框白字 */
+.fwc.w{background:#aed6f0; color:#17364f}             /* 白子：浅蓝框深字 */
+.fwc.cur{outline:2px solid var(--accent); outline-offset:1px}
+.fwc.sel{outline:2px solid #3d9bd6; outline-offset:1px}  /* 选中待确定（六轮） */
+.fwc.dim{opacity:.38}                                   /* 已确定之后的部分：变灰但仍可点击（六轮） */
+.fwc:hover{filter:brightness(1.1)}
+/* ★ 六轮补丁（用户要求）：英文模式用**小一号字体**合理适配（键文/图例/提示都比中文长，
+   缩字号保持单行，不换行不挤压布局；body[data-lang] 由 applyLang 挂） */
+[data-lang="en"] .fwdkey{font-size:.78rem; padding-left:.4rem; padding-right:.4rem}
+[data-lang="en"] .fwdok{font-size:.78rem; padding-left:.5rem; padding-right:.5rem}
+[data-lang="en"] .fwd-lg{font-size:.6rem}
+[data-lang="en"] .fwd-body{font-size:.72rem}
+[data-lang="en"] .fwd-body .hint{font-size:.72rem}
+
+/* ---------------- 识图窗口（独立窗口，页面带 ?vis=1） ----------------
+   ★ 2026-09-21：宿主克隆复盘窗机制开 GbCalcVis（calc.html?vis=1）。
+   窗口 = 左「图片面板」+ 右「棋盘结果」：初始左面板只有居中两颗大键
+   （上传图片 / 屏幕截图）；选图后变「翻页 + 预览 + 识别/保存/加载」。
+   与 body.rv 同款开关：body.vis 显出识图专属、收掉主窗/复盘的一切。 */
+#visPane{display:none}
+body.vis #visPane:not([hidden]){
+  display:flex; flex-direction:column; gap:.55rem;
+  flex:0 0 clamp(22rem, 36vw, 37rem); min-width:20rem; min-height:0;   /* ★ 九轮：加宽装 5 键 */
+}
+body.vis :is(#hdr,#dockL,#dockR,#openBar,#swapPop,#boardFoot,#rvBar){display:none !important}
+.vis-empty{flex:1 1 auto; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:.9rem; text-align:center; padding:1rem}
+.vis-ttl{font-size:1.05rem; font-weight:700; color:var(--ink)}
+.vis-big{padding:.8rem 1.7rem; font-size:1.05rem; border-radius:12px; min-width:9.5rem}
+.vis-view{flex:1 1 auto; display:flex; flex-direction:column; gap:.5rem; min-height:0}
+.vis-imgbar{display:flex; align-items:center; gap:.4rem; flex:0 0 auto; flex-wrap:wrap}
+.vis-imgbar .pill{min-width:3.4rem; text-align:center}
+/* ★ 输入框（2026-09-21 用户定稿）：白框 = 局面代码输入（闪烁光标 + 空态提示）与
+   图片预览二合一；高度 ≈ 半个棋盘（visLayout() 随棋盘尺寸设定） */
+.vis-box{position:relative; flex:0 0 auto; background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r); overflow:hidden}
+.vis-box img{position:absolute; inset:.4rem; width:calc(100% - .8rem); height:calc(100% - .8rem);
+  object-fit:contain; pointer-events:none}
+#visInput{position:absolute; inset:0; width:100%; height:100%; border:none; outline:none;
+  background:transparent; color:var(--ink); font:inherit; font-size:.92rem; line-height:1.5;
+  padding:.7rem .85rem; resize:none; caret-color:var(--accent); white-space:pre-wrap}
+#visInput::placeholder{color:var(--ink-soft, #98a0ab); opacity:.8; white-space:pre-wrap}
+/* ✕ 单个移除：右上角小圆键（用户要求 2026-09-21） */
+.vis-del{position:absolute; top:.4rem; right:.4rem; z-index:2; opacity:.7;
+  background:var(--card); border-radius:50%}
+.vis-del:hover{opacity:1; color:var(--accent); border-color:var(--accent)}
+/* 窄窗不堆字（用户要求）：面板给足最小宽、按钮不压缩、提示文字正常换行 */
+#visPane{min-width:20rem; padding:0 .15rem; box-sizing:border-box}   /* ★ 九轮 */
+#visPane .btn{flex:0 0 auto}
+.vis-msg{min-height:1.15rem; white-space:normal}
+.vis-acts{display:flex; align-items:center; gap:.38rem; flex-wrap:wrap; flex:0 0 auto}
+/* ★ 九轮（用户要求）：底部一行放 5 键（识别/保存到历史/加载到练习/VC 模式/修改）—— 键距收紧 */
+.vis-acts .btn{padding:.42rem .55rem; font-size:.9rem; white-space:nowrap}
+[data-lang="en"] .vis-acts .btn{font-size:.78rem}
+/* ★ 2026-09-22 五轮（用户要求）：识别棋盘代码框 —— 夹在功能键(.vis-acts)与提示文字
+   (.vis-msg)之间；与主窗「局面代码」同格式，识别 / 修改落定后自动同步，可一键复制 */
+.vis-codebar{display:flex; align-items:stretch; gap:.45rem; flex:0 0 auto}
+.vis-codebar .vcl{align-self:center; white-space:nowrap}
+.vis-codebar textarea{flex:1; min-width:0; min-height:2.2em; max-height:5.5em;
+  resize:vertical; border:1px solid var(--border); border-radius:8px;
+  background:rgba(127,127,127,.07); color:inherit; padding:.3rem .45rem;
+  font:inherit; font-size:.85rem; line-height:1.45}
+.vis-codebar textarea:focus{outline:none; border-color:var(--accent)}
+#visPane .grow,#visPane .vis-empty .grow{flex:1}
+/* 翻页到头变灰（用户要求） */
+.btn[disabled]{opacity:.4; pointer-events:none}
+/* 英文模式：识图键文案偏长，小一号保单行（与前瞻键同款手法） */
+[data-lang="en"] .vis-big{font-size:.95rem}
+[data-lang="en"] #btn_vis_rec,
+[data-lang="en"] #btn_vis_save,
+[data-lang="en"] #btn_vis_load{white-space:nowrap}
+/* ★ 2026-09-25（用户要求）：英文模式下图片条要一行放下「三个长键 + < n/m >」——
+   翻页组已左移（HTML 去掉中间弹性空档），这里再把图片条三个键的内边距收一档，
+   最窄窗口也不会把「>」挤到第二行 */
+[data-lang="en"] .vis-imgbar .btn{padding-left:.55rem; padding-right:.55rem}
+/* ★ 九轮（用户要求）：关于 · 使用方法 —— 分节 + 保姆级段落，随语言切换重画 */
+.ab-g-sec{margin:.6rem 0 .1rem}
+.ab-g-t{font-weight:700; color:var(--accent); letter-spacing:.02em; margin-bottom:.1rem}
+.ab-g-p{margin:.24rem 0 0; line-height:1.62; font-size:.85rem; color:var(--ink)}
+
+/* ★ 水印（用户要求 2026-09-21）：识图窗左下角一片空白区铺一行「Meter Gomoku Vision」——
+   与背景融为一体（半透明）、整窗**最底层**（z-index:0 + pointer-events:none），
+   Meter = 天蓝、Gomoku Vision = 灰蓝，整体稍粗 + 斜体（与遮罩品牌字同款气质）。
+   只在识图窗（body.vis）显示；深浅主题各配一对颜色，保证都「融」进底色。 */
+#visMark{display:none}
+body.vis #visMark{
+  display:block; position:fixed; left:1.05rem; bottom:.55rem; z-index:0;
+  pointer-events:none; user-select:none; white-space:nowrap;
+  font-style:italic; font-weight:600; font-size:1.45rem; letter-spacing:.02em;
+  color:#8ea6bf; opacity:.42;                                  /* 灰蓝（浅色底） */
+}
+body.vis #visMark i{font-style:italic; color:#5ebbee; margin-right:.34em}   /* 天蓝 Meter */
+body[data-theme="dark"] #visMark{color:#5d6f86; opacity:.5}               /* 深底下的灰蓝 */
+body[data-theme="dark"] #visMark i{color:#3f8fc9}                          /* 深底下的天蓝 */
+
+/* ★ 胶囊数字键（用户要求 2026-09-21）：从 span 改 button，「可以稍大一圈」——
+   同款胶囊外形，加高加宽 + 小箭头提示「可点」，悬停亮天蓝描边 */
+.vis-pill{cursor:pointer; border:1px solid var(--border); border-radius:999px;
+  background:var(--card); color:var(--ink); font:inherit; font-size:.92rem;
+  min-width:4.6rem; padding:.34rem .95rem; text-align:center; line-height:1.3}
+.vis-pill::after{content:" ▾"; font-size:.9em; margin-left:.55em; color:var(--accent); opacity:.95}
+.vis-pill:hover{border-color:var(--accent); color:var(--accent)}
+.vis-imgbar .vis-pill{min-width:4.6rem}
+
+/* ★ 图片抽屉（用户要求 2026-09-21）：点胶囊从**左边**滑出的条目栏 ——
+   与右侧历史抽屉 #drawer 同款语言：fixed 左栏、卡片底、右侧投影、列表自滚动。 */
+#visDrawer{display:none}
+body.vis #visDrawer:not([hidden]){
+  display:flex; position:fixed; left:0; top:0; bottom:0; z-index:45;
+  width:19rem; max-width:80vw; box-sizing:border-box;   /* ★ 五轮：加宽 —— 头部「选择/全选/删除/✕」英文模式下放得下，✕ 不越界 */
+  background:var(--card); border-right:1px solid var(--border);
+  box-shadow:8px 0 26px rgba(0,0,0,.18);
+  flex-direction:column; padding:.6rem .65rem; gap:.45rem;
+}
+.vd-head{display:flex; align-items:center; gap:.45rem}
+.vd-head .ttl{font-weight:700; color:var(--ink)}
+.vd-list{flex:1 1 auto; min-height:0; overflow-y:auto; display:grid;
+  grid-template-columns:1fr 1fr; gap:.4rem; align-content:start}
+.vd-item{position:relative; margin:0; padding:0; border:1px solid var(--border);
+  border-radius:9px; background:var(--page, var(--card)); cursor:pointer; overflow:hidden}
+.vd-item img{display:block; width:100%; height:4.8rem; object-fit:contain; background:var(--card)}
+.vd-item .vd-code{display:flex; align-items:center; justify-content:center;
+  height:4.8rem; padding:.3rem; font-size:.72rem; color:var(--sub); word-break:break-all;
+  text-align:center; overflow:hidden}
+.vd-item .idx{position:absolute; left:.3rem; bottom:.22rem; font-size:.66rem;
+  color:var(--sub); background:var(--card); border-radius:5px; padding:0 .28rem;
+  font-variant-numeric:tabular-nums; opacity:.85}
+.vd-item.sel{outline:2px solid var(--accent); outline-offset:-1px}
+/* ★ 八轮（用户要求）：图片抽屉方向键高亮（虚线框，与勾选区分） */
+.vd-item.kb{outline:2px dashed var(--accent); outline-offset:-1px; filter:brightness(1.06)}
+.vd-item:hover{border-color:var(--accent)}
+/* 每张右上角的 ✕ 移除键（与预览框右上角的 .vis-del 同款小圆键） */
+.vd-del{position:absolute; top:.22rem; right:.22rem; width:1.35rem; height:1.35rem;
+  line-height:1; padding:0; font-size:.72rem; border-radius:50%; opacity:.75;
+  background:var(--card); border:1px solid var(--border); color:var(--ink); cursor:pointer}
+.vd-del:hover{opacity:1; color:#d33; border-color:#d33}
+.vd-tip{white-space:normal}
+/* ★ 2026-09-22（用户要求）：抽屉顶部的三个小按键（选择 / 全选 / 删除）——
+   比 .btn 小一号，塞进标题行；「选择」开着时由 JS 加 .accent 显天蓝。 */
+.vd-head .vd-mini{padding:.14rem .5rem; font-size:.72rem; border-radius:8px}
+.vd-head .vd-mini.danger{color:#d33}
+/* 多选勾选态：右下角天蓝 ✓ 角标（与 .sel 的天蓝描边区分开：sel=当前查看，chk=已勾选） */
+.vd-item .vd-chk{display:none; position:absolute; right:.24rem; bottom:.2rem;
+  width:1.15rem; height:1.15rem; line-height:1.12; text-align:center; font-size:.72rem;
+  border-radius:50%; background:var(--accent); color:#fff; pointer-events:none}
+.vd-item.chk .vd-chk{display:block}
+.vd-item.chk{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset}
+/* ★ 2026-09-22（用户要求）：「修改」模式的棋盘下方功能条（只在识图窗出现）
+   四轮改版：**两行** —— 第一行 交换/删除/补充黑/补充白，第二行 添加黑白子（确定）+
+   黑子开始/白子开始 单独占一行；两行都居中；补充键不默认涂蓝，由 JS「缺谁亮谁」 */
+#visEditBar{display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:.4rem; margin-top:.4rem; padding:.4rem .55rem; border:1px dashed var(--accent);
+  border-radius:10px; background:var(--card)}
+#visEditBar .ve-row{display:flex; align-items:center; justify-content:center;
+  gap:.5rem; flex-wrap:wrap}
+#visEditBar[hidden]{display:none}
+/* ★ 2026-09-22 七轮（用户要求）：编辑栏五键并成一行；「添加黑白子」= 下拉开关 ——
+   点一下变浅蓝并弹出小矩形框（两个小键在它右边），再点收起 + 褪色 */
+#veAddKeys{display:inline-flex; gap:.35rem; align-items:center; padding:.16rem .38rem;
+  border:1px solid rgba(127,127,127,.35); border-radius:9px; background:rgba(127,127,127,.10)}
+#veAddKeys[hidden]{display:none}
+.btn.add-on{background:#9fd2f2; border-color:#7fb6dd; color:#17364f; font-weight:600}
+/* ★ 2026-09-23（用户要求）：残局模式棋盘下方摆盘键行 —— 居中一行；
+   「任意摆盘」点开后右边的**圆角小框**（黑子 / 白子）与识图 #veAddKeys 同款语言 */
+#egBar{display:flex; gap:.45rem; align-items:center; justify-content:center; margin-top:.42rem}
+#egBar[hidden]{display:none}
+#egKeys{display:inline-flex; gap:.35rem; align-items:center; padding:.16rem .38rem;
+  border:1px solid rgba(127,127,127,.35); border-radius:9px; background:rgba(127,127,127,.10)}
+#egKeys[hidden]{display:none}
+.btn.eg-on{background:#9fd2f2; border-color:#7fb6dd; color:#17364f; font-weight:600}
+/* ★ 2026-09-23 十六轮（用户要求）：残局「确定 / 已确定」—— 确定后变浅绿点亮，一眼看出已锁定 */
+.btn.eg-ok{background:#cbe8d2; border-color:#8fcaa1; color:#1d4a2b; font-weight:600}
+.btn.eg-ok:hover{background:#bde0c6}
+/* ★ 2026-09-23（用户要求）：「开始色」选中高亮 —— 点黑子开始 = **浅紫色**、
+   点白子开始 = **浅白蓝色**（识图编辑栏的黑子开始/白子开始 与 残局框的黑子/白子 同款） */
+.btn.sel-b{background:#dcc5f5; border-color:#b892e8; color:#3a2560; font-weight:600}
+.btn.sel-w{background:#d7e8fb; border-color:#a9c9ee; color:#1d3a5f; font-weight:600}
+/* ★ 2026-09-22 三轮（用户要求）：识图窗左侧文字栏 = 所有提示的统一出口，稍大一号 */
+body.vis .vis-msg{font-size:1.02rem; line-height:1.5}
+/* ★ 2026-09-22 三轮（用户要求）：「查找VCF / 查找VCT」比前瞻键小一号；
+   四轮（用户要求）：点击后（查找中 / 命中未消）变**粉紫色**，与「前瞻」键的浅紫区分 */
+.fwdmini{font-size:.78rem; padding:.22rem .5rem}
+.fwdkey.find-on{background:#e07fdf; border-color:#d06fd0; color:#fff}
+.fwdkey.find-on:hover{background:#d874d8}
+/* ★ 2026-09-22 十二轮（用户要求）：**图片裁剪浮层** —— 盖住识图窗，中间画布显示当前图片，
+   鼠标拖矩形框选要保留的区域（框外压暗）。风格与其它浮层一致（card 底 + 边框 + 阴影）。 */
+#visCrop{display:none}
+body.vis #visCrop:not([hidden]){
+  display:flex; position:fixed; inset:0; z-index:60;
+  background:rgba(0,0,0,.42); align-items:center; justify-content:center;
+}
+.crop-panel{background:var(--card); border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 18px 48px rgba(0,0,0,.35); max-width:97vw; max-height:94vh;
+  display:flex; flex-direction:column; padding:.6rem .7rem; gap:.5rem}
+.crop-head{display:flex; align-items:center; gap:.5rem}
+.crop-head .ttl{font-weight:700; color:var(--ink)}
+.crop-stage{flex:1 1 auto; min-height:0; overflow:auto; display:flex;
+  align-items:center; justify-content:center; background:var(--page, var(--card));
+  border:1px solid var(--border); border-radius:9px; padding:.3rem}
+#cropCanvas{display:block; cursor:crosshair; touch-action:none}
+.crop-acts{display:flex; align-items:center; gap:.45rem}
+.crop-acts .grow{flex:1}
+
+</style>
+<style>
+#hdr,#dockL,#dockR,#openBar,#swapPop,#mirrorPop,#shiftPop,#aiSidePop,#setPop,#drawer,#rvBar,#egBar{display:none !important}
+#boardWrap{min-height:40px}
+body{padding-top:132px}
+</style></head><body data-theme="light">
+<script>
+function R(e){var r=e.getBoundingClientRect();return {x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)};}
+window.addEventListener("load",function(){
+ var f=document.getElementById("boardFoot");
+ var cs=[].map.call(f.children,function(c){return (c.id||c.className)+":"+R(c).x+","+R(c).y+" "+R(c).w+"x"+R(c).h;});
+ var b=document.getElementById("boardBtns");
+ var bs=[].map.call(b.children,function(c){return (c.id||c.className)+":"+R(c).x+","+R(c).y+" "+R(c).w+"x"+R(c).h;});
+ var p=document.getElementById("btn_prev"),q=document.getElementById("btn_reset");
+ var ov=document.createElement("pre");ov.id="GBN";
+ ov.style.cssText="position:fixed;left:2px;top:2px;width:100%;font:11px monospace;background:#fff;color:#000;z-index:9;margin:0;white-space:pre-wrap";
+ ov.textContent="FOOT "+R(f).w+"x"+R(f).h+"\n"+cs.join("\n")+"\nBTNS\n"+bs.join("\n")+"\nprev "+R(p).w+"x"+R(p).h+" fs="+getComputedStyle(p).fontSize+"  reset "+R(q).w+"x"+R(q).h;
+ document.body.appendChild(ov);
+});
+</script>
+<div id="boardCol">
+<div id="boardFoot">
+      <div class="bf-side bf-l">
+        
+        <button id="btn_live" class="btn bfkey">分析计算</button>
+      </div>
+      <div id="boardBtns">
+        
+        <span class="bgroup nav-group">
+          <button id="btn_prev" class="btn ico" title="上一步">‹</button>
+          <button id="btn_next" class="btn ico" title="下一步">›</button>
+        </span>
+        <button id="btn_reset" class="btn">重新开始</button>
+        <button id="btn_pause" class="btn ico" title="点击：AI 辅助落一子 / 暂停 / 自打开关">❚❚</button>
+        <button id="btn_save" class="btn">保存局面</button>
+        <span class="bgroup lay-group">
+          <button id="btn_rot" class="btn ico" title="整体棋子顺时针旋转 90°（坐标轴不动）">↻</button>
+          <button id="btn_mirror" class="btn ico" title="翻转棋子布局">⇄</button>
+          <button id="btn_shift" class="btn ico" title="局面步进（整体平移一格）">✥</button>
+        </span>
+      </div>
+      <div class="bf-side bf-r">
+        
+        <button id="btn_aiside" class="btn bfkey">AI 执子</button>
+        
+        <button id="btn_set" class="btn bfkey">设置</button>
+      </div>
+    </div>
+</div>
+</body></html>

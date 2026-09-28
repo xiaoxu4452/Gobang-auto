@@ -1,0 +1,13 @@
+Rapfi —— Gomoku/Renju playing engine
+Copyright (C) 2022 Rapfi developers
+License: GNU General Public License v3.0 (see COPYING-GPLv3.txt)
+Source:  https://github.com/dhbloo/rapfi  (branch master)
+Weights: https://github.com/dhbloo/rapfi-networks  (mix9svq + classical)
+
+This directory contains a NATIVE (MSVC x64) build of Rapfi, compiled from the
+official source with USE_AVX512/USE_AVX2 + USE_BMI2 + USE_VNNI and MULTI_THREADING.
+Two binaries are shipped and the host picks one at startup by CPUID:
+  RapfiEngine-avx512.exe  requires AVX512F/DQ/BW/VL + AVX512_VNNI
+  RapfiEngine-avx2.exe    requires AVX2 + FMA + BMI2 (safe on any modern x64)
+Build script: tools/build-rapfi-native.sh
+Weights extraction: tools/extract-rapfi-networks.js

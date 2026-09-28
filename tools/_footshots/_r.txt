@@ -1,0 +1,4 @@
+  foot w=476 h=60 | footLine(s)=[bf-side bf-l+boardBtns | bf-side bf-r] | btnsLine(s)=[bgroup nav-group+btn_reset+btn_pause+btn_save+bgroup lay-group] | overlap=0 | clipped=0/0 | rowΔ=31 groupΔ=-77
+  prev=30x28 fs=16.2px pad=3.6px 8.64px  reset=55x21 fs=10.32px pad=1.92px 6px  live=55x21 fs=10.32px pad=1.92px 6px
+  foot w=942 h=37 | footLine(s)=[bf-side bf-l+boardBtns+bf-side bf-r] | btnsLine(s)=[bgroup nav-group+btn_reset+btn_pause+btn_save+bgroup lay-group] | overlap=0 | clipped=0/0 | rowΔ=-16 groupΔ=0
+  prev=33x30 fs=17.739px pad=3.942px 9.4608px  reset=60x23 fs=11.3004px pad=2.1024px 6.57px  live=60x23 fs=11.3004px pad=2.1024px 6.57px

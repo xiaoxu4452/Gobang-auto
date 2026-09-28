@@ -1,0 +1,11 @@
+0 初始 | pins=[engine] vis=setup:0固定 analysis:0固定 engine:1✕ | L=engine R=setup(h)>analysis(h)
+1 设置里开对局设置 | pins=[engine] vis=setup:1固定 analysis:0固定 engine:1✕ | L=engine R=analysis(h)>setup
+2 点它的「固定」 | pins=[engine,setup] vis=setup:1✕ analysis:0固定 engine:1✕ | L=engine R=analysis(h)>setup
+3 设置里开计算评估 | pins=[engine,setup] vis=setup:1✕ analysis:1固定 engine:1✕ | L=engine R=setup>analysis
+4 也固定计算评估（三卡同列） | pins=[analysis,engine,setup] vis=setup:1✕ analysis:1✕ engine:1✕ | L=engine R=setup>analysis
+5 弹窗里关掉已固定的对局设置 | pins=[analysis,engine] vis=setup:0固定 analysis:1✕ engine:1✕ | L=engine R=setup(h)>analysis
+6 再开回来（该卡右上的键是什么？） | pins=[analysis,engine] vis=setup:1固定 analysis:1✕ engine:1✕ | L=engine R=analysis>setup
+7 弹窗里关掉已固定的计算评估 | pins=[engine] vis=setup:1固定 analysis:0固定 engine:1✕ | L=engine R=analysis(h)>setup
+8 再开回来 | pins=[engine] vis=setup:0固定 analysis:1固定 engine:1✕ | L=engine R=setup(h)>analysis
+9 弹窗里关掉引擎仪表盘（默认固定） | pins=[] vis=setup:0固定 analysis:1固定 engine:0固定 | L=engine(h) R=setup(h)>analysis
+10 再开回引擎仪表盘 | pins=[] vis=setup:0固定 analysis:1固定 engine:1固定 | L=engine R=setup(h)>analysis

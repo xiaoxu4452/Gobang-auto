@@ -1,0 +1,39 @@
+== 桌面覆盖层冒烟 ==
+  ✓ exe 体积  580.5 KB（复用系统 WebView2，未打包内核）
+  当前同名实例数：0（测试实例使用独立命名空间，互不干扰）
+  等待上一轮依赖进程退出：15184ms
+  依赖服务起跑前已在运行（引擎=false 识别=true）→ 收尾不回收它们
+  启动 pid=33460，等待依赖服务就绪…
+  ✓ 覆盖层进程存活  pid=33460
+  ✓ 引擎 :8964 已监听
+  ✓ 识别服务 :8971 已监听
+  ✓ 引擎健康接口 /health  200 {"ok":true,"ready":true,"lanes":{"main":true,"sub":true}}
+  ✓ 识别服务可扫屏  {"ok":true,"found":true,"suspect":false,"black":26,"white":26}
+  ✓ 日志记录了 UI 目录  UI dir C:\Users\harve\Desktop\Gobang auto\desktop-overlay\ui  dpi=1.750000
+  ✓ 日志记录了依赖启动  [deps] starting engine backend --as-backend (headless, no browser)
+  ✓ 两扇窗口已建立
+  ✓ WebView2 Runtime 可用  Runtime 153.0.4234.48
+  ✓ 测试实例用独立 WebView2 userData（避免与上一实例抢目录锁）  userData=C:\Users\harve\AppData\Local\GomokuOverlay\WebView2_smoke34892
+  ✓ 面板 UI 真的加载（JS 已运行）  [ui] received page message: {"type":"domReady","ready":"interactive","scripts":2}
+  ✓ 面板启动流程走完（收到 bootStep 13）
+  ✓ 页面就绪后诊断探针已停（未长期空转）  1 次探针
+  ✓ 面板有上报尺寸  9 次
+  ✓ 面板高度已收敛（不再单调缩小）  末尾高度 662 → 662 → 662
+  ✓ 面板高度未塌缩  h=662 hdrH=37
+  ✓ 页面自报 dpr 合法  dpr=1.873
+  ✓ 标题栏拖动区已避让右侧按钮  dragW=100 面板宽=225
+  ✓ 标题栏高度已实测上报  hdrH=37
+  ✓ 标题栏按钮占位已上报给宿主  3 个：88:124,152:174,178:201
+  ✓ 拖动区覆盖标题栏左侧（标题文字处可拖）
+  ✓ 宿主确实下发过窗口几何  1 次
+  ✓ 窗口宽 ≈ 225×dpr（书签版设计宽）  窗口宽 421 期望 421（dpr=1.873）
+  ✓ 窗口高 ≈ 页面实测的内容自然高 nat × dpr（高度向下延伸，不再锁死 0.618 / 610）  窗口高 1238 nat=661 CSS px × dpr 1.873 = 1238
+  ✓ 窗口高不再等于固定设计高（内容短了窗就短，不会留一大块空）  窗口高 1238（610×dpr=1143，内容高 661）
+  ✓ 没有同尺寸重复下发（内容高没变就绝不动窗口）  1 次下发 / 1 种尺寸：421x1238
+  ✓ 末尾下发已对齐收敛后的内容高（窗口不停在启动中间值）  末尾下发 nat=661 vs 末次上报 h=662
+  ✓ 启动期高度没有来回乱跳（不同档位 ≤3）  高度档位：1238
+  ✓ 窗口不再跟随页面 CSS 尺寸（固定尺寸模式）  日志里应有 fixedSize=1
+  ✓ 未做周期性无谓重设（几何只下发少数几次）  1 次下发 vs 9 次上报
+  耗时 27.1s
+--- 31 passed, 0 failed ---
+  已清理覆盖层进程（GB_KEEP_RUNNING=1 可保留）

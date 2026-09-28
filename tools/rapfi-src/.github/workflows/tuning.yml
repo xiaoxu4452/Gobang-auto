@@ -1,0 +1,44 @@
+name: Tune
+
+on:
+  push:
+    branches:
+      - tune
+  pull_request:
+    branches:
+      - tune
+
+jobs:
+  Fishtest:
+    name: linux-avx2
+    runs-on: ubuntu-22.04
+    env:
+      CC: clang
+      CXX: clang++
+    defaults:
+      run:
+        working-directory: Rapfi
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build
+        run: |
+          rm -rf build && mkdir build && cd build
+          cmake .. -DUSE_SSE=ON -DUSE_AVX2=ON -DUSE_AVX512=OFF -DUSE_BMI2=OFF -DUSE_VNNI=OFF -DNO_COMMAND_MODULES=ON
+          cmake --build . -j2 && strip pbrain-rapfi*
+          mv -v pbrain-rapfi rapfi-linux-avx2
+
+      - name: Pre-upload to fishtest
+        if: ${{ !contains(github.event.head_commit.message, 'Revert') }}
+        run: curl http://test.pikafish.org/api/pre_upload -F file=@build/rapfi-linux-avx2 -F file_type=engine -F "password=${{secrets.NOTHING}}"
+
+      - name: Print variables table
+        if: ${{ !contains(github.event.head_commit.message, 'Revert') }}
+        run: printf 'end' | build/rapfi-linux-avx2
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fishtest
+          path: Rapfi/build/rapfi-linux-avx2

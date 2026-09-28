@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>rapfi probe</title></head>
+<body style="font:13px monospace; white-space:pre-wrap" id="out">boot...</body>
+<script src="/ai/rapfi-multi.js"></script>
+<script>
+const out = document.getElementById('out');
+function w(t) { out.textContent += '\n' + t; }
+window.onerror = function (m, s, l) { w('PAGE ERROR: ' + m + ' @' + l); return false; };
+window.addEventListener('unhandledrejection', (e) => w('REJECTION: ' + (e.reason && e.reason.stack || e.reason)));
+
+(async function main() {
+  out.textContent = 'crossOriginIsolated = ' + self.crossOriginIsolated;
+  w('SAB = ' + (typeof SharedArrayBuffer !== 'undefined'));
+  w('Rapfi global = ' + (typeof Rapfi));
+  const t0 = performance.now();
+  const lines = [];
+  const mod = await Rapfi({
+    locateFile: (f) => '/ai/' + f,
+    onReceiveStdout: (s) => { lines.push('[' + Math.round(performance.now() - t0) + '] ' + s); console.log('OUT', s); },
+    onReceiveStderr: (s) => { lines.push('[err] ' + s); console.log('ERR', s); },
+    onExit: (c) => w('onExit ' + c),
+    setStatus: () => {},
+  });
+  w('Rapfi ready in ' + Math.round(performance.now() - t0) + 'ms, sendCommand=' + (typeof mod.sendCommand));
+  mod.sendCommand('START 15');
+  // 引擎服务端经验：多线程版要等 pthread worker 派生完再下发配置（1.5s）
+  await new Promise((r) => setTimeout(r, 1500));
+  ['INFO THREAD_NUM 4','INFO CAUTION_FACTOR 3','INFO STRENGTH 100','INFO SHOW_DETAIL 3',
+   'INFO PONDERING 0','INFO SWAPABLE 0','INFO HASH_SIZE 256','INFO RULE 0',
+   'INFO TIMEOUT_TURN 2000','INFO TIMEOUT_MATCH 600000','INFO TIME_LEFT 600000'
+  ].forEach((c) => { console.log('CMD', c); mod.sendCommand(c); });
+  w('config sent @' + Math.round(performance.now() - t0));
+  mod.sendCommand('YXBOARD DONE');
+  mod.sendCommand('YXNBEST 3');
+
+  const deadline = Date.now() + 45000;
+  await new Promise((resolve) => {
+    const t = setInterval(() => {
+      if (lines.join('\n').match(/\bbest\s+\d+\s+\d+/) || Date.now() > deadline) { clearInterval(t); resolve(); }
+    }, 100);
+  });
+  const dur = Math.round(performance.now() - t0);
+  const all = lines.join('\n');
+  const mbest = all.match(/\bbest\s+(\d+)\s+(\d+)/);
+  w('---- done in ' + dur + 'ms ----');
+  w('best = ' + (mbest ? mbest[1] + ',' + mbest[2] : 'NONE'));
+  w('MESSAGE lines = ' + (all.match(/MESSAGE/g) || []).length);
+  w('total output lines = ' + lines.length);
+  w('---- last 12 lines ----');
+  lines.slice(-12).forEach(w);
+  window.PROBE_DONE = { ok: !!mbest, dur: dur, best: mbest ? mbest[1] + ',' + mbest[2] : null, n: lines.length, tail: lines.slice(-8).join(' | ') };
+})();
+</script>
+</html>

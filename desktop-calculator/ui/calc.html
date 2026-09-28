@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>五子棋练习器 · Gomoku Trainer</title>
+<link rel="stylesheet" href="calc.css">
+</head>
+<body data-theme="light">
+
+<!-- ★ 2026-09-19（用户要求）：「不管是复盘界面，还是五子棋练习器，启动时要瞬间显示窗口，
+     如果还是黑屏，在黑屏上显示：加载中…」。
+     这段**内联**脚本必须排在任何内容之前：它把上一次持久化的「深浅主题 / 语言」先写回
+     body[data-theme] 与 html[lang] —— 于是**首帧**就是对的底色与语言（不会先白闪一下再变深）。
+     （宿主那边还有一层原生遮罩：窗口一出来就铺这个底色 + 居中「加载中…」，见 host.cpp
+      的 PaintSplash；页面这一层是它「报到之前/之后」的补充。） -->
+<script>
+(function () {
+  var th = 'light', lg = 'zh', st = null;
+  try {
+    st = JSON.parse(localStorage.getItem('gbcalc.settings.v1') || '{}') || {};
+    if (st.theme === 'dark') th = 'dark';
+    if (st.lang === 'en') lg = 'en';
+  } catch (e) {}
+  document.body.setAttribute('data-theme', th);
+  document.documentElement.lang = lg;
+  // ★ 2026-09-20（用户要求）：自定义的棋盘 / 页面底色也要**首帧**就落上。
+  //   上一轮 calc.js 已经把「他挑的那个颜色 → 一整套 CSS 变量」算好存进 S.cssVars，
+  //   这里**原样回放**即可（不必在这里再写一遍颜色数学），于是不会先闪一下默认护眼黄。
+  if (st && st.cssVars) {
+    try { for (var k in st.cssVars) document.body.style.setProperty(k, st.cssVars[k]); } catch (e2) {}
+  }
+  window.__bootInfo = { theme: th, lang: lg };
+  // 复盘窗（?rv=1）/ 识图窗（?vis=1）的遮罩文字换成它们自己的英文名（见下面 #boot 后那行内联脚本）
+  window.__isRv = /(?:\?|&)rv=1/.test(location.search);
+  window.__isVis = /(?:\?|&)vis=1/.test(location.search);
+})();
+</script>
+
+<!-- 启动遮罩（纯静态：比 calc.js 还早存在）。
+     ★ 2026-09-19（用户定稿）：这里就一行**软件英文名** —— 首字母大写、斜体、稍粗、
+       字号比正文大、灰蓝色（--boot-fg）。不加动画、不写「加载中…」。
+       宿主那边用 GDI 画的是同一行字（host.cpp 的 PaintSplash），两边必须一眼是同一个东西；
+       boot() / bootReview() 干完活由 bootDone() 把它淡出移除。
+       字体走 --font（思源黑体优先，SIL OFL 可商用）。 -->
+<div id="boot" class="boot"><span class="brand"><i>Meter</i> Gomoku Trainer</span></div>
+<script>
+/* 复盘窗（?rv=1）/ 识图窗（?vis=1）加载时遮罩上的名字与窗口标题各自换掉
+   （样式同款：斜体/加粗/灰蓝）。 */
+(function () {
+  if (window.__isRv) {
+    var b = document.querySelector('#boot .brand');
+    if (b) b.textContent = 'Gomoku Review';
+    document.title = '复盘 · Gomoku Review';
+  }
+  if (window.__isVis) {
+    var v = document.querySelector('#boot .brand');
+    if (v) v.textContent = 'Gomoku Vision';
+    document.title = '识图 · Gomoku Vision';
+  }
+})();
+</script>
+
+<header id="hdr">
+  <div class="brand">
+    <span id="t_title">五子棋练习器</span>
+  </div>
+  <div class="hdr-actions">
+    <!-- ★ 2026-09-21（用户要求）：「识图」键在「复盘」键的**左边** ——
+         点击打开独立的识图窗口（宿主 GbCalcVis，calc.html?vis=1），
+         把截图 / 图片里的棋盘识别出来，可存入历史或发回练习窗口接着下。 -->
+    <button id="btn_vis" class="btn">识图</button>
+    <button id="btn_review" class="btn">复盘</button>
+    <!-- ★ 2026-09-27（用户要求）：顶栏「卡片」键整颗取消 —— 面板显隐统一收进
+         棋盘下方右侧的「设置」弹窗（#setPop，见 boardFoot 之后），
+         卡片右上角另有「固定 / ✕」小键管堆叠与关闭。 -->
+    <button id="btn_history" class="btn">历史</button>
+    <button id="btn_about" class="btn" data-tip="aboutTip">关于</button>
+    <button id="btn_lang" class="btn ghost">EN</button>
+    <!-- ★ 2026-09-20（用户要求）：「把之前的深色改成颜色，点击颜色后会有一个弹窗，里面有深色和
+         浅色主题这两个按键，还有一个调色盘……以及 RGB 输入框、滑动条，还有 RGB 代码输入框，
+         选择棋盘的颜色以及背景的颜色进行自定义调色并持久化」。
+         ⇒ 原来是「深色 / 浅色」两态切换键（id=btn_theme），现在变成**打开调色窗**的入口（id=btn_color）。
+         深浅主题键搬进弹窗里（#cp_theme），顺手把「棋盘色 / 页面底色」也做成可调 + 可持久化。 -->
+    <button id="btn_color" class="btn ghost">颜色</button>
+  </div>
+</header>
+
+<main id="stage">
+
+  <!-- 左侧停靠栏：初始为空，用户把板块拖过来 / 点卡片标题栏的 ◀ 才会出现 -->
+  <div id="dockL" class="dock" data-dock="L"></div>
+
+  <!-- ★ 2026-09-21 识图窗口（独立窗口，页面带 ?vis=1）左侧面板：
+       初始只有居中的两颗大键（上传图片 / 屏幕截图）；
+       选图之后左边是「翻页 + 预览」，下面是 识别 / 保存到历史 / 加载到练习，
+       棋盘在右侧（#boardCol）显示识别结果。主窗口永不显示它（默认 hidden）。 -->
+  <aside id="visPane" hidden>
+    <div class="vis-view" id="visView">
+      <div class="vis-imgbar">
+        <button id="btn_vis_upload" class="btn">上传图片</button>
+        <button id="btn_vis_shot" class="btn">屏幕截图</button>
+        <!-- ★ 2026-09-22 十二轮（用户要求）：「屏幕截图」右边这块空档放「裁剪」键 ——
+             点开一个图片浮层，鼠标拖矩形框选要保留的区域，点「确定」把当前这张就地裁掉。 -->
+        <button id="btn_vis_crop" class="btn">裁剪</button>
+        <!-- ★ 2026-09-22 五轮（用户要求）：「自动吸附」键整个删掉 —— 吸附不是问题：
+             吸附重试只在核心结果不可信时才走，且裁剪时按宿主选框同款口径外扩
+             （棋盘平均边长 / 30），细节保得住，不用再让用户操心开关 -->
+        <!-- ★ 2026-09-25（用户要求）：翻页组（< n/m >）紧跟「裁剪」往**左靠** ——
+             原来中间隔一段弹性空档（.grow），英文模式三个长键把它挤到放不下，
+             「>」被顶到第二行；去掉空档后整组左移，一行必放得下 -->
+        <button id="btn_vis_prev" class="btn sq">&lt;</button>
+        <!-- ★ 2026-09-21（用户要求）：「点击这个展示当前数字的胶囊形形状，可以在左边添加一个抽屉」
+             —— 胶囊从 span 改成**可点的 button**（CSS 里稍放大一圈 + 小箭头提示），
+             点它弹出左边的图片抽屉 #visDrawer（选一张 / 移除），再点收起 -->
+        <button id="visPos" class="pill vis-pill">0 / 0</button>
+        <button id="btn_vis_next" class="btn sq">&gt;</button>
+      </div>
+      <!-- ★ 输入框（用户定稿 2026-09-21）：白框 = 局面代码输入（闪烁光标 + 空态提示）
+           与图片预览二合一；✕ 单个移除当前张；高度 ≈ 半个棋盘（JS 随棋盘尺寸设定） -->
+      <div class="vis-box" id="visBox">
+        <img id="visImg" alt="" hidden>
+        <!-- ★ wrap="soft"（2026-09-21 用户：粘贴的代码长度超过框就**直接换行**，不要横向滚） -->
+        <textarea id="visInput" spellcheck="false" wrap="soft"></textarea>
+        <button id="btn_vis_del" class="btn sq vis-del" title="移除当前张" hidden>✕</button>
+      </div>
+      <div class="vis-acts">
+        <button id="btn_vis_rec" class="btn accent">识别</button>
+        <button id="btn_vis_save" class="btn">保存到历史</button>
+        <button id="btn_vis_load" class="btn">加载到练习</button>
+        <!-- ★ 2026-09-22 九轮（用户要求）：「VC 模式」= 算杀题模式：放行黑白子数不统一盘面，
+             加载到练习后自动 VCF/VCT 模拟推演（与前瞻同款展示） -->
+        <button id="btn_vis_vc" class="btn" title="算杀题模式：黑白子数不统一也可保存/加载，加载后自动 VCF/VCT 模拟">VC 模式</button>
+        <!-- ★ 2026-09-22（用户要求）：「修改」= 机器识别偶尔不准，人工微调识别结果 -->
+        <button id="btn_vis_edit" class="btn">修改</button>
+      </div>
+      <!-- ★ 2026-09-22 五轮（用户要求）：识别的**棋盘代码框** —— 放在功能键与提示文字之间，
+           识别 / 修改落定后自动同步（与主窗「局面代码」同格式，可复制去别处复用） -->
+      <div class="vis-codebar" id="visCodeBar" hidden>
+        <span class="hint vcl" id="t_visCode">棋盘代码</span>
+        <textarea id="visCode" spellcheck="false" wrap="soft" readonly></textarea>
+        <button id="btn_vis_codecopy" class="btn vd-mini">复制</button>
+      </div>
+      <div class="vis-msg hint" id="visMsg"></div>
+    </div>
+
+    <!-- ★ 2026-09-22 十二轮（用户要求）：**图片裁剪浮层** —— 盖住识图窗，中间一张画布显示当前图片，
+         鼠标拖矩形框选保留区域（框外压暗），点「确定」把当前这张图就地替换成框内内容。
+         Esc / 点遮罩 = 取消，与其它浮层同一套交互语言。 -->
+    <div id="visCrop" class="crop-mask" hidden>
+      <div class="crop-panel" id="cropPanel">
+        <div class="crop-head">
+          <span class="ttl" id="t_visCropTitle">裁剪图片</span>
+          <span class="hint" id="t_visCropHint">拖动鼠标框选要保留的区域</span>
+          <span class="grow"></span>
+          <span class="hint" id="t_visCropSize"></span>
+        </div>
+        <div class="crop-stage" id="cropStage">
+          <canvas id="cropCanvas"></canvas>
+        </div>
+        <div class="crop-acts">
+          <button id="btn_crop_reset" class="btn">重置</button>
+          <span class="grow"></span>
+          <button id="btn_crop_cancel" class="btn">取消</button>
+          <button id="btn_crop_ok" class="btn accent">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ★ 2026-09-21（用户要求）：左下角**水印** —— 融进背景、整窗最底层的装饰字：
+         「Meter」天蓝 +「Gomoku Vision」灰蓝，斜体、稍粗、半透明（样式见 calc.css #visMark；
+         只在识图窗 body.vis 里显示，主窗 / 复盘窗一律没有）。 -->
+    <div id="visMark" aria-hidden="true"><i>Meter</i><span>Gomoku Vision</span></div>
+  </aside>
+
+  <!-- ★ 2026-09-21（用户要求）：点「n / m」胶囊弹出的**左侧图片抽屉** ——
+       用户上传的全部条目（图片缩略图 / 代码条），每张右上角 ✕ 移除，点缩略图选中它。
+       与右侧历史抽屉 #drawer 同款交互语言（fixed 左栏 + 阴影 + 列表滚动）。 -->
+  <aside id="visDrawer" hidden>
+    <div class="vd-head">
+      <span class="ttl" id="t_visDrawer">图片</span>
+      <span class="hint" id="vdCount">0</span>
+      <span class="grow"></span>
+      <!-- ★ 2026-09-22（用户要求）：抽屉顶部三个小按键 —— 选择（开关多选模式）、
+           全选、删除（删掉勾选的图；支持 Ctrl 点选 / Shift 范围选 / Ctrl+A） -->
+      <button id="btn_vd_sel" class="btn vd-mini">选择</button>
+      <button id="btn_vd_all" class="btn vd-mini">全选</button>
+      <button id="btn_vd_del" class="btn vd-mini danger">删除</button>
+      <button id="btn_vd_close" class="btn sq" data-tip="visDrawerClose">✕</button>
+    </div>
+    <div id="vdList" class="vd-list"></div>
+    <div class="vd-tip hint" id="t_vdTip">点缩略图选中 · ✕ 移除 · 点空白上传</div>
+  </aside>
+
+  <section id="boardCol">
+    <div id="boardWrap"><canvas id="board"></canvas></div>
+
+    <!-- ★ 2026-09-22（用户要求）：识图窗「修改」模式的棋盘下方功能条 ——
+         四轮改版：**两行** —— 第一行 交换 / 删除 / 补充黑子 / 补充白子，
+         第二行「添加黑白子（确定成对）+ 黑子开始 / 白子开始」单独占一行；
+         提示文字统一走左侧文字栏（#visMsg）；补充键不再默认涂蓝，
+         由 JS 按「哪边缺子」动态点亮可用的那个（缺谁亮谁，齐平时禁另一边）。
+         右键点棋盘也会弹出同样的功能菜单。只在识图窗修改模式下显示。 -->
+    <div id="visEditBar" hidden>
+      <!-- ★ 2026-09-22 七轮（用户要求）：五个功能键并成**一行**；「添加黑白子」点一下变
+           **浅蓝色**，右边弹出小矩形框（黑子开始 / 白子开始 两个小键）；再点一下颜色消失、
+           小框收起。「撤销」= 回退上一步编辑落定（Ctrl+Z 同效）。 -->
+      <div class="ve-row">
+        <button id="btn_ve_swap" class="btn">交换黑白子</button>
+        <button id="btn_ve_del" class="btn">删除棋子</button>
+        <button id="btn_ve_fillb" class="btn">补充黑子</button>
+        <button id="btn_ve_fillw" class="btn">补充白子</button>
+        <button id="btn_ve_add" class="btn">添加黑白子</button>
+        <span id="veAddKeys" class="ve-pop" hidden>
+          <button id="btn_ve_addb" class="btn">黑子开始</button>
+          <button id="btn_ve_addw" class="btn">白子开始</button>
+        </span>
+        <button id="btn_ve_undo" class="btn">撤销</button>
+      </div>
+    </div>
+
+    <!-- 棋盘底栏 = **一行居中的对局按键**（用户要求）。
+         ★ 2026-09-19：状态提示（「轮到我方」/「AI 思考中…」）从这一行的**最左**搬到了
+           「引擎仪表盘」卡片的**下面**（见下面 engine 卡里的 #turnPillRow）；
+           复盘相关的按键（背诵/回顾/背错/重来/关闭）整组搬进了**独立的复盘窗口**
+           （见本文件底部 #rvBar），主窗口里不再有任何复盘按键。
+         对局按键里暂停图标键是正中间一个，随状态在 ▶ / ❚❚ 之间切换：
+         AI 计算中 = ❚❚（点它暂停），暂停/空闲 = ▶。
+         ★★ 2026-09-25（用户要求）：这颗正中键同时是 **AI 自打的开关键** ——
+           「AI 执黑 + AI 执白」两个开关都选中后，它就等价于播放器的播放/暂停：
+           ❚❚ = 正在自动对弈（点一下停手）、▶ = 已停手（点一下继续）；
+           「自由摆盘 / 残局」是摆盘用的，任何情况下都不自动落子（此时该键禁用）。 -->
+    <!-- ★ 2026-09-27（用户要求）：底栏改为**左 / 中 / 右**三段 ——
+         左段「分析计算」（持续落点评估开关键）、中段原有对局按键（全部缩小一档）、
+         右段「AI 执子」+「设置」两颗新键。 -->
+    <div id="boardFoot">
+      <div class="bf-side bf-l">
+        <!-- 「分析计算」开关键：点击持续分析落点 —— 最佳点青色胶囊+边框、
+             其余青→红四色渐变（越差越红、填充越浅）；再点变「停止分析」清掉所有评估标记 -->
+        <button id="btn_live" class="btn bfkey">分析计算</button>
+      </div>
+      <div id="boardBtns">
+        <!-- ★ 2026-09-25（用户要求）：‹ › 放大（gomocalc 风格）；↻/⇄/✥ 三颗布局键。
+             ★ 二轮澄清：变换的是**棋子布局**（棋盘线、字母数字坐标轴不动），不再是画面矩阵。
+             ★ 三轮：‹ ›（导航组）与 ↻/⇄/✥（布局组）各框一组（虚线框），
+               并与「重新开始」「保存局面」拉开间距（.bgroup 的 margin）。
+             ★ 四轮（用户要求）：浅蓝/浅紫背景涂色取消，虚线框恢复中性描边色。 -->
+        <span class="bgroup nav-group">
+          <button id="btn_prev" class="btn ico" title="上一步">‹</button>
+          <button id="btn_next" class="btn ico" title="下一步">›</button>
+        </span>
+        <button id="btn_reset" class="btn">重新开始</button>
+        <button id="btn_pause" class="btn ico" title="点击：AI 辅助落一子 / 暂停 / 自打开关">❚❚</button>
+        <button id="btn_save" class="btn">保存局面</button>
+        <span class="bgroup lay-group">
+          <button id="btn_rot" class="btn ico" title="整体棋子顺时针旋转 90°（坐标轴不动）">↻</button>
+          <button id="btn_mirror" class="btn ico" title="翻转棋子布局">⇄</button>
+          <button id="btn_shift" class="btn ico" title="局面步进（整体平移一格）">✥</button>
+        </span>
+      </div>
+      <div class="bf-side bf-r">
+        <!-- ★ 2026-09-27（用户要求）：「AI 执子」键 —— 点击在棋盘最下面弹出横向小弹窗
+             （#aiSidePop）：AI 执黑 / AI 执白 / 思考时间+数字框 / ✕，前三个键套虚线框 -->
+        <button id="btn_aiside" class="btn bfkey">AI 执子</button>
+        <!-- ★ 2026-09-27（用户要求）：「设置」键 —— 点击弹出三键小弹窗（#setPop）：
+             对局设置 / 计算评估 / 引擎仪表盘（引擎仪表盘默认显示） -->
+        <button id="btn_set" class="btn bfkey">设置</button>
+      </div>
+    </div>
+    <!-- ★ 2026-09-25（用户要求）：⇄ 键弹出的**翻转棋子布局小弹窗** —— 四颗简化键排一行 +
+         ✕ 关闭键；点一下立即对**棋子布局**生效（棋盘线/坐标轴不动）；点弹窗外也关闭。 -->
+    <div id="mirrorPop" hidden>
+      <span class="sp-ttl" id="t_mirrorTtl">翻转棋子布局</span>
+      <span class="sp-btns">
+        <button id="btn_mv_fv" class="btn" title="左右翻转">左右</button>
+        <button id="btn_mv_fh" class="btn" title="上下翻转">上下</button>
+        <button id="btn_mv_d1" class="btn" title="对角翻转（左上↔右下）">╲</button>
+        <button id="btn_mv_d2" class="btn" title="对角翻转（右上↔左下）">╱</button>
+        <button id="btn_mv_close" class="btn ico" title="关闭">✕</button>
+      </span>
+    </div>
+    <!-- ★ 2026-09-25（用户要求）：✥ 键（四箭头十字）弹出的**局面步进小弹窗** ——
+         四个方向键各把整体棋子向该方向平移一格（有子会出盘则整体不动并提示）+ ✕ 关闭键。 -->
+    <div id="shiftPop" hidden>
+      <span class="sp-ttl" id="t_shiftTtl">局面平移</span>
+      <span class="sp-btns">
+        <button id="btn_mv_left" class="btn ico" title="整体向左平移一格">←</button>
+        <button id="btn_mv_up" class="btn ico" title="整体向上平移一格">↑</button>
+        <button id="btn_mv_down" class="btn ico" title="整体向下平移一格">↓</button>
+        <button id="btn_mv_right" class="btn ico" title="整体向右平移一格">→</button>
+        <button id="btn_shift_close" class="btn ico" title="关闭">✕</button>
+      </span>
+    </div>
+    <!-- 十打键挪到开局引导行：它与开局流程同生共死，也就不破坏上面那一行的居中 -->
+    <div id="openBar" hidden><span class="hint" id="openHint"></span>
+      <button id="btn_ten" class="btn" hidden>十打（叫 10 个候选点）</button></div>
+
+    <!-- ★ 2026-09-23（用户要求）：「残局」模式（对局设置 · 模式第三项）专属摆盘行 ——
+         棋盘下方中央两颗键：「顺序摆盘」= 黑白轮流落子；「任意摆盘」= 右边弹出**圆角小框**
+         （黑子 / 白子 两颗小键），点选某一色后可在棋盘上**连续摆放该色**——
+         不限数量、不限顺序（比如 30 黑 + 10 白）。只在残局模式下显示（hidden 默认）。 -->
+    <div id="egBar" hidden>
+      <!-- ★ 十六轮（用户要求）：最左边加「确定」——点了就把当前盘面定成这个残局：
+           「重新开始」回到这个局面，存进历史时它也是首帧；再点一次（此时显示「已确定」）解除。 -->
+      <button id="btn_eg_ok" class="btn">确定</button>
+      <button id="btn_eg_seq" class="btn">顺序摆盘</button>
+      <button id="btn_eg_free" class="btn">任意摆盘</button>
+      <span id="egKeys" hidden>
+        <button id="btn_eg_b" class="btn">黑子</button>
+        <button id="btn_eg_w" class="btn">白子</button>
+      </span>
+    </div>
+
+    <!-- ★ 2026-09-19（用户要求）：交换类规则（一手交换 / 山口 / 塔拉山口）交换完成后，
+         棋盘下方弹出的精致小弹窗 —— 让用户亲自选先手（执黑）还是后手（执白）。
+         选定后 AI 自动执另一色并立刻开始计算（chooseSwapSide → maybeAi）。 -->
+    <div id="swapPop" class="swappop" hidden>
+      <span class="sp-ttl" id="t_swapTtl">交换完成 · 请选择你的先后手</span>
+      <span class="sp-btns">
+        <button id="btn_swap_first" class="btn">先手 · 执黑</button>
+        <button id="btn_swap_second" class="btn">后手 · 执白</button>
+      </span>
+    </div>
+
+    <!-- ★ 2026-09-27（用户要求）：「AI 执子」小弹窗 —— 横向一排、无提示文字：
+         AI 执黑 / AI 执白 / 思考时间+数字框 / ✕ 关闭；前三个键各套虚线框
+         （内容 = 对局设置里那几样的副本，接线共用 aiSideToggle / setTurn）。 -->
+    <div id="aiSidePop" hidden>
+      <span class="ai-grp">
+        <!-- ★ 2026-09-28（用户要求）：这两颗必须带 **data-ai** —— 配色规则是
+             #aiSidePop .tglbtn[data-ai="b"].on{background:var(--side-b-bg)}（浅紫）/ [data-ai="w"]（浅蓝）。
+             原来漏了 data-ai，选择器永远匹配不到 → 落回 .tglbtn.on .tgl{background:var(--accent)} 的
+             默认蓝色轨道（用户截图：AI 执黑亮起来是蓝的，跟对局设置里的浅紫对不上）。 -->
+        <button id="ai_side_b" data-ai="b" class="tglbtn"><span class="tgl"><i></i></span><span class="tgl-txt">AI 执黑</span></button>
+        <button id="ai_side_w" data-ai="w" class="tglbtn"><span class="tgl"><i></i></span><span class="tgl-txt">AI 执白</span></button>
+      </span>
+      <span class="ai-grp">
+        <span class="ai-turn" id="t_aiTurn">思考时间</span>
+        <span class="numbox ainum">
+          <input id="num_turn2" type="number" min="0.2" max="300" step="0.1" value="2">
+          <span class="unit">s</span>
+        </span>
+      </span>
+      <button id="btn_ai_close" class="btn ico" title="关闭">✕</button>
+    </div>
+
+    <!-- ★ 2026-09-27（用户要求）：「设置」小弹窗 —— 三键：引擎仪表盘 / 对局设置 / 计算评估
+         （引擎仪表盘默认显示，且放最左边）。点键开/关对应卡片；卡片右上角只有一颗「✕」关闭键。
+         ★ 2026-09-28：引擎仪表盘置首（最左）；卡片去掉「固定」，只留关闭键。 -->
+    <div id="setPop" hidden>
+      <button data-card="engine" class="btn">引擎仪表盘</button>
+      <button data-card="setup" class="btn">对局设置</button>
+      <button data-card="analysis" class="btn">计算评估</button>
+    </div>
+
+    <!-- 复盘窗口（独立窗口，页面带 ?rv=1）才显示的一行 —— 「只有棋盘 + 几个复盘功能键」。
+         主窗口里 #rvBar 的 display 永远是 none，里面的键在 DOM 里但不可见也不参与交互。
+         ★ 复盘窗按键分两类（用户要求）：
+           · **常驻**：重来 / 保存局面 / 历史 / 关闭 —— 纯空盘时也只有这几个；
+           · **选中历史后才出现**（#rvGroup 内）：背诵复盘 / 回顾复盘 / 背错 N / ◀ n/m ▶。
+         只点顶栏「复盘」进来时中间是空的（纯空棋盘，用户自行落子）；
+         「历史」键是**复盘窗内**取一局的路子（点一条历史 → 那一局进这个窗口，
+         背诵 / 回顾随即出现）——用户原话：「打开复盘这个独立窗口，再选择历史，
+         背诵复盘、回顾复盘这几个按键又会重新出现」。 -->
+    <div id="rvBar" hidden>
+      <span id="rvGroup" hidden>
+        <button id="btn_recite" class="btn">背诵复盘</button>
+        <button id="btn_replay" class="btn">回顾复盘</button>
+        <span id="rvMiss" class="missbox">背错 0</span>
+        <button id="btn_rv_prev" class="btn sq" hidden>◀</button>
+        <span class="pill" id="rvPos" hidden>0 / 0</span>
+        <button id="btn_rv_next" class="btn sq" hidden>▶</button>
+        <!-- ★ 播放/暂停 + 单步速度（用户要求 2026-09-19）：回顾复盘点「播放」就按所选
+             间隔（0.5~5 秒）自动一手手走，方向键 ←/→ 也能逐子操控。
+             只在「回顾复盘」里出现（背诵复盘要凭记忆落子，自动播放没有意义）。 -->
+        <button id="btn_rv_play" class="btn sq" hidden>播放</button>
+        <select id="rvSpeed" hidden title="单步间隔 0.5~5 秒">
+          <option value="0.5">0.5s</option>
+          <option value="1">1s</option>
+          <option value="1.5">1.5s</option>
+          <option value="2">2s</option>
+          <option value="3">3s</option>
+          <option value="4">4s</option>
+          <option value="5">5s</option>
+        </select>
+        <button id="btn_rv_exit" class="btn" hidden>退出</button>
+      </span>
+      <!-- ★ 2026-09-25（用户要求）：复盘窗新增「序号」功能键 —— 点开后棋盘上的每颗子
+           标出它是第几手（主窗口对局设置里那颗「显示序号」刻意不在复盘窗生效，
+           因为「背诵复盘」时序号等于把答案印在盘上；这里单独给一颗键由用户自己决定）。
+           配套键盘：Ctrl+Z = 上一手，Ctrl+R = 重来（回到开局第 0 手）。 -->
+      <button id="btn_rv_num" class="btn">序号</button>
+      <button id="btn_redo_rv" class="btn">重来</button>
+      <button id="btn_save_rv" class="btn">保存局面</button>
+      <button id="btn_rv_hist" class="btn">历史</button>
+      <!-- ★ 十八轮（用户要求）：复盘窗的「关闭」键删除 —— 右上角系统关窗按钮就够，这颗是冗余 -->
+    </div>
+  </section>
+
+  <!-- 右侧停靠栏：所有仪表盘初始都在这里（用户要求「初始时各种信息板块都是靠右边的」） -->
+  <div id="dockR" class="dock" data-dock="R">
+
+    <!-- ★ 2026-09-20（用户要求）：「在棋盘的右面添加一个卡片这个功能键，点击之后会有几个选项，
+         分别是显示的窗口：引擎仪表盘，评估曲线，计算评估」。
+         ⇒ 停靠栏最上面这条**常驻**功能条：点「卡片」弹出一张显隐菜单，勾选决定哪几块面板
+         显示在棋盘右边。默认只显示「对局设置 + 计算评估」（见 calc.js 的 DEFAULT_CARDS）。
+         它自己不是 .card（不参与拖动排序），但一样让停靠栏「有内容」——
+         syncDocks 认它，卡片全关掉时栏不会塌成 0 宽、这个键也不会跟着消失。 -->
+    <section class="card" data-id="setup">
+      <div class="card-h">
+        <span class="ttl" id="t_setup">对局设置</span>
+        <span class="grow"></span>
+        <!-- 只留一个小横杠：**点它把这张卡片折叠**成一条长条圆角矩形（再点展开），
+             同时它仍是「这块能拖」的提示 —— 按住标题栏拖动就能换栏 / 调序，
+             横杠自己不参与拖动（onCardDown 里排除 .dash），所以单击只折叠、不会误拖。
+             ★ 2026-09-27：横杠左边加「固定 / ✕」小键（与引擎仪表盘卡同款）。 -->
+        <span class="dash" data-tip="dragCard" title="点击折叠 / 展开；按住标题栏拖动换位"></span>
+        <button class="pinkey" data-pin="setup" title="关闭卡片">✕</button>
+      </div>
+      <div class="card-b">
+        <!-- ★ 三十二轮（用户要求）：「模式」标题**独占一行**，三个按键**另起一行**，
+             两块（模式 / AI 执子）各自套一个**虚线框** —— 横向空间不再被标题吃掉，
+             窄窗口下「对弈 / 摆盘 / 残局」「AI 执黑 / AI 执白」的文字也能完整显示。
+             ⇒ .grp = 虚线框；里面的 .row.head 走 column（label 一行、按键一行）。 -->
+        <div class="grp" id="modeGrp">
+          <div class="row head"><label id="t_mode">模式</label>
+            <!-- ★ 2026-09-23（用户要求）：模式第三项「残局」—— 棋盘下方出现摆盘键
+                 （顺序摆盘 = 黑白轮流；任意摆盘 = 弹圆角小框选色连摆），见 #egBar -->
+            <div class="seg s3" id="seg_mode">
+              <button data-mode="pve" class="on">对弈</button>
+              <button data-mode="place">摆盘</button>
+              <button data-mode="endgame">残局</button>
+            </div>
+          </div>
+        </div>
+        <!-- ★★ 2026-09-24（用户要求）：「先后手」二选一 → **两个独立的开关**「AI 执黑 / AI 执白」。
+             语义：
+               · 只开 AI 执黑 → 你执白（AI 开第一手）；
+               · 只开 AI 执白 → 你执黑（你开第一手）；
+               · 两个都开   → **AI 与 AI 自打**（你只旁观，棋盘点击无效）；
+               · 两个都关   → 没有 AI，你自己把黑白双方都下了。
+             兼容：旧存档里的 S.side 会在 calc.js 的 restoreSettings 里迁移成这两个开关
+             （黑先 = 我执黑 = AI 执白；白先 = 我执白 = AI 执黑）。
+             ⚠ id 仍是 seg_side（S.side 的持久化 / 测试 / 主题都挂在它上面，换 id 没必要）。 -->
+        <div class="grp" id="sideGrp">
+          <div class="row head"><label id="t_side">AI 执子</label>
+            <!-- ★ 三十轮（用户要求）：两个开关都改成**拨动式开关**（胶囊轨道 + 滑块），
+                 class="tglbtn" + 轨道 <span class="tgl"><i></i></span>，.on 态由 syncSideUI 照旧维护。
+                 ★ 三十二轮（用户要求）：打开时**整颗键染色** —— AI 执黑 = 浅紫、AI 执白 = 浅蓝
+                 （见 calc.css 的 #seg_side .tglbtn[data-ai].on）。 -->
+            <div class="seg s2" id="seg_side">
+              <button data-ai="b" class="tglbtn"><span class="tgl"><i></i></span><span class="tgl-txt">AI 执黑</span></button>
+              <button data-ai="w" class="tglbtn"><span class="tgl"><i></i></span><span class="tgl-txt">AI 执白</span></button>
+            </div>
+          </div>
+          <div class="row"><span class="hint" id="sideHint"></span></div>
+        </div>
+        <!-- 难度三键已取消（用户要求：有思考时间就够了）。思考时间与数字框**同一行**。
+             ★ 2026-09-19（用户要求）：「思考时间这个数字输入框应该与人机，还有黑和先手这个功能键对齐」。
+               对齐的做法是把「输入框 + ms 单位」包进 .field（flex:1，与 .seg 同位同宽），
+               ms 变成**框内的后缀**（绝对定位）—— 这样输入框本身就吃满整列，
+               左边缘 / 右边缘都和「人机 / 黑（先手）」那两个分段键严丝合缝。 -->
+        <!-- ★ 2026-09-19（用户要求）：思考时间原来填的是**毫秒**，现在改成**秒**
+             （0.2 ~ 300，最多三位小数）。内部仍按毫秒算（引擎 /api/analyze 就是收 ms），
+             只是这个框的显示与输入换成秒 —— 换算在 calc.js 的 setTurn()。
+             框本身**只占这一列的一半宽**（用户要求）；.field 仍撑满整列（保住与
+             「人机 / 黑（先手）」那一行的列对齐），.numbox 才是那半列，s 是框内后缀。 -->
+        <div class="row" id="turnRow"><label id="t_turn">思考时间</label>
+          <span class="field">
+            <span class="numbox">
+              <input id="num_turn" type="number" min="0.2" max="300" step="0.1" value="2">
+              <span class="unit">s</span>
+            </span>
+          </span>
+        </div>
+        <div class="row"><label id="t_rule">规则</label>
+          <select id="sel_rule">
+            <option value="0">无禁手</option>
+            <option value="1">无禁手 · 长连不赢</option>
+            <option value="2">连珠（有禁手）</option>
+            <option value="6">山口规则（Yamaguchi）</option>
+            <option value="7">塔拉山口规则（Taraguchi）</option>
+            <option value="5">一手交换</option>
+          </select>
+        </div>
+        <div class="row"><span class="hint" id="ruleHint"></span></div>
+        <!-- 核心数与哈希表**各占一行**：标签跟「模式 / 规则」一样靠左对齐，
+             下拉只按内容宽（"稍微大一点"就够）—— 以前并成一行时会互相挤，
+             哈希表常被顶到第二行再拉满整行宽，看着又空又大（用户要求改掉）。 -->
+        <div class="row"><label id="t_cores">核心数</label>
+          <select id="sel_cores"></select>
+        </div>
+        <div class="row"><label id="t_hash">哈希表</label>
+          <select id="sel_hash"></select>
+        </div>
+        <!-- ★ 2026-09-27 深夜（用户要求）：「并行引擎（多引擎投票）」整块撤销 ——
+             单实例吃满「核心数」所选线程才是智力上限（对齐 Rapfi / KataGo 算力集中结论）；
+             sub/fwd 降为各 1 线程视图小实例（热力 / 指导 / 前瞻仍实时）。 -->
+        <!-- ★ 2026-09-20（用户要求）：「计算评估里面把 AI 视图和指导视图这个板块从对局设置里面
+             移动到这个计算评估这个窗口里面」。
+             ⇒ 原来这里的 .heatbox 组框（AI视图 / 指导视图 / 四色图例）整块搬到了下面
+             「计算评估」卡片里。id 一个都没改（chk_heat / t_heat / chk_coach / heatLegend…），
+             接线、持久化、测试断言照旧有效。 -->
+        <!-- ★ 2026-09-19（用户要求）：「在对局设置卡片中添加一个功能键：显示序号，
+             就是棋子的顺序数字」。
+             **布局**：它与「AI视图 / 指导视图」同属「棋盘显示开关」，所以紧挨着 .heatbox 组框排
+             （组框之后、AI 先手之前）；勾选框与上面几行的勾选框**同列对齐**
+             （label 走 .card .row>label 的 flex:0 0 5.4rem），右边跟一句短 hint，
+             与「热力图 / AI 先手」两行的节奏完全一致 —— 一眼看去是三行并列的开关。 -->
+        <!-- ★ 09-28（用户要求）：「摆棋评分」勾选框已下架 —— 盘面评估统一走棋盘下方的
+             「分析计算」开关型功能键（主车道持续深算，自然微变不钉死）。 -->
+        <!-- ★ 三十三轮（用户要求）：「在对手思考的时间持续计算，提高智力」= **后台预热**，
+             默认勾选。轮到对手（人或另一个 AI）思考时引擎不再闲着：
+             ① 先算出对手最可能的几手应手；② 再对每一手之后的局面替 AI 深度预搜。
+             两条好处都是真的：
+               · 对手真落到预想点上 → aiMove 直接取用这份成品（几乎零等待，且深度更足）；
+               · 落到别处 → 预搜填进去的置换表依然大量命中，同样的时间预算能搜得更深。
+             落子/终局/复盘/换规则等任何一处局面变化都会立刻让预热作废重来（见 calc.js）。 -->
+        <!-- ★ 2026-09-28（用户要求）：后台预热**跟随官方 rapfi 的 ponder 口径**，不再另写说明 ——
+             下面那行「关于后台预热的提示文字」整条删除（只留标签 + 勾选框）。 -->
+        <div class="row"><label id="t_preheat">后台预热</label>
+          <input id="chk_preheat" type="checkbox">
+        </div>
+        <div class="row"><label id="t_showNum">显示序号</label>
+          <input id="chk_num" type="checkbox">
+          <span class="hint" id="t_showNumHint">棋子上标出第几手</span>
+        </div>
+        <!-- ★ 五轮（用户要求）：「预览框」= 棋盘上鼠标悬停出现的蓝色圆角方块开关（默认勾选） -->
+        <div class="row"><label id="t_preview">预览框</label>
+          <input id="chk_preview" type="checkbox">
+          <span class="hint" id="t_previewHint">鼠标悬停时显示的圆角方框</span>
+        </div>
+        <!-- ★ 2026-09-20（用户反馈）：「对局设置中对局双方没有用，删掉」—— 整行删除。
+             谁执什么色由「先后手」一栏唯一决定（黑先=我执黑先走 / 白先=AI 执黑先走）。
+             ★ 四轮清理：这里原本还挂着一条更早的残缺注释尾巴（「复制/粘贴/载入」那句，
+             上半个注释开符早年被删了），浏览器把它当正文渲染成页面杂文字 —— 整行删除。 -->
+        <div class="row col" id="codeRow">
+          <div class="codeHead">
+            <label id="t_code">局面代码</label>
+            <span class="grow"></span>
+            <button id="btn_copy" class="btn sq2">复制</button>
+            <button id="btn_paste" class="btn sq2">粘贴</button>
+            <button id="btn_load" class="btn sq2 accent">载入</button>
+          </div>
+          <input id="inp_code" spellcheck="false" placeholder="h8h9g7…" data-tip="codeTip" title="局面代码：小写列字母 + 行号，逐手拼接（与 gomocalc.com 同格式）">
+        </div>
+      </div>
+    </section>
+
+    <!-- 「计算评估」卡：结果一律标在**棋盘上**（名次徽标 + 评估分，亦心那种数字标示），
+         同时在下面 #anList 里列成「名次 坐标 分数 最佳线」的清单（对应亦心右侧那几条 PV 文字）。
+         ★ 2026-09-20 二轮（用户要求）：这里**只保留**多点分析(=nbest) / 平衡一 / 平衡二 /
+           停止计算四个键 —— 「计算」与「扫描防守」已下线（用户说那两个主要是给 AI 连珠用的）。 -->
+    <section class="card" data-id="analysis">
+      <div class="card-h">
+        <span class="ttl" id="t_analysis">计算评估</span>
+        <span class="grow"></span>
+        <span class="dash" data-tip="dragCard" title="点击折叠 / 展开；按住标题栏拖动换位"></span>
+        <button class="pinkey" data-pin="analysis" title="关闭卡片">✕</button>
+      </div>
+      <div class="card-b">
+        <!-- ★ 2026-09-20 二轮定稿：五键 = 多点分析 / 平衡一 / 平衡二 / 扫描防守 / 计算·停止计算同键。
+             演进：初版六键 → 一轮砍成四键（下线计算与扫描防守）→ 二轮用户反馈两键都回归，
+             且「计算」与「停止计算」并成一颗键（文字随状态走，见 calc.js 的 anaCalcUI）；
+             分析恒按**行棋方**算（"替谁算"随「先后手」自然交替），手动开关已删。
+             扫描防守照亦心/Yixin：在周围 N×M 个方块中扫描，百分比铺棋盘 + A/B/C 徽标。 -->
+        <!-- ★ 2026-09-20（用户反馈）：扫描防守回来了 —— 亦心/Yixin 那种「在周围 N×M 个方块中
+             扫描」：每个空点给一个百分比（%越高 = 对手在这成形状越凶 = 越要防），
+             最要紧的 3 个点再叠 A/B/C 徽标。打分是页面内的形状启发式（见 calc.js 的 cellScore）。 -->
+        <div class="anbtns">
+          <!-- ★ 2026-09-20（用户要求，三轮）：多点分析与扫描防守一行、平衡一/二第二行
+               ★ 四轮（用户要求）：多点分析键不涂蓝 —— accent 只留给底部「计算」主键 -->
+          <button id="btn_an_nbest" class="btn">多点分析</button>
+          <button id="btn_an_defend" class="btn">扫描防守</button>
+          <button id="btn_an_bal1" class="btn">平衡一</button>
+          <button id="btn_an_bal2" class="btn">平衡二</button>
+          <!-- ★ 2026-09-25（用户要求）：「计算」键原本独占一行（grid 跨两列），现在收成
+               半宽，右边那半给「清除标记」—— 它从「前瞻」框里搬过来（id 沿用
+               btn_fwd_clear，i18n 键仍是 fwdClear，接线与断言都不用改）。 -->
+          <!-- ★ 2026-09-20（用户反馈）：「计算和停止计算里面的文字是活动的」——
+               闲 = 「计算」，算的时候 = 「停止计算」，自然算完自动变回「计算」。 -->
+          <button id="btn_an_stop" class="btn accent">计算</button>
+          <!-- ★ 2026-09-25（用户要求）：「清除标记」泛化 —— 不再只管前瞻的杀棋标注，
+               而是**清掉计算评估里任何一个项目留下的棋盘标记**（计算 / 多点分析 /
+               平衡一 / 平衡二 / 扫描防守的百分比与徽标 + 前瞻 / VCF / VCT 的序号、
+               虚线杀路与代码链），见 calc.js 的 clearAllMarks()。 -->
+          <button id="btn_fwd_clear" class="btn" data-i18n="fwdClear" title="清除计算评估里的所有棋盘标记（含前瞻 / VCF / VCT）">清除标记</button>
+        </div>
+        <!-- ★ 五轮（用户要求）：前瞻框 —— 左上「前瞻」开关键（点击变色/再点取消）。
+             ★ 2026-09-21（用户要求，六轮）：前瞻键涂舒心天蓝；键右侧图例（紫=黑子、浅蓝=白子）；
+             右侧空白区加「确定」键（点击代码=选中 → 确定键变色 → 点确定才推进棋盘）；
+             右上 < > 步进键；框体显示推演进度；框下是推演着法代码链
+             （白子 = 浅蓝框、黑子 = 紫框；悬浮 = 预览该步之前的局势，
+             点击 = 选中（再点确定落盘）；确定后后面的代码变灰仍可选）。
+             ⚠ 注释正文严禁出现注释定界符字样（见 REF-traps）。 -->
+        <!-- ★ 2026-09-22 五轮（用户要求）前瞻框**两行重排**：
+             第一行 = 前瞻 + VCF / VCT（去掉「查找」二字省空间）+ 右侧 < > 步进键；
+             第二行 = 黑子 / 白子图示（色点改**色框框住文字**：黑=紫框、白=浅蓝框）+ 确定键；
+             点 VCF 或 VCT 任意一个开始算杀，选中键变浅粉紫，有解走完整条链，
+             无解明确提示；棋盘上用虚线把杀路串起来标注。 -->
+        <div class="fwdbox" id="fwdBox">
+          <div class="fwd-h">
+            <button id="btn_fwd" class="btn fwdkey" data-i18n="fwd">前瞻</button>
+            <!-- ★ 2026-09-22 三轮（用户要求）：VCF / VCT = 只算杀不逐手推演，
+                 VCF 只搜连续冲四、VCT 搜冲四+活三，命中直接铺序列 -->
+            <button id="btn_fwd_vcf" class="btn fwdkey fwdmini" data-i18n="fwdFindVcf">VCF</button>
+            <button id="btn_fwd_vct" class="btn fwdkey fwdmini" data-i18n="fwdFindVct">VCT</button>
+            <span class="grow"></span>
+            <button id="btn_fwd_prev" class="btn sq2">&lt;</button>
+            <button id="btn_fwd_next" class="btn sq2">&gt;</button>
+          </div>
+          <div class="fwd-h fwd-h2">
+            <!-- ★ 五轮：图例从「色点+文字」改为**色框框住文字**，横向一行
+                 （紫框 = 黑子、浅蓝框 = 白子，与框下代码链同族配色） -->
+            <!-- ★ 十八轮（用户要求）：黑/白框改为**不可点的进攻方指示框** ——
+                 自动判定：轮走方（算杀题面按惯例 = 子多的一方），选中色填色高亮 -->
+            <span class="fwd-lg" id="fwdLg" title="进攻方指示框（不可点）：紫框 = 黑子，浅蓝框 = 白子；自动 = 轮走方（算杀题面 = 子多一方）">
+              <span class="lgr lgfr-b" id="fwdLgB"><em data-i18n="fwdBlack">黑子</em></span>
+              <span class="lgr lgfr-w" id="fwdLgW"><em data-i18n="fwdWhite">白子</em></span>
+            </span>
+            <span class="grow"></span>
+            <button id="btn_fwd_ok" class="btn fwdok" data-i18n="fwdOk">确定</button>
+          </div>
+          <div class="fwd-body" id="fwdBody"><span class="hint" id="fwdMsg"></span></div>
+          <div class="fwd-seq" id="fwdSeq"></div>
+        </div>
+        <!-- ★ 2026-09-20（用户反馈）：「替谁算是活动的（先后手活动运算）」——
+             手动的「用户 / AI」开关整行删掉：分析恒按**行棋方**算，轮到谁就替谁算，
+             随「先后手」自然交替（引擎的行棋方本来就是落子奇偶推出来的）。 -->
+        <div class="row"><label id="t_nbest">分析点数</label>
+          <input id="num_nbest" type="number" min="2" max="8" step="1" value="4">
+          <span class="hint" id="t_nbestHint">至多 8 点（引擎按局面给点，未必给满）</span>
+        </div>
+        <div class="row col" id="anStatusRow">
+          <span class="hint" id="anStatus"></span>
+          <div id="anList" class="anlist"></div>
+        </div>
+        <!-- ★ 2026-09-20（用户要求）：热力组的两个开关（AI视图 / 指导视图）+ 四色图例，
+             整块从「对局设置」搬到本卡片里。id 与内部顺序原样保留
+             （chk_heat → chk_coach → heatLegend），接线与测试断言因此都不用动。 -->
+        <div class="heatbox">
+          <!-- ★ 2026-09-20（用户要求）：「AI 视角保留现在这样，改为只显示 AI 计算的决策……
+               无需画上白色的所有棋子，只要保留 AI 目前准备下的最佳落子点的标识即可。」
+               ⇒ 这一档现在只标**一个点**（AI 本轮准备下的那一手），文案跟着改。 -->
+          <div class="row"><label id="t_heat">AI视图</label>
+            <input id="chk_heat" type="checkbox">
+            <span class="hint" id="t_heatHint">AI 思考时只标出它准备下的那一点，落子即消失</span>
+          </div>
+          <div class="row"><label id="t_coach">指导视图</label>
+            <input id="chk_coach" type="checkbox">
+            <span class="hint" id="t_coachHint">方形四色热力：AI 帮你算最佳落点，落子即消失</span>
+          </div>
+          <!-- 四色图例放组框下部（哪种颜色代表哪个档位）；
+               「热力 = AI 的候选点」「数字 = 评估分」说明已删：与 hint 重复。 -->
+          <div class="row" id="heatLegend" hidden>
+            <span class="lg"><i style="background:rgba(0,191,165,.75)"></i><span id="t_heatBest">最佳</span></span>
+            <span class="lg"><i style="background:rgba(120,200,80,.75)"></i><span id="t_heatGood">良好</span></span>
+            <span class="lg"><i style="background:rgba(255,179,193,.8)"></i><span id="t_heatFair">一般</span></span>
+            <span class="lg"><i style="background:rgba(255,200,215,.8)"></i><span id="t_heatPoor">劣势</span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" data-id="engine">
+      <div class="card-h">
+        <span class="ttl" id="t_engine">引擎仪表盘</span>
+        <!-- ★ 2026-09-28（用户要求）：标题后面那个「空闲 / 计算中」小胶囊**整块删掉**
+             （它只占地方、信息量与下面文字框重复）。是否在算由下方 #st_line 那行说明。 -->
+        <span class="grow"></span>
+        <!-- 只留一个小横杠：点它折叠这张卡片（再点展开），按住标题栏仍可拖动换栏 / 调序。
+             ★ 2026-09-28：去掉「固定」，卡片右上角只留一颗「✕」关闭键（点击隐藏本卡）。 -->
+        <span class="dash" data-tip="dragCard" title="点击折叠 / 展开；按住标题栏拖动换位"></span>
+        <button class="pinkey" data-pin="engine" title="关闭卡片">✕</button>
+      </div>
+      <div class="card-b">
+        <div class="grid2">
+          <div class="stat"><span class="k" id="t_depth">深度</span><span class="v" id="st_depth">-</span></div>
+          <div class="stat"><span class="k" id="t_speed">速度</span><span class="v" id="st_speed">-</span></div>
+          <div class="stat"><span class="k" id="t_nodes">节点</span><span class="v" id="st_nodes">-</span></div>
+          <div class="stat"><span class="k" id="t_time">用时</span><span class="v" id="st_time">-</span></div>
+          <div class="stat"><span class="k" id="t_eval">评估</span><span class="v" id="st_eval">-</span></div>
+          <div class="stat"><span class="k" id="t_best">最佳</span><span class="v" id="st_best">-</span></div>
+        </div>
+        <div class="line" id="st_line"></div>
+        <!-- 纵坐标固定不滚动：左边一块独立画布画刻度（永不移动），右边才是横向滚动的绘图区 -->
+        <div class="curve-head"><span id="t_curveTtl">评估曲线</span></div>
+        <div id="curveWrap">
+          <canvas id="curveAxis"></canvas>
+          <div id="curveScroll"><canvas id="curve"></canvas></div>
+        </div>
+        <div class="legend">
+          <span><i style="background:#7a5af8"></i><span id="t_blackCurve">黑子</span></span>
+          <span><i style="background:#7fb0ef"></i><span id="t_whiteCurve">白子</span></span>
+        </div>
+        <!-- ★ 2026-09-28（用户要求）：**恢复**本卡最下面那个文字框（#turnPillRow）——
+             「轮到谁 / AI 思考中 / 暂停 / 终局 / 背诵…」都落在这里，**最多显示两行**
+             （再长就截断，不把卡片撑高；样式见 calc.css 的 #turnPill 两行钳制）。 -->
+        <div id="turnPillRow"><span id="turnPill" class="pill"></span></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- 历史抽屉：一条竖向长条框，点顶栏「历史」弹出（复盘窗里点复盘行的「历史」也弹它）。
+     ★ 2026-09-19（用户要求）：「历史可以导出导入通过 txt 中的代码」「可以让用户自己更改某条历史
+       的名字……右击鼠标可以有一个选择栏，里面有删除、重命名等功能」⇒ 抽屉头多了「导出 / 导入」，
+       每条历史可以右键出菜单（打开复盘 / 重命名 / 导出这一局 / 存入保存历史 / 删除）。 -->
+<div id="drawer" hidden>
+  <div class="dr-head">
+    <div class="tabs">
+      <button class="tab on" data-tab="hist" id="t_history">历史</button>
+      <button class="tab" data-tab="saved" id="t_saved">保存历史</button>
+      <!-- ★ 二十轮（用户要求）：「保存历史」右边加「全部选中」—— 一键勾选当前页全部条目
+           （全部已选中时再点 = 取消全选），对 历史 / 保存历史 两个页都生效 -->
+      <button id="dr_all" class="btn dr-allbtn">全部选中</button>
+    </div>
+    <span class="grow"></span>
+    <span class="hint" id="drCount">0</span>
+  </div>
+  <!-- 功能键独立成一块 2 行 × 3 列网格（2026-09-19 用户二轮精修：一行三个键）：
+       第一行 打开 / 保存选中 / 删除，第二行 导入 / 导出 / 关闭 ——
+       导入和导出在同一行；删除、关闭都落在最右一列；网格等宽对齐，扫一眼就能定位。 -->
+  <div class="dr-actions">
+    <button id="dr_open" class="btn">打开</button>
+    <button id="dr_save" class="btn accent">保存选中</button>
+    <button id="dr_del" class="btn danger">删除</button>
+    <button id="dr_imp" class="btn">导入</button>
+    <button id="dr_exp" class="btn">导出</button>
+    <button id="dr_close" class="btn">关闭</button>
+  </div>
+  <div class="dr-tip hint" id="t_drTip">勾选若干局，点「保存选中」→ 永久存入「保存历史」</div>
+  <div id="drList" class="dr-list"></div>
+</div>
+
+<!-- ★ 2026-09-19（用户要求）：「关于」浮层 —— 版本号、功能介绍、用到的开源组件（**各自的**
+     许可证如实列出）、本软件自身的许可声明。
+     内容全部由 calc.js 的 renderAbout() 生成（中英双语，切语言会重画），这里只放骨架。
+     为什么每个组件单列许可证：引擎内核 Rapfi 是 **GPL v3**，把它笼统写成 MIT 是错的。 -->
+<div id="about" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title" id="t_about">关于</span>
+      <span class="grow"></span>
+      <button id="ab_close" class="btn">关闭</button>
+    </div>
+    <div id="ab_body" class="modal-body"></div>
+  </div>
+</div>
+
+<!-- ★ 2026-09-22 七轮（用户要求）：VCF/VCT 无解时**弹窗明示**（只靠状态行小字不够醒目）。
+     文案 = 「当前局面，所选进攻方不存在VCF/VCT……」，由 calc.js 的 vcxPopShow() 填充。 -->
+<div id="vcxPop" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title" id="t_vcxPop">算杀结果</span>
+      <span class="grow"></span>
+      <button id="vcxPop_close" class="btn">关闭</button>
+    </div>
+    <div id="vcxPopBody" class="modal-body"></div>
+  </div>
+</div>
+
+<!-- ★ 2026-09-20（用户要求）：「点击颜色后会有一个弹窗，里面有深色和浅色主题这两个按键，
+     还有一个调色盘，细微调色调（模仿 Photoshop），以及 RGB 输入框、滑动条，还有 RGB 代码
+     输入框，选择棋盘的颜色以及背景的颜色进行自定义调色并持久化。」
+     ⇒ 一块仿 PS 的取色器（.cp-* 前缀）：
+       · 顶部两键 = 深浅主题（原来顶栏那个键，搬进来）；
+       · 调色对象 = 棋盘 / 背景 二选一（用户原话「棋盘的颜色以及背景的颜色」都要能调）；
+       · 取色盘 = 「饱和度 × 明度」方块 + 下方色相条（PS 取色器的那两件套）；
+       · R / G / B 三条滑动条 + 三个数字框；
+       · RGB 代码框（#rrggbb，也接受直接粘贴 rgb(r,g,b)）；
+       · 一排**预制色块**（用户要求：挑几个好看的棋盘色，用颜色方块表示）；
+       · 实时预览 + 恢复默认。
+     任何改动立刻生效并持久化 —— 落进 S.boardColor / S.pageBgColor（见 calc.js 的 applyColors）。 -->
+<div id="colorPop" class="modal" hidden>
+  <div class="modal-card cp-card">
+    <div class="modal-head">
+      <span class="modal-title" id="t_color">颜色</span>
+      <span class="grow"></span>
+      <button id="cp_close" class="btn">关闭</button>
+    </div>
+    <div class="modal-body cp-body">
+      <div class="cp-row"><label id="t_cpTheme">主题</label>
+        <!-- ★ 2026-09-21（用户要求）：「在深色、浅色后面添加一个自定义，
+             但凡改变颜色了，就会自动切换为自定义的颜色和按键」→ 第三键 data-th="custom"。 -->
+        <div class="seg s3" id="cp_theme">
+          <button data-th="light">浅色</button>
+          <button data-th="dark">深色</button>
+          <button data-th="custom">自定义</button>
+        </div>
+      </div>
+      <div class="cp-row"><label id="t_cpTarget">调色对象</label>
+        <div class="seg s2" id="cp_target">
+          <button data-tg="board" class="on">棋盘</button>
+          <button data-tg="page">背景</button>
+        </div>
+      </div>
+      <!-- 取色盘：上面一块「饱和 × 明度」方块，下面一条色相带（都是 canvas，自己画、自己拖） -->
+      <div class="cp-picker">
+        <canvas id="cp_sv" width="288" height="150"></canvas>
+        <canvas id="cp_hue" width="288" height="16"></canvas>
+      </div>
+      <!-- ★ 2026-09-21（用户要求）：「调色里面，RGB 只保留输入框，取消滑动条」。
+           网格从三列（通道名 / 滑条 / 数字）压成两列（通道名 / 数字框）。 -->
+      <div class="cp-sliders">
+        <label>R</label><input id="cp_rn" type="number" min="0" max="255" step="1">
+        <label>G</label><input id="cp_gn" type="number" min="0" max="255" step="1">
+        <label>B</label><input id="cp_bn" type="number" min="0" max="255" step="1">
+      </div>
+      <div class="cp-row"><label id="t_cpHex">RGB 代码</label>
+        <input id="cp_hex" spellcheck="false" placeholder="#d9b878">
+      </div>
+      <!-- ★ 2026-09-21（用户要求）：「预制选色只有用户选择棋盘才会出现，
+           如果选择背景则不会出现预制选色」→ 整行由 calc.js 的 cpSyncSegs() 控 hidden。 -->
+      <div class="cp-row" id="cpPresetRow"><label id="t_cpPreset">预制色</label>
+        <div class="cp-presets" id="cp_presets"></div>
+      </div>
+      <div class="cp-foot">
+        <span class="cp-prev" id="cp_prev"></span>
+        <span class="hint" id="cp_hint"></span>
+        <span class="grow"></span>
+        <button id="cp_reset" class="btn">恢复默认</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 历史条目的右键菜单（自绘：宿主已关掉 WebView2 的默认右键菜单）。
+     刚弹出来时是 [hidden]，内容由 calc.js 的 showCtx() 现填。 -->
+<div id="ctxMenu" class="ctx" hidden></div>
+<!-- 浏览器里（没有宿主）导入 txt 的回退通道：宿主在时走系统「打开」对话框，不用这个 -->
+<input id="file_imp" type="file" accept=".txt,text/plain" hidden>
+<!-- ★ 识图窗「上传图片」的通道：多选，至多 150 张（见 calc.js 的 visAddFiles） -->
+<input id="file_vis" type="file" accept="image/*" multiple hidden>
+
+<script src="calc.js"></script>
+</body>
+</html>

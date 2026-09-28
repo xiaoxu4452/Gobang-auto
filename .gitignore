@@ -1,0 +1,70 @@
+# ===== Top-level project dirs NOT part of this repo =====
+/Desktop version/
+/desktop-overlay/
+/engine-server/
+/Meter GomokuTrainer/
+/old/
+/tools - 副本/
+/回收/
+/恢复与备份/
+/build-release/
+/.workbuddy/
+/.vs/
+/vc140.pdb
+
+# ===== Build / runtime / dependency folders (regenerate, don't track) =====
+**/build/
+**/Release/
+**/Debug/
+**/x64/
+**/obj/
+**/.vs/
+**/node_modules/
+**/__pycache__/
+**/opencv-build/
+**/python-bundle/
+**/rapfi-build/
+**/webview2-sdk/
+**/GomokuTrainer resources/EBWebView/
+**/logs/
+
+# ===== Compiled binaries & libs =====
+*.exe
+*.pdb
+*.obj
+*.o
+*.lib
+*.dll
+*.a
+*.so
+*.dylib
+*.pyd
+*.whl
+*.pch
+*.ilk
+*.exp
+*.rsp
+*.tlog
+*.pma
+*.pack
+*.idx
+
+# ===== Temp / cache / logs =====
+*.log
+*.tmp
+*.old
+*.bak
+*.tmpx
+~$*
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ===== Python =====
+*.pyc
+*.pyo
+
+# ===== Editors =====
+.vscode/
+.idea/

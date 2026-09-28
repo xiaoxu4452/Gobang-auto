@@ -1,0 +1,2 @@
+窗口 hwnd=0x640084 rect=(757,429)-(1579,1364) 822x935
+截图 C:/Users/harve/Desktop/Gobang auto/tools/_trainer_rv.png  822x935

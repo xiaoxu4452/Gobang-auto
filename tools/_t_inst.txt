@@ -1,0 +1,30 @@
+[test-installer] 静态检查
+  ✓ 三合一 .iss 存在
+  ✓ 独立版 .iss 存在
+  ✓ 勾选页挂在 wpReady 之后（安装开始前）
+  ✓ 没有把自定义页挂到 wpInstalling
+  ✓ 没有把 CreateShellLink 当布尔用（`if CreateShellLink(...) then`）
+  ✓ CurStepChanged 用 try/except 逐条包住建链（一个失败不带走后两个）
+  ✓ 失败分支记录 GetExceptionMessage（失败会抛异常，不是返回错误串）
+  ✓ 成功日志前缀稳定：desktop shortcut ok: index
+  ✓ CreateShellLink 收在一处（MakeDesktopLink），实际 1 处
+  ✓ 传满 8 个实参（官方签名），实际 8
+  ✓ Filename 拼了 .lnk（不带扩展名会生成无扩展名裸文件，图标空白、双击打不开）
+  ✓ IconFilename 传对应 exe（每个快捷方式用自己 exe 的内嵌图标）
+  ✓ ShowCmd 用 SW_SHOWNORMAL
+  ✓ 三个 AddCheckBox（训练器 / 桌面识别器 / 网页识别器），实际 3
+  ✓ AddCheckBox 全是 8 参、第 7 参为布尔（官方签名没有 AChildCount 这个参数）
+  ✓ 三个勾选项的标题都走 {cm:} 双语消息（索引 0/1/2 = 训练器/桌面识别器/网页识别器）
+  ✓ [UninstallDelete] 列了桌面快捷方式：五子棋训练器.lnk
+  ✓ [UninstallDelete] 列了桌面快捷方式：桌面识别器.lnk
+  ✓ [UninstallDelete] 列了桌面快捷方式：网页识别器.lnk
+  ✓ [UninstallDelete] 列了桌面快捷方式：Gomoku Trainer.lnk
+  ✓ [UninstallDelete] 列了桌面快捷方式：Desktop Recognizer.lnk
+  ✓ [UninstallDelete] 列了桌面快捷方式：Web Recognizer.lnk
+  ✓ [UninstallDelete] 用 {autodesktop} 定位桌面
+  ✓ 三合一 .iss 的 [Files] 无日志/运行期产物
+  ✓ 独立版 .iss 的 [Files] 无日志/运行期产物
+  ✓ 独立版不走 CreateShellLink（用 [Icons]，卸载可跟踪）
+  ✓ 独立版桌面快捷方式 = [Icons] + desktopicon 任务
+
+[test-installer] ===== 27 passed, 0 failed（静态；加 --e2e 跑真装/卸载） =====

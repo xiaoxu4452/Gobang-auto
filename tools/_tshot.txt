@@ -1,0 +1,2 @@
+窗口 hwnd=0x78033a rect=(-12,-12)-(3084,1848) 3096x1860
+截图 C:/Users/harve/Desktop/Gobang auto/tools/_trainer_now.png  3096x1860

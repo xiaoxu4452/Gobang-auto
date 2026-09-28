@@ -1,0 +1,49 @@
+=== vision main.cpp (desktop-vision/src/main.cpp) 12958 chars ===
+   no  L0  "SetProcessDpiAwareness"
+   no  L0  "DpiAwareness"
+   no  L0  "SetProcessDPIAware"
+   no  L0  "wWinMain"
+  YES  L284  "int main"
+=== vision gbscreen.cpp (desktop-vision/src/gbscreen.cpp) 30796 chars ===
+  YES  L6  "BitBlt"
+   no  L0  "PrintWindow"
+  YES  L74  "CAPTUREBLT"
+  YES  L65  "CreateCompatibleDC"
+  YES  L63  "GetDC(NULL)"
+  YES  L41  "SetProcessDpiAwareness"
+   no  L0  "EnumDisplayMonitors"
+  YES  L57  "GetSystemMetrics"
+  YES  L59  "SM_CXVIRTUALSCREEN"
+=== vision gbhttp.cpp (desktop-vision/src/gbhttp.cpp) 6726 chars ===
+  YES  L193  "listen"
+  YES  L36  "WSAStartup"
+   no  L0  "8971"
+   no  L0  "8970"
+   no  L0  "inet_pton"
+=== overlay host.cpp (desktop-overlay/src/host.cpp) 195847 chars ===
+  YES  L2041  "CreateCoreWebView2Environment"
+  YES  L4526  "WebView2Loader"
+  YES  L4531  "GetAvailableCoreWebView2BrowserVersionString"
+   no  L0  "DPI_AWARENESS"
+  YES  L4508  "SetProcessDpiAwarenessContext"
+   no  L0  "SetProcessDPIAware"
+  YES  L4616  "MessageBoxW"
+  YES  L753  "WDA_EXCLUDEFROMCAPTURE"
+  YES  L737  "RefreshPanelHitSurface"
+  YES  L2121  "ApplyPanelRect"
+   no  L0  "WM_SIZING"
+   no  L0  "WS_THICKFRAME"
+  YES  L42  "GetSaveFileNameW"
+   no  L0  "Gdiplus::Image"
+   no  L0  "CLSIDFromString"
+   no  L0  "FindEngineExe"
+  YES  L2409  "EnsureScanServer"
+=== vision gb.cpp (desktop-vision/src/gb.cpp) 10531 chars ===
+   no  L0  "DPI"
+   no  L0  "main"
+   no  L0  "argc"
+=== dirs ===
+  desktop-vision/build: GomokuVision.exe
+  Desktop version: Desktop GomokuOverlay.exe, Desktop GomokuTrainer.exe, GomokuVision.exe, Web GomokuEngine.exe
+  Meter GomokuTrainer: Desktop GomokuTrainer.exe
+  Meter engine-server: Desktop GomokuOverlay.exe, Desktop GomokuTrainer.exe, GomokuVision.exe, Web GomokuEngine.exe

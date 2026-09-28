@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>rapfi probe</title></head>
+<body style="font:13px monospace; white-space:pre-wrap" id="out"></body>
+<script>
+// 探针：验证 rapfi 在 Chromium 页面内实例化 + pthreads 多线程 + 出着法。
+const out = document.getElementById('out');
+function w(t) { out.textContent += t + '\n'; }
+function line(t) { console.log(t); }
+
+(async function main() {
+  w('crossOriginIsolated = ' + (self.crossOriginIsolated));
+  w('SAB = ' + (typeof SharedArrayBuffer !== 'undefined'));
+  const t0 = performance.now();
+  const lines = [];
+  // classic script 加载后 Rapfi 是全局 var（tail: 无 exports/define 时保持 var）
+  const mod = await Rapfi({
+    locateFile: (f) => '/ai/' + f,
+    onReceiveStdout: (s) => { lines.push(s); },
+    onReceiveStderr: (s) => { lines.push('[err] ' + s); },
+    onExit: (c) => w('onExit ' + c),
+    setStatus: () => {},
+  });
+  w('Rapfi ready in ' + Math.round(performance.now() - t0) + 'ms, sendCommand=' + (typeof mod.sendCommand));
+  mod.sendCommand('START 15');
+  mod.sendCommand('INFO THREAD_NUM 4');
+  mod.sendCommand('INFO CAUTION_FACTOR 3');
+  mod.sendCommand('INFO STRENGTH 100');
+  mod.sendCommand('INFO SHOW_DETAIL 3');
+  mod.sendCommand('INFO PONDERING 0');
+  mod.sendCommand('INFO SWAPABLE 0');
+  mod.sendCommand('INFO HASH_SIZE 256');
+  mod.sendCommand('INFO RULE 0');
+  mod.sendCommand('INFO TIMEOUT_TURN 2000');
+  mod.sendCommand('INFO TIMEOUT_MATCH 600000');
+  mod.sendCommand('INFO TIME_LEFT 600000');
+  // 空盘第一手：黑走天元附近即可（引擎坐标 y 自底向上）
+  mod.sendCommand('YXBOARD DONE');
+  mod.sendCommand('YXNBEST 3');
+
+  const deadline = Date.now() + 30000;
+  await new Promise(function poll(resolve) {
+    if (lines.join('\n').match(/\bbest\s+\d+\s+\d+/) || Date.now() > deadline) return resolve();
+    setTimeout(poll, 100);
+  });
+  const dur = Math.round(performance.now() - t0);
+  const all = lines.join('\n');
+  const mbest = all.match(/\bbest\s+(\d+)\s+(\d+)/);
+  const pvCount = (all.match(/MESSAGE/g) || []).length;
+  w('---- done in ' + dur + 'ms ----');
+  w('best = ' + (mbest ? mbest[1] + ',' + mbest[2] : 'NONE'));
+  w('MESSAGE lines = ' + pvCount);
+  w('total output lines = ' + lines.length);
+  w('---- last 30 lines ----');
+  lines.slice(-30).forEach(w);
+  window.PROBE_DONE = { ok: !!mbest, dur, best: mbest ? mbest[1] + ',' + mbest[2] : null, n: lines.length };
+})();
+</script>
+</html>

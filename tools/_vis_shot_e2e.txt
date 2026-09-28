@@ -1,0 +1,7 @@
+[shot-e2e] spawned pid=11700
+[shot-e2e] main target: http://127.0.0.1:8965/calc.html
+[shot-e2e] main vis click: CLICKED
+[shot-e2e] vis target: http://127.0.0.1:8965/calc.html?vis=1
+[shot-e2e] vis page: {"n":0,"w":1641,"top":0}
+[shot-e2e] shot click: SHOT_CLICKED
+[shot-e2e] FAIL: picker window not found
