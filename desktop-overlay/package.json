@@ -1,0 +1,15 @@
+{
+  "name": "gomoku-desktop-overlay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gomoku desktop overlay: full-screen board recognition with move suggestions (transparent topmost overlay, no auto-move)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>五子棋助手 · 桌面覆盖层</title>
+<link rel="stylesheet" href="overlay.css">
+</head>
+<body>
+<!-- 全屏画布：屏幕四角 L 型 + 棋盘框（纯装饰，全部 pointer-events:none） -->
+<svg id="marks" xmlns="http://www.w3.org/2000/svg">
+  <g id="g-screen" class="screen-frame"></g>
+  <g id="g-board" class="board-frame"></g>
+  <g id="g-hint" class="hint-layer"></g>
+</svg>
+
+<!-- 右下角面板：与书签浮动面板同一套视觉（唯一可交互区域） -->
+<div id="panel">
+  <div id="bar">
+    <span class="dot" id="dot"></span>
+    <span class="title">五子棋助手</span>
+    <span class="sub" id="sub">桌面覆盖层</span>
+    <button id="btn-min" title="折叠">－</button>
+    <button id="btn-close" title="退出">×</button>
+  </div>
+
+  <div id="body">
+    <div class="row">
+      <span class="k">识别</span>
+      <span class="v" id="v-state">扫描中…</span>
+    </div>
+    <div class="row">
+      <span class="k">我执</span>
+      <span class="v">
+        <button class="seg" data-side="1" id="side-b">黑</button>
+        <button class="seg" data-side="2" id="side-w">白</button>
+        <button class="seg" id="side-auto">自动</button>
+      </span>
+    </div>
+    <div class="row">
+      <span class="k">轮到</span>
+      <span class="v" id="v-turn">—</span>
+    </div>
+    <div class="row eval">
+      <span class="k">评估</span>
+      <span class="v big" id="v-eval">—</span>
+    </div>
+    <canvas id="curve" width="240" height="46"></canvas>
+    <div class="row">
+      <span class="k">建议</span>
+      <span class="v big accent" id="v-best">—</span>
+    </div>
+    <div class="row">
+      <span class="k">已读</span>
+      <span class="v" id="v-count">黑 0 · 白 0</span>
+    </div>
+
+    <div class="sep"></div>
+    <label class="opt">
+      <input type="checkbox" id="opt-auto"> <span>自动落子（默认关闭）</span>
+    </label>
+    <label class="opt">
+      <input type="checkbox" id="opt-mark" checked> <span>显示屏幕四角标记</span>
+    </label>
+    <label class="opt">
+      <input type="checkbox" id="opt-board" checked> <span>显示棋盘框</span>
+    </label>
+    <div class="row small">
+      <span class="k">扫描</span>
+      <span class="v">
+        <select id="opt-hz">
+          <option value="1500">慢 (0.7/s)</option>
+          <option value="700" selected>标准 (1.4/s)</option>
+          <option value="350">快 (2.9/s)</option>
+        </select>
+      </span>
+    </div>
+    <div class="tip">本工具只给出落子建议，不会替你操作；自动落子默认关闭。</div>
+  </div>
+</div>
+<script src="overlay.js"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+# ===== Top-level project dirs NOT part of this repo =====
+/Desktop version/
+/old/
+/tools - 副本/
+/回收/
+/恢复与备份/
+/build-release/
+/.workbuddy/
+/.vs/
+/vc140.pdb
+
+# ===== Build / runtime / dependency folders (regenerate, don't track) =====
+**/build/
+**/Release/
+**/Debug/
+**/x64/
+**/obj/
+**/.vs/
+**/node_modules/
+**/__pycache__/
+**/opencv-build/
+**/python-bundle/
+**/rapfi-build/
+**/webview2-sdk/
+**/GomokuTrainer resources/EBWebView/
+**/logs/
+
+# ===== Compiled binaries & libs =====
+*.exe
+*.pdb
+*.obj
+*.o
+*.lib
+*.dll
+*.a
+*.so
+*.dylib
+*.pyd
+*.whl
+*.pch
+*.ilk
+*.exp
+*.rsp
+*.tlog
+*.pma
+*.pack
+*.idx
+
+# ===== Temp / cache / logs =====
+*.log
+*.tmp
+*.old
+*.bak
+*.tmpx
+~$*
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ===== Python =====
+*.pyc
+*.pyo
+
+# ===== Editors =====
+.vscode/
+.idea/
+
+# ===== desktop-connect internal artifacts (not for the public repo) =====
+desktop-connect/_*.py
+desktop-connect/tools/
+desktop-connect/ui/bridge.js.broken-bak
+
+# ===== auxiliary source internal artifacts =====
+desktop-calculator/build/
+desktop-calculator/ui/_*.html
+desktop-overlay/build/
+desktop-overlay/node_modules/
+desktop-overlay/webview2/
+desktop-overlay/ui/_*.html
+desktop-overlay/ui/*.bak*
+desktop-overlay/ui/*.enc
+engine-server/.venv/
+engine-server/python/**/__pycache__/
+engine-server/rapfi-native/
+engine-server/*.blob

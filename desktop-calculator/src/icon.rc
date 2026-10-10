@@ -1,0 +1,5 @@
+/* Icon resource. */
+
+1 ICON "Calculator.ico"
+
+#include "appver.rc"

@@ -1,0 +1,121 @@
+Gomoku Assistant · User Guide
+========================
+
+【How to Use】
+1. Double-click to run  engine-serverWeb GomokuEngine.exe  (a black console window will pop up—don't close it, or the engine will stop)
+2. The browser will automatically open a page with a blue button labeled Drag me to the bookmarks bar.
+   (1) First press Ctrl+Shift+B to show the bookmarks bar;
+   (2) Drag that blue button to the bookmarks bar and release.
+3. Open any Gomoku website (PlayOK  various online boards) and click the bookmark you just saved.
+   A draggable floating panel will appear on the right side of the screen, automatically recognizing the board and giving recommended moves.
+   No TampermonkeyScriptCat needed—the same bookmark works on any website.
+   (1) Supported scope (since v3.5)
+       1 Regular canvas boards and WebGL-rendered boards are both recognizable;
+       2 Boards inside iframe sub-windows (including multi-level nesting) are also recognizable;
+       3 If the panel shows Board not found the website doesn't draw the board with canvas (e.g., pure divSVGimage rendering).
+          In this case, the panel will automatically try screenshot recognition—the first time, a system Choose what to share dialog will pop up.
+          Please select the tab or window containing the Gomoku game and click Share (only one authorization needed), and the panel can then
+          relocate the board within the screenshot image, supporting Gomoku websites with any rendering method.
+       4 If it shows Suspected board detected but calibration failed—click 'Manual Adjust'… the website draws the board with canvas,
+          but automatic calibration didn't align (e.g., special board style). In this case, no screenshot is needed—click the Manual Adjust button,
+          drag the blue box onto the board (drag the whole box to move, drag the four corner dots to resize), and after release it will automatically snap to the grid lines,
+          then click Apply ✓ to directly read stones and auto-place moves within the page (websites like PlayOK that support in-page interaction go this route,
+          with no screenshot authorization popup at all).
+       5 If it shows Cannot connect to engine while the engine is already running the website's security policy (CSP) prohibits web pages from connecting to local services. The bookmark panel cannot be used on this website; please switch to another website.
+   (2) Recognition feedback (real-time) after successful recognition, the four corners of the board will be marked with sky-blue L-shaped frames showing the board boundaries
+       (the L frames are bold, and the length of both sides is exactly one cell),
+       and the five star points (D4D12H8L4L12) will be marked with fluorescent green small crosses—seeing these marks means the board is recognized accurately.
+   (3) When the page scrolls  the window zooms, the board position changes the panel will automatically detect this and immediately re-recognize the board, with no need to manually click Re-recognize.
+   (4) Automatic grid correction (v3.6) after reading stones, if the stones don't match (e.g., the board is offset by half a cell, or 0 stones are read but the board clearly has stones),
+       the panel will automatically fine-tune the grid alignment within ±1 cell, and the status bar will show Board grid auto-corrected;
+       only when it truly can't align will it prompt for manual adjustment, avoiding sending a wrong position to the engine and causing nonsense evaluation.
+   (5) Stone-reading self-check (v3.6) before each analysis, sampled stones are checked; when confidence is low, it directly prompts and pauses auto-placement,
+       and will not make random moves based on a wrong position.
+   (6) Supports board canvases with transparent backgrounds (the board background color is drawn with CSS, and the pixels contain only linesstones), such as some custom-drawn board pages.
+   (7) Screenshot authorization prompt if you don't want to use screenshot recognition, just click Cancel, and the panel will not repeatedly pop up and disturb you;
+       when needed, click the Re-recognize button to try again.
+   (8) Manual adjustment (a powerful tool when recognition is inaccurate) after clicking Manual Adjust, a sky-blue draggable box appears.
+       Drag the box body = move, drag the four corner dots = resize, and after release it automatically snaps to the nearest grid lines (maintaining square cells).
+       Click Apply ✓ to immediately re-analyze according to the new area; Cancel discards the changes.
+       Note snapping will stick to the nearest dark equidistant lines in the image—if there are multiple dense line areas on the page,
+       please drag the blue box as a whole onto the Gomoku board before releasing, so that snapping attaches to the real board grid.
+
+【Panel Description】
+1. Thinking time (game clock, the total clock for the whole game)
+   Fast game (about 3 minutes)  Medium game (about 5 minutes)  Slow game (about 15 minutes)  Custom
+   In Custom, you can directly enter numbers move time (seconds) minimum 0.5, in steps of 0.25; game time (seconds) in steps of 10.
+   The input takes effect immediately, and you can also fine-tune it with the adjacent +  − buttons.
+   (1) The shorter the move time, the faster the engine moves when move time ≤ 1.5 seconds, it automatically enters Acceleration Mode, concentrating computing power on the first candidate and tightening the waiting limit,
+       ensuring a stable recommendation even at 0.5 seconds.
+2. Rules (exactly the same as gomocalc.com)
+   No forbidden moves            → Overline (6 or more stones) counts as a win
+   No forbidden moves, overline doesn't win    → Only five in a row wins; overline doesn't count as a win (recommended)
+   Forbidden moves            → Black's double-threedouble-fouroverline forbidden moves (Renju rules)
+   No forbidden moves, one-move swap
+3. I play Auto  Black  White; after checking Auto Place, the engine only places when it's your turn.
+   (1) When Auto is selected, the panel will automatically identify whether you play Black or White based on your manual movesopponent's responses (after successful recognition, the status bar will show Auto-identified I play BlackWhite); it can be identified within the first few moves of a new game. You can also directly select BlackWhite manually, which is more reliable.
+   (2) Auto placement uses in-page event simulation clicks (without moving your mouse), and is most effective for canvas-type boards; if it can't click accurately on some websites, just manually click the red dot.
+   (3) Auto placement effectiveness check (v3.6) about 1 second after placing, it will automatically re-check the board and only show Auto-placed after confirming the stone count increased;
+       if the website ignores the simulated click, it will clearly prompt Auto placement did not take effect—please manually click the recommended red dot (coordinates) and give the coordinates.
+   (4) After screenshot recognition (select Tab), auto placement also works; if you selected Entire Screen during screenshot (the board is in another window),
+       in-page clicks cannot reach other windows, and the panel will prompt you to manually click the red dot.
+   (5) Note (gomocalc.com) that website's board page has built-in AI auto-continuation (after opening a link with a game record, the AI will continue playing by itself),
+       and does not respond to in-page simulated clicks—auto placement will prompt that it did not take effect, so please manually click the recommended red dot;
+       if you only want to use the assistant for analysis, just uncheck Auto Place.
+4. Red dot = best move, blue dot = other candidates; the line chart below is the win-rate curve.
+5. Press and hold the top blue title bar to drag the entire panel.
+
+【Notes】
+1. The engine runs locally (port 127.0.0.18964) and does not upload game records to any server.
+2. Auto placement is most effective for canvas-type boards; if it can't click accurately on some websites, just manually click the red dot.
+3. Closing the black console window stops the engine.
+
+[Version]
+v4.2
+
+[Open-source copyright notice]
+This software bundles the following open-source components. Each remains the property of its
+respective author(s) and is licensed under its own licence:
+
+  - Rapfi                 Gomoku / Renju engine core     GNU General Public License v3
+                          Source: https://github.com/dhbloo/rapfi
+  - OpenCV                Screen recognition             Apache License 2.0
+  - NumPy                 Numeric computing              BSD 3-Clause License
+  - Pillow                Image processing               HPND License
+  - Source Han Sans       Interface font                 SIL Open Font License 1.1
+
+The following proprietary / third-party components are also used (not open source):
+  - Microsoft WebView2 Runtime   Desktop UI runtime (shipped with Windows / Microsoft Edge;
+                                 may not be redistributed on its own)
+  - Electron / electron-builder  Packaging of the desktop overlay only (MIT licence)
+
+The interface and accompanying code of this software are released under the MIT licence.
+Rapfi is invoked as a separate process (communicating only over its process pipe / a local
+port, never linked into a single work), so it remains under its own GPL-3.0. Whenever Rapfi is
+distributed together with this software, its licence and a way to obtain its source must be
+included as well.
+
+[Distribution restrictions]
+This release package is offered as a **single whole** and may not be split up for separate
+distribution:
+  1. You may not extract any single component (engine, recognition service GomokuVision.exe, UI, bookmarklet,
+     overlay, ...) and distribute or sell it on its own.
+  2. You may not split the components apart, rename them and ship them inside your own product.
+  3. You may not remove or alter the licence notices, copyright information or this document.
+  4. Microsoft WebView2 Runtime is proprietary Microsoft software and may not be redistributed
+     on its own.
+When passing the package on, keep it complete and keep every licence notice and this document.
+
+[Disclaimer]
+  1. This software is for **learning and technical study only**. Do not use it in online games,
+     tournaments or any situation where it could be regarded as cheating. Any account penalty,
+     dispute or loss resulting from its use is borne by the user alone.
+  2. This software is provided "as is", without warranty of any kind, express or implied,
+     including but not limited to fitness for a particular purpose, accuracy or non-infringement.
+  3. Playing strength and recognition accuracy depend on your hardware, the complexity of the
+     position and the structure of each website. Suggested moves are not guaranteed to be best
+     and recognition can be wrong - always check before playing a move.
+  4. All computation happens locally and no game records are uploaded. This does not guarantee
+     that use of the software complies with any third-party site's terms; please respect them.
+  5. Users are responsible for ensuring that their use complies with applicable laws and the
+     rules of the platforms they use.

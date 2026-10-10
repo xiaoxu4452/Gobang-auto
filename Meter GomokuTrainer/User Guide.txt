@@ -1,0 +1,215 @@
+Meter GomokuTrainer · Gomoku Trainer User Guide
+================================================
+
+【How to Use】
+1. Double-click to run Desktop GomokuTrainer.exe. (If the system prompts that the WebView2 Runtime is missing, follow the pop-up instructions to install Microsoft Edge WebView2; Windows 10/11 usually already includes it.)
+2. All computation is done locally: the in-page AI (Rapfi engine, wasm version) is bundled with the package and requires no internet and no server; board recognition (GomokuVision.exe) is also bundled, a single pure C++ compiled exe with no Python dependency.
+
+【Main Window】
+1. Mode (choose one at the top bar):
+   Human vs AI → You play Black/White against the built-in AI. The AI move runs on the local engine at :8964 (launched automatically);
+   Free Placement → Place stones directly on the board. The AI does not participate at all (no analysis, no heatmap, no moves).
+2. Game Settings: Thinking time is entered in **seconds** (0.2–300 s); rules include No Forbidden Moves / Long Connect Does Not Win / Renju Forbidden Moves / Swap First Move; "Preview Box" checked = the light gray-blue rounded square shown when hovering the mouse over the board.
+   ★ Forbidden-move red X: after the rule is set to a Renju family rule (Renju / Yamaguchi / Taraguchi), points where Black **cannot play** (double-three / double-four / overline) are directly marked with red X on the board — always present once the rule is on, and faded when it is White's turn (those points are forbidden only for Black); in match mode, when it is Black's turn, clicking a red-X point is intercepted and a prompt is shown, and the preview box also turns red when the mouse is pressed over it. In Free Placement / Endgame, stones can still be placed there (those two modes are for constructing positions).
+     The judgment standard = Rapfi engine official (same algorithm as gomocalc): forbidden moves are **only** double-three, double-four, and overline. **Four-three (one four + one three) is a legal move**, not marked with a red X and not intercepted; a "false three" (a three that is itself a forbidden point when forming a four) is also not counted toward double-three — consistent point-by-point with the engine's YXSHOWFORBID output.
+   ★ Buttons at the bottom of the board: ‹ / › = previous step / next step (enlarged icon keys, one dashed-box group; keyboard ← / → arrows have the same effect, and do not take over when an input box has focus);
+     "Restart" is to the left of the toggle key (❚❚/▶); the dashed-box group to the right of "Save Position" =
+     ↻ Rotate all stones 90° clockwise / ⇄ Flip the stone layout (pop-up with one row of four keys: left-right / up-down / ╲ / ╱) /
+     ✥ Position step (pop-up with ← ↑ ↓ → four keys; all stones shift one cell in that direction; if a stone would move off the board, nothing moves and a prompt is shown);
+     Both pop-ups have an ✕ close key and can also be closed by clicking outside the pop-up.
+     ★ These transformations move the **stone layout** (mapped together with history / endgame base board). The board lines and the letter-number coordinate axes **stay unchanged**; the next AI / kill-search computation automatically uses the new layout.
+3. Dock panels: the "Cards" key in the top bar controls show/hide; cards can be dragged by their title bar between the left and right columns, and collapsed into a bar by clicking the small horizontal bar in the title bar. The "Calculation Evaluation" card = Calculate / Multi-Point Analysis / Scan Defense / Balance One / Balance Two /
+   Lookahead. Results are drawn directly on the board (numbers / W-L / ≡ badges + evaluation scores), see the next two sections for details.
+4. Colors: the "Color" key in the top bar opens the color window for custom board / page background colors (eye-friendly kraft-paper yellow + ivory-white stones are the defaults).
+
+【Calculation Evaluation (check "Calculation Evaluation" in the top bar "Cards")】
+This card is an analysis console that "does not place stones, only looks at conclusions." All analysis is **always calculated for the current side to move** (whoever's turn it is gets the analysis), with no need to manually switch sides; in the review window the entire card is unavailable (review is a pure board and does not connect to the engine).
+How to read analysis results: in the circles on the board, the small text above is the **rank**, and the small text below is the **evaluation score**; the list in the lower part of the card also lists "Rank · Coordinate · Evaluation · Best Line (PV)."
+
+1. Calculate / Stop Calculation (**the same key**, text changes with state)
+   · When idle, it shows "Calculate": clicking it = single-line deep calculation of the **best move** in the current position. This mode expands the time budget to
+     "Thinking Time × 1.6", with all threads devoted to one principal variation, so kills and defenses in the middle and endgame are seen most deeply.
+   · During calculation it shows "Stop Calculation" and lights up: clicking it = interrupt (the engine's current search cannot be stopped,
+     but the result will be discarded as invalid and no longer drawn on the board).
+   · When it finishes naturally, it automatically changes back to "Calculate", and also fills in the "Engine Dashboard" and "Evaluation Curve" on the right.
+2. Multi-Point Analysis
+   Ask for the **top N** candidate points at once (N = "Analysis Points" in the card, can be 2–8, default 4).
+   The board marks 1…N by rank with colors (1 red → 2 orange → 3 amber → 4 cyan …), so priority is clear at a glance.
+   Use: when you are not satisfied with "only one answer," compare horizontally — for example, see how many points the second and third best moves differ by,
+   or determine whether a move is a "unique solution."
+3. Scan Defense
+   Score each point within a 9×9 area around **the opponent's last move**, and spread percentages on the board:
+   The higher the %, the more dangerous the shape the opponent can grow here, and the more it needs defending. The most critical points are additionally marked with **W / L badges**:
+   · Wn = if I play here, I still have n moves to five (W1 = one move to five, W3 = make a live four, W5 = four-three, W7 = double live three);
+   · Ln = if I do not block, the opponent still has n moves to five (L2 = opponent one move to five, L4 = live four, L6 = live three).
+   This mode is an **in-page shape heuristic** and does not use the engine, so results appear immediately; afterward engine refinement continuously refreshes
+   until the conclusion stabilizes (the box shows "Stabilized"). Use: quickly find "points that must be defended," especially after the opponent has just completed a shape.
+4. Balance One (One-Move Balance)
+   First calculate all top N candidates, then choose the move with the **smallest absolute evaluation** (|evaluation| closest to 0),
+   mark it on the board with a green ≡ badge, and list the other candidates by rank as usual.
+   Use: when the position is already advantageous and you just want to close it out steadily — do not choose the sharpest move, choose the one least likely to backfire.
+5. Balance Two (Two-Move Balance)
+   For the top K candidates, **virtually place each one**, then ask for the opponent's strongest response, and take the pair with the smallest |evaluation| "after these two moves":
+   ≡ is the move I should play, and ↩ is the move the opponent is expected to respond with (both are marked on the board).
+   Use: in the opening / middle game, when you want to choose a move after which "the exchange still leaves an equal position," this is more stable than looking at only one move.
+
+·1) The three analysis keys (Multi-Point Analysis / Scan Defense / Balance One / Balance Two) are **mutually exclusive and highlighted**: whichever is clicked lights up,
+  and switching to another switches the highlight. The "Calculate / Stop Calculation" key does not participate in mutual exclusion and only follows "whether it is calculating."
+·2) To make conclusions more reliable: increase "Game Settings → Thinking Time" (seconds) and set "Core Count" to the machine's actual core count;
+  the cost is waiting longer for each analysis. Analysis Points only affect Multi-Point Analysis and Balance One/Two, not "Calculate."
+· 3) Two accompanying displays (also in this card):
+  · 4) AI View — when checked, while the AI is thinking it only marks **the point it is about to play** on the board, and it disappears after the move;
+  · 5) Guidance View — a square four-color heatmap spreading candidates across four tiers: "Best / Good / Average / Inferior," disappearing after the move.
+
+【Lookahead: Push an Endgame All the Way to Five in a Row】
+1. What It Is
+   Starting from (the current position), the engine takes the best point move by move on a temporary board until five in a row appears
+   (or until 60 moves are reached). Throughout, it **does not touch the real board**: the pushed stones are drawn semi-transparent with light gradient outlines,
+   purple = Black stones, light blue = White stones; below the box a move-code chain is generated in sync (e.g., h8 i9 g7 …).
+2. Why It Is Especially Meaningful for Endgames
+   (1) Endgames have far fewer branches than the middle game and clearer killing methods, so engine deduction is most credible — the "how will the opponent respond" that must be guessed in the middle game often has only one or two paths in an endgame, making conclusions close to definitive.
+   (2) It turns "how many moves until five" into **a visible whole chain**. The scattered forcing fours and live threes in the middle game
+        connect into a sequence of continuous forcing fours / four-three kills in the endgame; Lookahead lays out this sequence directly,
+        so you can see at a glance on which move the winning or losing move occurs, which four to force first, and when to defend instead of attack.
+   (3) It can answer "is there still a way to save this game": if the chain shows the opponent reaching five first, then you are already killed,
+        and no matter how you struggle you are only delaying — at this point go back and see which move on the chain was the real mistake; that is most valuable.
+   (4) Training value: first think through your own killing method in your head (or on paper), then turn on Lookahead to compare,
+        and see which move you missed or which order you got wrong; this learns much faster than merely looking at a single "best point."
+   (5) It is **read-only**: the deduction is only a preview, does not place stones, does not change the position, and does not affect history. Watch it when you want, close it when you want.
+3. How to Use (Complete Steps)
+   (1) Set up the endgame: Human vs AI or Free Placement both work (the review window and already-finished games cannot use it).
+   (2) Click the "Lookahead" key → the key changes color = enabled, the box shows "Deducing move k,"
+        semi-transparent deduced stones appear one by one on the board, and the code chain below the box grows in sync.
+   (3) Browse: **hover** over a code below the box = preview the position "up to this move" (it will not flicker when the mouse moves away);
+        the < > keys in the upper right = step move by move through the deduction sequence.
+   (4) Commit: click a code = **select** it (the "Confirm" key then lights up), and only clicking "Confirm" actually places the selected move
+        (including all previous moves) on the board; you can confirm progressively in multiple steps — codes after those already confirmed become lighter,
+        but you can still select and confirm further to continue.
+   (5) After confirmation, the result is **frozen**: later position changes will not automatically recalculate (saving time and preventing the chain you chose
+        from being overwritten). To recalculate, click the "Lookahead" key again.
+   (6) Before confirmation, if the position changes (you move or the AI moves), the old deduction is invalidated, and if Lookahead is on it automatically recalculates
+        (300 ms debounce to prevent rapid clicking).
+   (7) Clicking the "Lookahead" key again = close (clear the deduced stones and code chain); if currently frozen, clicking again = **recalculate**.
+4. **VCF / VCT Kill Search** (specifically for endgame problems):
+   The **VCF / VCT** two keys in the first row of the box = run only the **local kill searcher** (VCF = continuous forcing-four win;
+   VCT = continuous threat win by forcing fours + live threes, iterative deepening + multithreaded parallel search). Click either one to start,
+   and the selected key turns **light pink-purple**; if a forced win exists, the **complete winning sequence** is laid out directly —
+   in addition to the deduced stones on the board, a **pink-purple dashed line** connects the killing path move by move, so you can see at a glance how to play;
+   the box will indicate "VCF kill search success: n moves" or "VCT kill search success"; if **not found**, it clearly prompts
+   "No forced VCF/VCT kill found." You can switch to the other key or turn on "Lookahead" to deduce move by move.
+   Continuous forcing-four kills in endgame problems will no longer be missed or deduced incorrectly by move-by-move evaluation.
+   (Layout: first row = Lookahead + VCF / VCT + < > stepping; second row = Black / White stone legend + Confirm key —
+   the legend uses colored boxes around the text: Black stone purple box, White stone light blue box, matching the code chain below the box.)
+   · **Feedback on click**: after clicking "Lookahead" to enter kill search, the VCF / VCT keys in the box turn **pink-purple**
+     (lit while searching and when found; restored when Lookahead is closed or no solution is found), so you can tell at a glance whether kill search is running.
+4. Two Notes
+   · Deduction uses a **dedicated engine lane** (does not compete with the heatmap or AI moves), with a per-move budget = Thinking Time × 2
+     (minimum 300 ms, maximum 1.2 s) — to make endgame deduction more accurate, increasing "Thinking Time" is most effective.
+   · Deduction conclusions **do not represent absolute truth**: they are only the engine's judgment under these time budgets,
+     and longer time makes them more credible; if in an endgame "it switches to another path halfway through," it is usually because a deeper layer found a faster kill.
+
+【Image Recognition Window (top bar "Recognition" key)】
+Read a board from an image or screen **into the trainer** to continue playing / save / review.
+1. Left image panel: upload images (multiple selection allowed, up to 150) or take a screen capture; click the "n / m" capsule
+   to open the **image drawer** — click a thumbnail to select it, click ✕ in the upper right to remove it, and clicking blank space in the drawer also triggers upload.
+   · **Auto-save**: every uploaded / captured image is automatically kept in the drawer; over 150 images,
+     the oldest are automatically deleted, with no manual management needed;
+   · The top of the drawer has three small keys: **Select** (enter check mode), **Select All**, **Delete**
+     (delete checked images); supports Ctrl+click multi-select, Shift+click range select, Ctrl+A select all;
+   · After checking, you can "Copy Images" (copy the selected images back to the recognition area for further recognition);
+   · **Right-clicking** a thumbnail also brings up these operations.
+2. Modify recognition results (new **"Modify" key** to the right of "Load to Practice"): mechanical recognition occasionally misidentifies one or two stones.
+   After clicking "Modify," the keys are arranged **in two centered rows** directly below the board — the first row is "Swap Black/White Stones / Delete Stone /
+   Add Black Stone / Add White Stone," and the second row is "Add Black-White Pair + Start with Black / Start with White" on its own line;
+   in modify mode the board shows a **light purple preview box**
+   (hover prompt), and all operation prompts are uniformly shown in the **left text column** (slightly larger font, more conspicuous) —
+   · **Swap Black/White Stones**: **swap pair by pair** — first click a black stone, then click a white stone, and the two stones instantly swap colors;
+     you can keep swapping many pairs until you click "Swap Black/White Stones" again or press Esc to exit (suitable when only a few stones are wrong);
+   · **Delete Stone**: click the stone to delete — when Black has more than White, you can **delete a black stone alone**; when White and Black are equal, you can
+     **delete a white stone alone**; otherwise it prompts you to click another stone of the **opposite color** to delete them as a pair (clicking a wrong stone again cancels it);
+   · **Add Black Stone / Add White Stone** (used when one color is missing stones): after clicking the key, it prompts for the color to add; on an empty intersection
+     **click once to add one stone** — adding Black continues until "Black is equal to White or one more," and adding White until "White is equal to Black"; if exceeded, a prompt is shown;
+     suitable for smoothing Black/White counts after recognition misses or extras;
+   · **Add Black-White Pair**: **"Start with Black / Start with White"** two keys add one pair at a time. Taking Start with Black as an example:
+     click an empty spot to show a **semi-transparent black stone** → click another empty spot to show a semi-transparent white stone (the two stones are framed by a **dashed box**)
+     → click a third position = finalize this pair and begin the next pair; clicking blank space outside the board = finalize only this pair.
+     Start with White reverses the order;
+   · **Right-clicking** a board cell also directly brings up these modify operations;
+   · After modifying, click "Modify" again at any time to collapse the function bar; the recognition result is saved / loaded as modified;
+   · **Board Code Box**: after recognition / manual modification is finalized, the **board code** of the current position automatically appears in the small code box
+     between the function keys and the prompt text (same format as the main window's "Position Code").
+     Click "Copy" to reuse it elsewhere.
+2. Screen Capture (hollow selection box):
+   (1) Click "Screen Capture" → a **sky-blue hollow selection box** appears on the screen, completely transparent in the middle,
+        blocking no operations; you can operate other software as usual;
+   (2) Drag the sky-blue title bar = move; drag the four sides / four corners = resize (the edge hit area is wider, so the cursor changes easily);
+   (3) "Auto On" (default on) = automatically snap to the board: every 1–2 seconds it searches the screen for a Gomoku board,
+        and when found the selection box automatically snaps to the board and **leaves about 1/30 of the board as extra margin outward** —
+        the outermost row of stones is fully included, so edge stones are not lost in recognition (same feel as the desktop Gomoku assistant's auto-snap);
+        when not needed, click once to switch to "Auto Off";
+   (4) After positioning, click "Capture" in the title bar → the area inside the box immediately enters recognition; **the box remains**, and you can move it to capture again;
+        only "Close" or ESC dismisses the box; the selection box itself is not captured in the screenshot;
+   (5) The window minimum is 880×580; the right board scales with the window, while the left image box size stays unchanged;
+   (6) In English mode, the selection box keys and title synchronize to English short words (Auto/Off · Shot · Close),
+        and key width adapts to text width; **when the recognition window is closed, the capture box closes with it**.
+3. Recognition: after changing images it recognizes automatically, and you can also manually click "Recognize"; distinguish cases by prompt —
+   "No board or stones recognized for now," "Board recognized but stones not read," "Image may be blurry,"
+   "Image resolution is low," etc.
+   · **Auto-Snap (Smart)**: when recognizing large images, by default it "automatically snaps to the board area" and reads it carefully again —
+     it is enabled only when direct reading of the whole image is **unreliable** (abnormal black-white difference, etc.), so normal recognition does not take an extra detour;
+     when snapping and cropping, it **expands outward by about 1/30 of the board as extra margin** (same standard as the screen capture box's auto-snap),
+     preserving edge details — full-board large images also benefit from snap + expansion, with no switch needed;
+4. Incomplete-Board Tolerance: when a screenshot/photo does not capture the full 15×15 board (for example, only half the board, or non-standard line count),
+   rebuild the grid by **equidistant lattice**: as long as at least 6 horizontal and vertical grid lines remain in the image and the period is clear,
+   stones can still be read and loaded centered, with the prompt "The current board may be incomplete (partial board); loaded centered according to stone layout."
+   · **Automatic correction when edge lines are cropped**: when a screenshot just crops off the outermost grid line (for example, capturing right against the first line),
+     the recognizer automatically removes the "phantom line" and **shifts the whole board back by one cell** before reading stones — previously such screenshots would be
+     shifted by one cell overall and lose a row of edge stones, but now they can be read correctly (it still prompts partial board and loads centered according to stone layout).
+5. Where Results Go: "Save to History" enters the history drawer; "Load to Practice" sends the position to the main window —
+   if currently in Human vs AI mode, it **automatically switches to Free Placement** (the static board is then for you to continue placing / study).
+
+【Review Window】
+1. The top bar "Review" in the main window opens an independent review window: only the board + one row of function keys (Recite / Replay /
+   Playback Step / Speed), not connected to AI, always with no forbidden moves.
+2. The "Preview Box" switch in the main window's game settings is **synchronized to the review window** (whether the hover square is drawn is consistent on both sides),
+   and after switching in the main window the review window follows in real time.
+3. History can be renamed / right-click operated / exported and imported as txt.
+
+【Notes】
+1. The engine and recognition all run locally and do not upload game records to any server.
+2. Recognition quality is affected by image clarity and the proportion of the board in the image: the larger and clearer the board, the more accurate the stone reading.
+3. Closing the window exits; runtime logs are in GomokuTrainer.log next to the exe.
+
+【Version】
+v4.3.1
+
+【Open-Source Copyright Notice】
+This software uses the following open-source components; each component remains owned by its original author and is licensed under its respective license:
+
+  · Rapfi                 Gomoku / Renju engine core      GNU General Public License v3
+                          Source: https://github.com/dhbloo/rapfi
+  · OpenCV                Board recognition (computer vision)      Apache License 2.0
+
+It also uses the following proprietary / third-party components (not open source, used under their respective terms):
+  · Microsoft WebView2 Runtime    Desktop UI runtime (distributed with Windows / Microsoft Edge; may not be redistributed independently)
+
+The interface and accompanying code of this software itself are released under the MIT license.
+Rapfi is invoked as an independent Worker / process (communicating only through a script pipe, not linked with this software into the same work),
+so it remains licensed under its own GPL-3.0; when distributing Rapfi together with this software, Rapfi's license and source acquisition method must be retained.
+
+【Distribution and Redistribution Restrictions】
+This release package is provided as a whole and may not be split apart for independent distribution:
+  1. No component in the package (engine, recognition component GomokuVision.exe, interface, etc.) may be extracted and distributed or sold separately;
+  2. Components may not be split, renamed, and incorporated into your own product for redistribution;
+  3. License notices, copyright information, and this guide in the package may not be deleted or altered;
+  4. Microsoft WebView2 Runtime is Microsoft proprietary software and may not be redistributed independently.
+When reposting the whole package, keep it complete and retain all license notices and this guide file.
+
+【Disclaimer】
+  1. This software is for **learning and technical exchange** only. Do not use it for any online games, competitions, or any scenario that may be considered cheating;
+     account penalties, disputes, or losses arising from use of this software are borne by the user and are unrelated to the software author.
+  2. This software is provided "as is," without any express or implied warranty (including but not limited to fitness, accuracy, and non-infringement).
+  3. Playing strength and recognition quality are affected by hardware performance, game complexity, image quality, and other factors; recommended moves are not guaranteed to be optimal,
+     and recognition results may also be wrong. Please judge for yourself before placing stones.
+  4. All computation of this software is done locally and does not upload game records.
+  5. Users should confirm on their own that their use complies with local laws and regulations and relevant platform rules.
