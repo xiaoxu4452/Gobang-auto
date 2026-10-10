@@ -1,0 +1,54 @@
+# Gobang-auto · 米特五子棋（Meter Gomoku）
+
+**米特五子棋**是一套基于原生 **RapFi** 引擎的 Windows 桌面五子棋套件，共包含四个发布目录：
+
+| 目录 | 说明 |
+| --- | --- |
+| `Meter Gomoku` | 连线版——桌面覆盖层，支持棋盘识别、引擎分析、交换平衡点提示、可选自动落子，并内置微浏览器与复盘面板 |
+| `Meter GomokuTrainer` | 单机训练器——分析、摆盘、评估（含 VCF / VCT 算杀、禁手判定）、复盘与练习 |
+| `Meter GomokuAssistant` | 桌面助手——实时抓屏识别、评估覆盖层、交换平衡点 / 交换评估、自动落子（对战在线棋盘） |
+| `Meter engine-server` | 共享引擎服务——原生 RapFi 引擎构建 + 扫描 / 视觉识别服务 |
+
+## 特性亮点
+
+- **原生 RapFi 引擎**：官方强五子棋引擎进程内硬连接，引擎调用零 HTTP 往返（纯 C++ 硬连接），延迟低、棋力高。
+- **零 HTTP 核心**：棋盘扫描、识别与引擎通信全部由 C++ 宿主完成（抓屏 → 视觉 → 原生引擎），不走网络服务。
+- **单发独占分析**：每次分析与自动落子均走单发通道（`Analyze` 独占语义），评估与落子互不排队，充分发挥引擎智力。
+- **交换平衡点**：空盘交换（两黑一白）与中局交换（一黑一白）依据 RapFi 官方开局库计算，双方几乎零优势，避免暴露有利点。
+- **识别覆盖层**：四个紫色 L 型角框 + 天蓝色连线、五个十字定位点、对覆盖窗口自身免疫、低高清固定比例缩放。
+- **WebView2 界面**：深浅色主题、中英文切换、内置微浏览器（搜索 / 导航 / 下载走系统另存为对话框）。
+- **强化打包**：Inno Setup 安装包，带 Defender 友好签名选项与变体核查，可安装在较老的 Windows 机器上。
+
+## 系统要求
+
+- Windows 10 / 11（x64），兼容较老版本与低分辨率屏幕。
+- [Microsoft Edge WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/)（常青版）。
+- 安装后无需联网，全部本地运行。
+
+## 下载
+
+套件与单机安装包（密码：`55555`）：
+
+https://wwbbj.lanzout.com/b016l4d3id
+
+单训练器版本另有独立下载地址。
+
+## 仓库结构
+
+- `Meter Gomoku/`、`Meter GomokuTrainer/`、`Meter GomokuAssistant/`、`Meter engine-server/` —— 可直接运行的发布目录（可执行文件、加密 UI 资源、引擎二进制）。
+- `desktop-connect/` —— 桌面核心源码：WebView2 界面（`ui/`）与 Win32 宿主（`src/`），发布版本已去除注释并保留精简英文文件头。
+- `installer/` —— Inno Setup 打包脚本（`*.iss`）与构建产物。
+- `tools/` —— 构建 / 发布 / 打包辅助脚本。
+- `desktop-calculator/`、`desktop-vision/` —— 相关桌面工程（计算器覆盖层与视觉识别服务）。
+
+## 从源码构建（概要）
+
+（1）安装 Visual Studio（C++ 工具链）、Windows SDK 与 WebView2 SDK。
+（2）取得原生 RapFi 构建（`rapfi-native`），并按运行时预期放入发布目录。
+（3）构建 `desktop-connect`（宿主 + WebView2 界面），再运行 `tools/` 中的发布打包脚本生成 `.enc` UI 资源与 Inno Setup 安装包。
+
+说明：UI 文件解密密钥及少量内部头文件有意不随仓库公开，密钥在构建时注入。
+
+## 许可
+
+本仓库包含原创代码与第三方组件。五子棋搜索引擎基于 **RapFi**（GPL-3.0），再分发前请查阅引擎许可条款；项目其余部分以参考与个人使用为目的公开。

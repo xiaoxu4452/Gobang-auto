@@ -1,0 +1,89 @@
+════════════════════════════════════════════════════════════════════
+ 开源许可与版权声明（Open Source Licenses & Copyright Notices）
+ Meter 五子棋助手（单机版）· Version 4.36
+════════════════════════════════════════════════════════════════════
+
+本文件列明「Meter 五子棋助手（单机版）」随包分发所涉及的第三方开源组件、
+其著作权归属与许可证条款。各组件的许可证原文以官方仓库为准；本文件仅作
+摘要指引。若本文件与许可证原文存在歧义，以原文为准。
+
+═══════════════════════════════════════════════════
+一、Rapfi 引擎（含官方预编译变体与权重）
+═══════════════════════════════════════════════════
+  组件        ：Rapfi —— Gomoku/Renju 对弈引擎 0.43.01（release 250615）
+  著作权      ：Copyright (C) 2022 Rapfi developers
+  许可证      ：GNU General Public License v3.0（GPLv3）
+  上游源码    ：https://github.com/dhbloo/rapfi
+  权重        ：https://github.com/dhbloo/rapfi-networks
+                （mix9svq + classical；随包 model210901.bin 为 classical 旧格式）
+  随包形态    ：官方 Windows 预编译二进制 ×5（avx512vnni / avxvnni / avx512 /
+                avx2 / sse）+ 权重 + config.toml，位于 rapfi-native\ 目录。
+  GPLv3 摘要  ：本程序按 GPLv3 授予你运行、研究、修改和再分发的自由；相应的
+                源代码可自上游仓库获取。任何对本引擎二进制的再分发亦须遵循
+                GPLv3 的条款（含许可证文本随附义务）。
+  NOTICE 原文 ：随包 rapfi-native\NOTICE.txt（本目录的逐字节副本）。
+
+═══════════════════════════════════════════════════
+二、OpenCV（视觉识别内核）
+═══════════════════════════════════════════════════
+  组件        ：OpenCV（开源计算机视觉库）
+  著作权      ：Copyright (C) 2000-2024, Intel Corporation、
+                OpenCV 团队及贡献者保留所有权利。
+  许可证      ：Apache License 2.0
+  上游源码    ：https://github.com/opencv/opencv
+  随包形态    ：静态链接进 GomokuVision.exe / GomokuVision.dll
+                （识别服务为官方 OpenCV C++ 内核的自包含移植）。
+  Apache-2.0 摘要：允许商用、修改与再分发；须保留著作权与许可声明。
+                许可证全文：https://www.apache.org/licenses/LICENSE-2.0
+
+═══════════════════════════════════════════════════
+三、思源黑体（Source Han Sans / Noto Sans SC）
+═══════════════════════════════════════════════════
+  组件        ：Source Han Sans SC / CN、Noto Sans SC（程序界面与遮罩字体，
+                运行时经系统字体枚举选用，不随包内嵌字体文件）
+  著作权      ：Copyright 2014-2021 Adobe Systems Incorporated（思源黑体）、
+                Google LLC（Noto Sans SC）及各文字项目贡献者。
+  许可证      ：SIL Open Font License 1.1（OFL）
+  许可证全文  ：https://openfontlicense.org
+  OFL 摘要    ：允许自由使用、内嵌与再分发；不得单独出售字体文件本身。
+
+═══════════════════════════════════════════════════
+四、Microsoft Edge WebView2 Runtime
+═══════════════════════════════════════════════════
+  组件        ：Microsoft Edge WebView2 运行时（面板界面渲染内核）
+  著作权      ：Copyright (c) Microsoft Corporation.
+  说明        ：WebView2 Runtime 由微软免费分发并随系统 Edge 更新；
+                本软件不随包再分发其任何文件，仅在缺失时引导用户至
+                官方下载页安装。其使用受微软相应的运行时许可条款约束。
+
+═══════════════════════════════════════════════════
+五、Windows SDK / Inno Setup（构建期工具，不随包分发）
+═══════════════════════════════════════════════════
+  · Microsoft Windows SDK（头文件与库，MIT 式许可）——仅用于编译宿主 exe。
+  · Inno Setup（Jordan Russell & Martijn Laan）—— 安装包制作工具，
+    Inno Setup License（BSD 风格）许可；其运行时卸载组件随安装包工作。
+
+═══════════════════════════════════════════════════
+六、本软件的著作权与授权
+═══════════════════════════════════════════════════
+  「Meter 五子棋助手（单机版）」的宿主程序（Desktop GomokuAssistant.exe）、
+  面板界面（overlay\*.enc）与文档（使用手册 / User Guide）为 Meter 的原创
+  作品，Meter 保留其著作权。
+
+  本软件仅供学习与个人辅助研究使用；使用本软件进行破坏对弈平台公平性的
+  行为所引发的后果由使用者自行承担。
+
+  特别说明（GPLv3 合规）：本软件与 Rapfi 引擎通过进程隔离 + 管道通信的方式
+  协作，二者为独立程序；Rapfi 部分以官方原样二进制随包分发并附本声明与
+  NOTICE，符合 GPLv3 的聚合（aggregate）分发要求。Rapfi 部分的完整对应源码
+  请自上游仓库 https://github.com/dhbloo/rapfi 获取（不因本聚合分发而产生
+  额外的书面提供义务）。
+
+  组件版本快照（随本安装包核验）：
+    Rapfi              0.43.01（release 250615，5 个 ISA 变体）
+    权重               model210901.bin（23 204 字节，classical 旧格式）
+    视觉服务           官方 OpenCV C++ 内核自包含移植（GomokuVision 成对）
+    面板渲染           Microsoft Edge WebView2（系统组件）
+
+                                              —— Meter, 2026
+════════════════════════════════════════════════════════════════════

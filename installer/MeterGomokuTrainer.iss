@@ -1,4 +1,4 @@
-﻿; ============================================================================
+; ============================================================================
 ;  Meter GomokuTrainer —— 独立版五子棋训练器 · 安装包脚本（Inno Setup 7）
 ; ----------------------------------------------------------------------------
 ;  编译（命令行）：
@@ -21,10 +21,15 @@
 ;      校验字节，原文件是无 BOM 却在头部声明 936，容易被按 GBK 解读 → 界面乱码。
 ;   ④ 图标：安装包自身 + 所有快捷方式 + 控制面板卸载项，统一用 Calculator.ico
 ;      （exe 在构建时已由 rc.exe 把同一个 ico 编入，所以 Icons 直接指向 exe 的资源）。
+;   ⑤ 2026-10-02 整理（与当天的内容替换对齐）：
+;      · 识别组件 = {app}\Vision\{GomokuVision.exe + GomokuVision.dll}（旧版平铺在
+;        {app} 根目录的旧壳已在 [InstallDelete] 里清掉）；
+;      · 文档 = 使用说明.txt + User Guide.txt（中英各一）；
+;      · rapfi-native 排除 *.poisoned-bak（本地排障备份，非运行时文件）。
 ; ============================================================================
 
 #define AppName        "Meter GomokuTrainer"
-#define AppVersion     "4.3.0"
+#define AppVersion     "4.36"
 #define AppPublisher   "Meter"
 #define AppExeName     "Desktop GomokuTrainer.exe"
 #define SrcDir         "..\Meter GomokuTrainer"
@@ -97,21 +102,36 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Type: filesandordirs; Name: "{app}\calc"
 Type: filesandordirs; Name: "{app}\resources"
 Type: filesandordirs; Name: "{app}\rapfi-native"
+; ★ 2026-10-02 整理：识别组件换到 {app}\Vision\（exe 壳 + dll 模型库成对），
+;   旧版本把 GomokuVision.exe 平铺在 {app} 根目录 —— 升级时清掉旧货，避免宿主
+;   先命中根目录那个没有配套 dll 的陈旧壳（识别起不来）。
+Type: filesandordirs; Name: "{app}\Vision"
+Type: files; Name: "{app}\GomokuVision.exe"
+Type: files; Name: "{app}\GomokuVision.dll"
 
 [Files]
 ; 宿主 exe
 Source: "{#SrcDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-; 识别组件（识图窗「上传识别 / 屏幕截图」的子进程；C++ 单文件零依赖）
+; 识别组件（识图窗「上传识别 / 屏幕截图」的服务壳）
 ; ★ 2026-09-21 补进安装清单 —— 之前漏了，装出来的版本识图窗识别不可用。
-Source: "{#SrcDir}\GomokuVision.exe"; DestDir: "{app}"; Flags: ignoreversion
-; 使用说明（随包装到根目录）
+; ★ 2026-10-02 跟上 #95/#110 布局：exe=服务壳 + dll=识别模块，**成对**装进
+;   {app}\Vision\ 子目录（宿主 EnsureScanServer 第一优先找 {ExeDir}\Vision\GomokuVision.exe，
+;   旧布局 {app} 根目录只是回落路径）。
+; ★ 2026-10-05 训练器恢复老版静态识别：Vision 只装老版 GomokuVision.exe（静态单文件、零 DLL），
+;   不装 dll；宿主 DLL 直调缺失自动回落 exe 服务/子进程 → 走老版识别逻辑。
+Source: "{#SrcDir}\Vision\GomokuVision.exe"; DestDir: "{app}\Vision"; Flags: ignoreversion
+; 使用说明（随包装到根目录；中文手册 + 英文手册）
 Source: "{#SrcDir}\使用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\User Guide.txt"; DestDir: "{app}"; Flags: ignoreversion
 ; 加密后的界面（宿主内存解密；磁盘上无明文）
 Source: "{#SrcDir}\calc\*.enc"; DestDir: "{app}\calc"; Flags: ignoreversion
 ; ★ 2026-09-25：页面内 AI 换**原生 Rapfi 引擎**（exe 旁 rapfi-native/ 存在即启用，
 ;   host.cpp 按变体探测 avx512/avx2；目录缺席才回落页面内 WASM——独立版发布目录已不带
-;   resources/，故安装包同样只装原生运行时：引擎 exe ×2 + 官方权重 + config.toml，约 41MB）
-Source: "{#SrcDir}\rapfi-native\*"; DestDir: "{app}\rapfi-native"; Flags: ignoreversion recursesubdirs
+;   resources/，故安装包同样只装原生运行时：**官方 250615 五个变体**
+;   （avx512vnni/avxvnni/avx512/avx2/sse）+ 9 个权重与配置，约 50MB）
+;   ★ 2026-10-02 整理：排除 *.poisoned-bak —— 本地排障留下的「中毒数据库」备份，
+;     不是运行时需要的权重/配置，不该随包发给用户。
+Source: "{#SrcDir}\rapfi-native\*"; DestDir: "{app}\rapfi-native"; Excludes: "*.poisoned-bak"; Flags: ignoreversion recursesubdirs
 ; ★ 不列 {#SrcDir}\GomokuTrainer resources\ —— WebView2 用户数据缓存，属运行期产物。
 
 [Icons]

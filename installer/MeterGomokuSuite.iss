@@ -25,10 +25,17 @@
 ;      「到最后让用户选择可保留的快捷方式」。静默安装跳过自定义页 = 三个都建。
 ;   ⑥ 图标：安装包自身用图标目录里**专属**的多尺寸 Gomoku3in1.ico（≠ 任一程序图标）；
 ;      各快捷方式图标取自**对应 exe 内嵌资源**（三个图标互不相同）。
+;   ⑦ 2026-10-02 整理（与当天的内容替换对齐）：
+;      · 识别组件 = {app}\Vision\{GomokuVision.exe + GomokuVision.dll}（旧的根目录
+;        平铺布局已在 [InstallDelete] 里清掉，避免陈旧无 dll 的壳被优先命中）；
+;      · 文档 = 使用说明.txt + User Guide.txt + README_zh.md + README_en.md
+;        （后两份由 tools/sync-overlay.js 从 tools/overlay-readme-*.md 补回，
+;          ISS 依赖它们 —— 少了会直接编译失败，别再手工删）；
+;      · rapfi-native 排除 *.poisoned-bak（本地排障备份，非运行时文件）。
 ; ============================================================================
 
 #define SuiteName       "Meter Gomoku Suite"
-#define SuiteVersion    "4.3.0"
+#define SuiteVersion    "4.36"
 #define SuitePublisher  "Meter"
 #define ExeTrainer      "Desktop GomokuTrainer.exe"
 #define ExeWeb          "Web GomokuEngine.exe"
@@ -106,15 +113,27 @@ Type: filesandordirs; Name: "{app}\calc"
 Type: filesandordirs; Name: "{app}\overlay"
 Type: filesandordirs; Name: "{app}\resources"
 Type: filesandordirs; Name: "{app}\rapfi-native"
+; ★ 2026-10-02 整理：识别组件换到 {app}\Vision\（exe 壳 + dll 模型库成对）。
+;   旧版本把 GomokuVision.exe 平铺在 {app} 根目录 —— 升级时这两件旧货必须清掉，
+;   否则宿主 EnsureScanServer 会先命中根目录的陈旧 exe（只有壳、没有配套 dll）
+;   → 识别服务起不来。Vision\ 目录本身也先删，保证里面不会新旧 dll 混装。
+Type: filesandordirs; Name: "{app}\Vision"
+Type: files; Name: "{app}\GomokuVision.exe"
+Type: files; Name: "{app}\GomokuVision.dll"
 
 [Files]
 ; 三个宿主 exe + 识别组件
 Source: "{#SrcDir}\{#ExeTrainer}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SrcDir}\{#ExeWeb}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SrcDir}\{#ExeOverlay}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SrcDir}\GomokuVision.exe"; DestDir: "{app}"; Flags: ignoreversion
-; 说明文档
+; ★ 2026-10-02 跟上 #95/#110 布局：视觉 exe=服务壳 + dll=识别模块，成对装进
+;   {app}\Vision\（overlay/trainer 宿主第一优先找 {ExeDir}\Vision\GomokuVision.exe）
+Source: "{#SrcDir}\Vision\GomokuVision.exe"; DestDir: "{app}\Vision"; Flags: ignoreversion
+Source: "{#SrcDir}\Vision\GomokuVision.dll"; DestDir: "{app}\Vision"; Flags: ignoreversion
+; 说明文档（中文手册 + 英文手册 + 两份 GitHub 式简介；README_zh/en.md 由
+;   tools/sync-overlay.js 从 tools/overlay-readme-*.md 补回，ISS 依赖它们，勿删条目）
 Source: "{#SrcDir}\使用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\User Guide.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SrcDir}\README_zh.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SrcDir}\README_en.md"; DestDir: "{app}"; Flags: ignoreversion
 ; 加密后的界面（训练器 calc / 覆盖层 overlay；宿主内存解密；磁盘上无明文）
@@ -127,7 +146,10 @@ Source: "{#SrcDir}\overlay\*.enc"; DestDir: "{app}\overlay"; Flags: ignoreversio
 ;   · **WASM 兜底**：CPU 太旧（无 AVX2）探针失败时回落 resources/rapfi-multi.*（老保险）；
 ;   · 三件套里训练器的页面内 AI 走 :8964 共享引擎，不本地加载；覆盖层也走 :8964。
 Source: "{#SrcDir}\resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs
-Source: "{#SrcDir}\rapfi-native\*"; DestDir: "{app}\rapfi-native"; Flags: ignoreversion recursesubdirs
+;   ★ 2026-10-02 整理：排除 *.poisoned-bak —— 那是本地「数据库中毒」排障时留下的
+;     备份（rapfi.db / rapfi_bak1 / rapfi_bak2），既不是运行时需要的权重，
+;     也不是配置，打进安装包只会让用户机器上多出三个没人认领的文件。
+Source: "{#SrcDir}\rapfi-native\*"; DestDir: "{app}\rapfi-native"; Excludes: "*.poisoned-bak"; Flags: ignoreversion recursesubdirs
 ; ★ 不列 {#SrcDir}\GomokuTrainer resources\ 与 logs\ —— 运行期产物，见文件头 ②。
 
 [Icons]

@@ -68,3 +68,12 @@ Thumbs.db
 # ===== Editors =====
 .vscode/
 .idea/
+
+# ===== desktop-connect internal artifacts (not for the public repo) =====
+desktop-connect/_*.py
+desktop-connect/tools/
+desktop-connect/ui/bridge.js.broken-bak
+tools/_*
+tools/_ui_slices/
+tools/rapfi-official/
+tools/assistant-docs/

@@ -127,7 +127,9 @@ ignore_corrupted = true
 [database.search]
 # Whether to write/update the database in search
 # 开启数据库只读模式
-readonly_mode = false
+# ★★ 2026-10-01（实测：库里的「必胜/必败」标签有假的，会污染对局，详见下）→ 恒 true：
+#   引擎**读**库可以，但**绝不写**库 —— 从此不会再积累未经复核的 mate 标签。
+readonly_mode = true
 
 
 # Search before this ply is required to query the database
@@ -145,6 +147,11 @@ nonpv_iter_per_ply_increment = 2
 
 # PV node before this ply is required to write the database
 # 主要分支下数据库最大写入层数，默认为0，增大该层数可以保留更多层主要路线下的胜率结果
+# ★★ 2026-10-01：回到官方默认 0（并把整个库设为只读，见上 readonly_mode）——
+#   上一轮改成 8 是为了「开局强搜」积累，但那批记录后来被实测证明**不可信**
+#   （tools/_db_label_audit.js：抽样 4 条 mate 标签有 2 条是假的；
+#    tools/_db_poison_e2e.js：同一开局第 2 局吃库后，同一局面评估从 -625 跳成 -M42）。
+#   宁要「每手都重新深搜」的确定性，也不要吃错结论的「伪强」。
 pv_write_ply = 0
 
 # How many depth needed to add a new record in PV node
@@ -158,15 +165,20 @@ write_value_range = 800
 
 # Mate node before this ply is required to write the database
 # 必胜必败分支下数据库最大写入层数，默认为2，增大该层数可以保留更多层的必胜必败结果
-mate_write_ply = 2
+# ★★ 2026-10-01：0 = **不再写 mate 标签**。默认的 2 会把「任意深度」的 mate 结论写成
+#   「必胜/必败」标签（实测有 depth 0/1 就写进去的假标签），而 root 一旦命中这种标签
+#   会**直接采用库里的着法、零搜索**（search.cpp searchMain 的 queryChildren 分支）——
+#   这正是「仪表盘报 M33、棋子却落在帮对手的点上」的机制。
+mate_write_ply = 0
 
 # How many depth needed to add a new record in exact Mate node
 # 准确步数的必胜必败分支下数据库允许写入的最低搜索深度，默认为0
-mate_write_min_depth_exact = 0
+# ★★ 2026-10-01：默认 0 = 只要搜到 mate 就写；抬到 24（深度不够不写）。
+mate_write_min_depth_exact = 24
 
 # How many depth needed to add a new record in non-exact Mate node
 # 没有得到准确步数的必胜必败分支下数据库允许写入的最低搜索深度，默认为0
-mate_write_min_depth_nonexact = 0
+mate_write_min_depth_nonexact = 24
 
 # For mate longer than this step, we will try to write the record
 # 必胜必败下数据库允许写入的最低必胜必败步数，默认为0，少于该步数的必胜必败将不会被记录
