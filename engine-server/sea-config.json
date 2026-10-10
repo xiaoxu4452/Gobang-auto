@@ -1,8 +1,0 @@
-﻿{
-  "main": "engine-server.js",
-  "output": "engine.blob",
-  "disableExperimentalSEAWarning": true,
-  "useSnapshot": false,
-  "useCodeCache": false
-}
-

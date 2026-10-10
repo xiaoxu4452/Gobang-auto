@@ -17,7 +17,7 @@
 | `desktop-calculator/` | 单机训练器应用——`src/` Win32 宿主 + `ui/` WebView2 界面 |
 | `desktop-vision/` | 视觉识别服务（`src/`），供训练器与助手使用 |
 | `desktop-overlay/` | 桌面助手应用——宿主（`src/`）、覆盖界面（`ui/`）与启动脚本 |
-| `engine-server/` | 书签版本地引擎服务——Node 服务通过子进程管道驱动原生 RapFi 引擎，附带 Python 视觉辅助 |
+| `bookmark-assistant/` | 书签版浮动五子棋助手（纯 JS）——棋盘识别委托本地 C++ 视觉服务（`GomokuVision`），落子搜索委托原生 RapFi 引擎 |
 
 ## 特性亮点
 

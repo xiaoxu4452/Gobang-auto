@@ -1,6 +1,0 @@
-# 本地棋盘识别服务依赖（回退路径：本机 Python 时由 GomokuEngine.exe 自动安装到 python/.venv）
-# 主路径：随包已含 python/runtime 便携 Python 运行时（embeddable + 预装 opencv/numpy/pillow），零安装即识别。
-# 版本锁定以保证各电脑识别效果一致。headless 版不含 GUI 依赖，体积更小、更适合服务端。
-numpy>=2.0,<3.0
-opencv-python-headless>=4.10
-pillow>=11.0

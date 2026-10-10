@@ -17,7 +17,7 @@
 | `desktop-calculator/` | Standalone trainer application — `src/` Win32 host + `ui/` WebView2 UI |
 | `desktop-vision/` | Vision / recognition service (`src/`) used by the trainer and the assistant |
 | `desktop-overlay/` | Assistant overlay application — host (`src/`), overlay UI (`ui/`) and launcher scripts |
-| `engine-server/` | Bookmark-edition local engine service — Node server driving the native RapFi engine over a child-process pipe, plus Python vision helpers |
+| `bookmark-assistant/` | Bookmark-edition floating Gomoku assistant (pure JS) — delegates board recognition to the local C++ vision service (`GomokuVision`) and move search to the native RapFi engine |
 
 ## Highlights
 
