@@ -2974,6 +2974,8 @@ static void RespondMem(ICoreWebView2WebResourceRequestedEventArgs* args, int sta
       hs->AppendHeader(L"Cross-Origin-Opener-Policy", L"same-origin");
       hs->AppendHeader(L"Cross-Origin-Embedder-Policy", L"require-corp");
       if (extraName && *extraName) hs->AppendHeader(extraName, extraValue);
+      if (!mime.empty()) hs->AppendHeader(L"Content-Type", mime.c_str());
+      hs->AppendHeader(L"Cache-Control", L"no-store");
       hs->Release();
     }
     HRESULT pr = args->put_Response(resp);

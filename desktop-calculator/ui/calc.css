@@ -105,15 +105,16 @@ body{
 .ab-lic{color:var(--sub); font-size:.86rem}
 
 #hdr{
-  flex:0 0 auto; display:flex; align-items:center; gap:.75rem;
-  padding:.6rem .9rem; border-bottom:1px solid var(--border); background:var(--card);
+  flex:0 0 auto; display:flex; align-items:center; gap:.38rem;
+  height:38px; padding:0 .5rem; border-bottom:1px solid var(--border); background:var(--card);
 }
-#hdr .brand{display:flex; align-items:baseline; gap:.6rem; min-width:0}
-#hdr .brand .ver{font-size:.72rem; font-weight:500; opacity:.72}
-#hdr .brand>span:first-child{font-weight:700; font-size:1.2rem; letter-spacing:.02em}
-.hdr-actions{margin-left:auto; display:flex; gap:.45rem}
+.hdr-actions .btn{padding:2px 9px; font-size:12px}
+#hdr .brand{display:flex; align-items:baseline; gap:.3rem; min-width:0}
+#hdr .brand .ver{font-size:10px; font-weight:500; opacity:.72}
+#hdr .brand>span:first-child{font-weight:700; font-size:17px; letter-spacing:.02em}
+.hdr-actions{margin-left:auto; display:flex; gap:.22rem}
 
-#stage{flex:1 1 auto; display:flex; gap:.85rem; padding:.8rem; min-height:0; overflow:hidden}
+#stage{flex:1 1 auto; display:flex; gap:.42rem; padding:.25rem; min-height:0; overflow:hidden}
 .dock{
   display:flex; flex-direction:column; gap:.7rem;
   overflow-y:auto; overflow-x:hidden; padding-right:.2rem; min-height:0;
@@ -121,7 +122,7 @@ body{
 
 .dock:not(.has){flex:0 0 0; width:0; min-width:0; padding:0; overflow:hidden}
 .dock.has{flex:0 0 auto; width:20rem; min-width:15rem; max-width:26rem}
-#boardCol{flex:1 1 auto; display:flex; flex-direction:column; gap:.5rem; min-width:0; min-height:0; overflow:hidden; position:relative}
+#boardCol{flex:1 1 auto; display:flex; flex-direction:column; gap:.25rem; min-width:0; min-height:0; overflow:hidden; position:relative}
 
 *::-webkit-scrollbar{width:8px; height:8px}
 *::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px}
@@ -140,11 +141,11 @@ body{
 #boardWrap{
   flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center;
   background:var(--card); border:1px solid var(--border); border-radius:var(--r);
-  padding:.4rem; overflow:hidden;
+  padding:.2rem; overflow:hidden;
 }
 #board{display:block; border-radius:6px; touch-action:none}
 
-#boardFoot{display:flex; align-items:center; justify-content:center; gap:.42rem .55rem;
+#boardFoot{display:flex; align-items:center; justify-content:center; gap:.2rem .3rem;
            flex-wrap:wrap; min-width:0; overflow-x:visible}
 #boardFoot .bf-side{display:flex; align-items:center; gap:.4rem; flex:0 0 auto; min-width:0;
                     flex-wrap:wrap; justify-content:center}
@@ -233,8 +234,8 @@ body.rv :is(#hdr,#dockL,#dockR){display:none}
 .lay-group{margin:0 .3rem}
 
 #boardFoot #btn_prev, #boardFoot #btn_next{
-  font-size:1.35rem; line-height:1.15; padding:.3rem .72rem;
-  min-width:2.5rem; min-height:2.1rem;
+  font-size:1.05rem; line-height:1; padding:.16rem .5rem;
+  min-width:2.3rem; min-height:0;
   display:inline-flex; align-items:center; justify-content:center}
 
 #boardBtns .btn, #boardFoot .bf-side .btn{
@@ -436,7 +437,7 @@ body.dragging .card-h{cursor:grabbing}
 .card.collapsed .card-b{display:none}
 .card-b{overflow:auto; min-height:0}
 
-.card .row{display:flex; align-items:center; gap:.5rem; margin:.26rem 0; flex-wrap:wrap; min-width:0}
+.card .row{display:flex; align-items:center; gap:.25rem; margin:.13rem 0; flex-wrap:wrap; min-width:0}
 .card .row.col{flex-direction:column; align-items:stretch; gap:.1rem}
 .card .row>label{flex:0 0 5.4rem; color:var(--sub); font-size:.92rem}
 .card .row select{min-width:0; max-width:100%}

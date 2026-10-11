@@ -117,16 +117,28 @@ input, textarea, select, [contenteditable="true"] {
 .ab-tb .ab-l{text-align:right; white-space:nowrap; font-family:ui-monospace,Consolas,monospace}
 .ab-lic{color:var(--sub); font-size:.86rem}
 
+/* ★★ 2026-10-11（用户：以 v4.38 原版顶栏为基础，「栏的高度变为之前的 0.6」「不管窗口大还是小，
+    栏的高度不变」「不同电脑屏幕展示效果几乎一样」）★★
+   · 原版 #hdr 由 padding .6rem(.6×16=9.6px×2) + 按键内容（font .95rem×1.2 + padding .42rem×2 + 2px 边框 ≈ 34px）
+     撑出 ≈53px；0.6× ≈ 32px → 显式 **height:32px**（上次误按 30px 基数压成 18px = 0.34×，用户报「太小」已回退）。
+   · 顶栏按键 0.6×（34→20px）：显式 20px + font 11px + line-height:1，inline-flex 居中。
+   · 品牌字 1.2rem(19.2px)→12px、版本 .72rem(11.5px)→8px；间距全部改**固定 px**
+     （rem 会随根字号漂移）⇒ 不同电脑/屏幕/窗口大小渲染同一条栏：高度恒 32px，只有长度随窗口变。
+   · 全文件没有任何按窗口尺寸缩放 #hdr 高度的规则（已核实）；只动 #hdr 这一条，其余界面零改动。 */
 #hdr{
-  flex:0 0 auto; display:flex; align-items:center; gap:.75rem;
-  padding:.6rem .9rem; border-bottom:1px solid var(--border); background:var(--card);
+  flex:0 0 auto; display:flex; align-items:center; gap:7px;
+  height:40px; padding:0 10px; border-bottom:1px solid var(--border); background:var(--card);
 }
-#hdr .brand{display:flex; align-items:baseline; gap:.6rem; min-width:0}
-#hdr .brand .ver{font-size:.72rem; font-weight:500; opacity:.72}
-#hdr .brand>span:first-child{font-weight:700; font-size:1.2rem; letter-spacing:.02em}
-.hdr-actions{margin-left:auto; display:flex; gap:.45rem}
+#hdr .btn{
+  height:24px; padding:0 9px; font-size:13px; line-height:1;
+  display:inline-flex; align-items:center; justify-content:center;
+}
+#hdr .brand{display:flex; align-items:baseline; gap:6px; min-width:0}
+#hdr .brand .ver{font-size:9px; font-weight:500; opacity:.72}
+#hdr .brand>span:first-child{font-weight:700; font-size:15px; letter-spacing:.02em}
+.hdr-actions{margin-left:auto; display:flex; gap:4px}
 
-#stage{flex:1 1 auto; display:flex; gap:.85rem; padding:.8rem; min-height:0; overflow:hidden}
+#stage{flex:1 1 auto; display:flex; gap:.42rem; padding:.4rem; min-height:0; overflow:hidden}
 .dock{
   display:flex; flex-direction:column; gap:.7rem;
   overflow-y:auto; overflow-x:hidden; padding-right:.2rem; min-height:0;
@@ -134,7 +146,7 @@ input, textarea, select, [contenteditable="true"] {
 
 .dock:not(.has){flex:0 0 0; width:0; min-width:0; padding:0; overflow:hidden}
 .dock.has{flex:0 0 auto; width:20rem; min-width:15rem; max-width:26rem}
-#boardCol{flex:1 1 auto; display:flex; flex-direction:column; gap:.5rem; min-width:0; min-height:0; overflow:hidden; position:relative}
+#boardCol{flex:1 1 auto; display:flex; flex-direction:column; gap:.25rem; min-width:0; min-height:0; overflow:hidden; position:relative}
 
 *::-webkit-scrollbar{width:8px; height:8px}
 *::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px}
@@ -153,11 +165,11 @@ input, textarea, select, [contenteditable="true"] {
 #boardWrap{
   flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center;
   background:var(--card); border:1px solid var(--border); border-radius:var(--r);
-  padding:.4rem; overflow:hidden;
+  padding:.2rem; overflow:hidden;
 }
 #board{display:block; border-radius:6px; touch-action:none}
 
-#boardFoot{display:flex; align-items:center; justify-content:center; gap:.42rem .55rem;
+#boardFoot{display:flex; align-items:center; justify-content:center; gap:.2rem .3rem;
            flex-wrap:wrap; min-width:0; overflow-x:visible}
 #boardFoot .bf-side{display:flex; align-items:center; gap:.4rem; flex:0 0 auto; min-width:0;
                     flex-wrap:wrap; justify-content:center}
@@ -246,8 +258,8 @@ body.rv :is(#hdr,#dockL,#dockR){display:none}
 .lay-group{margin:0 .3rem}
 
 #boardFoot #btn_prev, #boardFoot #btn_next{
-  font-size:1.35rem; line-height:1.15; padding:.3rem .72rem;
-  min-width:2.5rem; min-height:2.1rem;
+  font-size:1.05rem; line-height:1; padding:.16rem .5rem;
+  min-width:2.2rem;
   display:inline-flex; align-items:center; justify-content:center}
 
 #boardBtns .btn, #boardFoot .bf-side .btn{
