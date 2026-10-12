@@ -6174,6 +6174,21 @@ static void LselApplyRegion(HWND h) {
   GetWindowRect(h, &wr);
   int top = wr.top + LSEL_TITLE_H;
   if (wr.right - wr.left < 120 || wr.bottom - top < 120) return;
+  // A frame smaller than ~1/3 of the screen almost certainly missed the whole
+  // board: switch to auto board-search so the region grows onto the full grid
+  // and auto-tightens to +/-0.6 cell (Auto stays on for later re-opens).
+  {
+    int sw = GetSystemMetrics(SM_CXSCREEN), sh = GetSystemMetrics(SM_CYSCREEN);
+    if ((wr.right - wr.left) < sw / 3 || (wr.bottom - top) < sh / 3) {
+      g_lselAuto = true;
+      LselSetAutoScanRegion();
+      StartLinkScanLoop();
+      PostToLinkPageSoon("{\"type\":\"linkState\",\"frame\":\"pending\"}");
+      LogMsg("[link] small frame -> auto board-search (grow to full board)");
+      LselPaint(h);
+      return;
+    }
+  }
   g_scanRegion.left = wr.left + 2; g_scanRegion.top = top + 2;      
   g_scanRegion.right = wr.right - 2; g_scanRegion.bottom = wr.bottom - 2;
   g_lselOk = false; g_lselGrown = false;
@@ -6429,6 +6444,13 @@ static void StartLinkFrame() {
     y = wa.top + (wa.bottom - wa.top - h) / 2;
   }
   LselOpenAt(x, y, w, h);
+  if (g_lselAuto) {
+    // Re-opening with Auto on: run fullscreen board-search so the frame
+    // auto-tightens onto the board instead of scanning a stale region.
+    LselSetAutoScanRegion();
+    StartLinkScanLoop();
+    LogMsg("[link] frame reopened with auto on -> fullscreen board-search");
+  }
   LogMsg("[link] StartLinkFrame done");
 }
 
