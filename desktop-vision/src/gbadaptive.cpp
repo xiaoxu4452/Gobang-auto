@@ -1010,7 +1010,7 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
                 }
             }
 
-            if (redMarked(xo, yo) || coloredMarked(xo, yo)) { GB_TRACE(col, row, "REJECT marker/decoration"); return; }
+            if (coloredMarked(xo, yo) && whiteByBody(xo, yo) != WHITE) { GB_TRACE(col, row, "REJECT decoration"); return; }
             auto dc = decideColor(patch, coreM, ringM, ringSec, thrCell);
             int color = dc.first;
             double cconf = dc.second;
@@ -1126,7 +1126,7 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
             if (plateauGateVeto(plateau, lc, cellEdge.at<float>(row, col))) continue;
             
             {
-                if (redMarked(iRound(geo.x_lines[col]), iRound(geo.y_lines[row])) || coloredMarked(iRound(geo.x_lines[col]), iRound(geo.y_lines[row]))) continue;
+                if (coloredMarked(iRound(geo.x_lines[col]), iRound(geo.y_lines[row])) && whiteByBody(iRound(geo.x_lines[col]), iRound(geo.y_lines[row])) != WHITE) continue;
                 int rcol = rawRefine(geo.x_lines[col], geo.y_lines[row], (lc < 0) ? BLACK : WHITE);
                 if (rcol == EMPTY) continue;
                 board.at<int8_t>(row, col) = (int8_t)rcol;
@@ -1189,7 +1189,7 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
                                    quadsPlateauVals(quadMeds, coreMed);
                     if (plateauGateVeto(plateau, coreMed, edge)) continue;   
 
-                    if (redMarked(x - pad, y - pad) || coloredMarked(x - pad, y - pad)) continue;
+                    if (coloredMarked(x - pad, y - pad) && whiteByBody(x - pad, y - pad) != WHITE) continue;
                     auto dc = decideColor(patch, coreM, ringM, ringSec, thr);
                     if (dc.first != EMPTY) {
                         int refC = rawRefine(x - pad, y - pad, dc.first);
