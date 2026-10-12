@@ -130,7 +130,6 @@ std::string arbitrate(const BoardPair& primary, const BoardPair& secondary, Boar
     bool susA = invA.find("suspect")->b, susB = invB.find("suspect")->b;
     long long totA = invA.find("total")->inum, totB = invB.find("total")->inum;
     if (susA && !susB) { out = secondary; return "legacy"; }
-    if (totA == 0 && totB > 0 && !susB) { out = secondary; return "legacy"; }
     out = primary;
     return "adaptive";
 }
