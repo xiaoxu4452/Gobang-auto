@@ -661,6 +661,30 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
         return tot > 0 ? (double)colored / (double)tot : 0.0;
     };
     
+
+    // Red cross / red last-move marker: strong red pixels must never be read
+    // as a black stone. Returns fraction of strong red inside the disc.
+    auto redMarkerFrac = [&](int ax, int ay, int rr) -> double {
+        if (rr < 2) rr = 2;
+        long tot = 0, red = 0;
+        for (int dy = -rr; dy <= rr; ++dy) {
+            int gy = ay + dy; if (gy < 0 || gy >= h) continue;
+            const cv::Vec3b* sp = rgb.ptr<cv::Vec3b>(gy);
+            int dxlim = (int)std::sqrt((double)rr * rr - (double)dy * dy);
+            for (int dx = -dxlim; dx <= dxlim; ++dx) {
+                int gx = ax + dx; if (gx < 0 || gx >= w) continue;
+                ++tot;
+                int R = (int)sp[gx][0], G = (int)sp[gx][1], B = (int)sp[gx][2];
+                if (R > 140 && G < 110 && B < 110) ++red;
+            }
+        }
+        return tot > 0 ? (double)red / (double)tot : 0.0;
+    };
+    const double RED_MARKER_MIN = 0.10;
+    const int redDiscR = iRound(spacing * 0.44);
+    auto redMarked = [&](int ax, int ay) -> bool {
+        return redMarkerFrac(ax, ay, redDiscR) >= RED_MARKER_MIN;
+    };
     auto whiteByBody = [&](int ax, int ay) -> int {
         if (boardMed <= 140.0) return EMPTY;
         double shellRaw = rawMedRing(ax, ay, 0.30, 0.42);
@@ -958,6 +982,7 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
                 }
             }
 
+            if (redMarked(xo, yo)) { GB_TRACE(col, row, "REJECT red-marker"); return; }
             auto dc = decideColor(patch, coreM, ringM, ringSec, thrCell);
             int color = dc.first;
             double cconf = dc.second;
@@ -1073,6 +1098,7 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
             if (plateauGateVeto(plateau, lc, cellEdge.at<float>(row, col))) continue;
             
             {
+                if (redMarked(iRound(geo.x_lines[col]), iRound(geo.y_lines[row]))) continue;
                 int rcol = rawRefine(geo.x_lines[col], geo.y_lines[row], (lc < 0) ? BLACK : WHITE);
                 if (rcol == EMPTY) continue;
                 board.at<int8_t>(row, col) = (int8_t)rcol;
@@ -1135,6 +1161,7 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
                                    quadsPlateauVals(quadMeds, coreMed);
                     if (plateauGateVeto(plateau, coreMed, edge)) continue;   
 
+                    if (redMarked(x - pad, y - pad)) continue;
                     auto dc = decideColor(patch, coreM, ringM, ringSec, thr);
                     if (dc.first != EMPTY) {
                         int refC = rawRefine(x - pad, y - pad, dc.first);
