@@ -1,0 +1,4 @@
+﻿_zhizi_test_board.png    1092.3 ms  B5 W12  method=adaptive
+_redword_test.png        375.4 ms  B10 W10  method=adaptive
+_hard_board.png          347.4 ms  B5 W5  method=adaptive
+_redcross_board.png      1039.7 ms  B5 W12  method=adaptive

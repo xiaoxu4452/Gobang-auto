@@ -1,0 +1,7 @@
+﻿base: B10 W10 step 84.0
+painted white (4, 1) px (471, 243)
+painted white (5, 1) px (555, 243)
+with red100: B10 W10
+cell (4,1) -> WHITE
+cell (5,1) -> WHITE
+saved C:\Users\harve\Desktop\Gobang auto\tools\_redword100_test.png

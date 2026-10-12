@@ -1,0 +1,29 @@
+﻿non-link scan/recognize lines: 28
+[21:12:32.334] [vis] starting vision service GomokuVision.exe (both :8974/:8975)
+[21:12:32.763] [vis] prewarmed (vision service ready before first recognize)
+s pixel-diff on scan rect; full scan only on change)
+[21:13:11.734] [vis] vision service :8974/:8975 already running, reusing it
+=96 region=1111x1110 body={"ok": true, "found": false, "offset": [0, 0], "multi_board": 0, "diag": {"reason": "no-board"}}
+=96 region=1310x1313 body={"ok": true, "found": false, "offset": [0, 0], "multi_board": 0, "diag": {"reason": "no-board"}}
+=96 region=1310x1313 body={"ok": true, "found": false, "offset": [0, 0], "multi_board": 0, "diag": {"reason": "no-board"}}
+=96 region=1310x1313 body={"ok": true, "found": false, "offset": [0, 0], "multi_board": 0, "diag": {"reason": "no-board"}}
+=96 region=1310x1313 body={"ok": true, "found": false, "offset": [0, 0], "multi_board": 0, "diag": {"reason": "no-board"}}
+[22:03:46.525] [vis] starting vision service GomokuVision.exe (both :8974/:8975)
+[22:03:46.848] [vis] prewarmed (vision service ready before first recognize)
+s pixel-diff on scan rect; full scan only on change)
+[22:04:07.852] [vis] vision service :8974/:8975 already running, reusing it
+[22:10:43.972] [vis] starting vision service GomokuVision.exe (both :8974/:8975)
+[22:10:44.297] [vis] prewarmed (vision service ready before first recognize)
+s pixel-diff on scan rect; full scan only on change)
+[22:10:53.446] [vis] vision service :8974/:8975 already running, reusing it
+[22:14:21.464] [vis] starting vision service GomokuVision.exe (both :8974/:8975)
+[22:14:21.779] [vis] prewarmed (vision service ready before first recognize)
+[22:14:27.076] [vis] vision service :8974/:8975 already running, reusing it
+[22:28:57.320] [vis] starting vision service GomokuVision.exe (both :8974/:8975)
+[22:28:57.658] [vis] prewarmed (vision service ready before first recognize)
+[22:32:38.314] [vis] starting vision service GomokuVision.exe (both :8974/:8975)
+[22:32:38.625] [vis] prewarmed (vision service ready before first recognize)
+[22:32:56.470] [vis] vision service :8974/:8975 already running, reusing it
+[22:34:44.782] [vis] starting vision service GomokuVision.exe (both :8974/:8975)
+[22:34:45.097] [vis] prewarmed (vision service ready before first recognize)
+[22:34:55.252] [vis] vision service :8974/:8975 already running, reusing it

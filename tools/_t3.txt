@@ -1,0 +1,5 @@
+﻿_zhizi_test_board.png  2325.6 ms src=auto   conf=0.98 diag=adaptive picked=agree
+_redword_test.png       378.0 ms src=auto   conf=0.97 diag=adaptive picked=agree
+_hard_board.png         192.6 ms src=auto   conf=0.98 diag=adaptive picked=agree
+_redcross_board.png    1441.1 ms src=auto   conf=0.98 diag=adaptive picked=agree
+_star_board.png         714.4 ms src=auto   conf=0.99 diag=adaptive picked=agree

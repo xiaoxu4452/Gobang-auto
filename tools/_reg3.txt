@@ -1,0 +1,7 @@
+﻿OK  _zhizi_test_board.png: black=5 white=12 total=17  expect (5, 12)  (synthetic wood board)
+OK  _hard_board.png: black=5 white=5 total=10  expect (5, 5)  (hard texture board)
+OK  _redcross_board.png: black=5 white=12 total=17  expect (5, 12)  (red X over empty point)
+FAIL _star_lion_board.png: black=2 white=0 total=2  expect (0, 0)  (star + lion corner logo)
+OK  _star_board.png: black=0 white=0 total=0  expect (0, 0)  (empty + 5 star points)
+OK  _redword_test.png: black=10 white=10 total=20  expect (10, 10)  (user red-word white stone)
+SOME FAILED

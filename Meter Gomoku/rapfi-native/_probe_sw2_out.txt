@@ -1,0 +1,5 @@
+﻿MESSAGE Load config from "config.toml"
+MESSAGE Evaluator set to mix9svq.
+OK
+ERROR Coord is not valid or empty.
+3,12 5,10 4,9
