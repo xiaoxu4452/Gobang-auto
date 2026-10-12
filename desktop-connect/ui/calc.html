@@ -1,4 +1,3 @@
-/* Meter Gomoku Trainer - overlay UI page (board canvas, status panel, control buttons). */
 
 <!DOCTYPE html>
 <html lang="zh">
@@ -20,14 +19,10 @@
   } catch (e) {}
   document.body.setAttribute('data-theme', th);
   document.documentElement.lang = lg;
-  // ★ 2026-09-20（用户要求）：自定义的棋盘 / 页面底色也要**首帧**就落上。
-  //   上一轮 calc.js 已经把「他挑的那个颜色 → 一整套 CSS 变量」算好存进 S.cssVars，
-  //   这里**原样回放**即可（不必在这里再写一遍颜色数学），于是不会先闪一下默认护眼黄。
   if (st && st.cssVars) {
     try { for (var k in st.cssVars) document.body.style.setProperty(k, st.cssVars[k]); } catch (e2) {}
   }
   window.__bootInfo = { theme: th, lang: lg };
-  // 复盘窗（?rv=1）/ 识图窗（?vis=1）的遮罩文字换成它们自己的英文名（见下面 #boot 后那行内联脚本）
   window.__isRv = /(?:\?|&)rv=1/.test(location.search);
   window.__isVis = /(?:\?|&)vis=1/.test(location.search);
 })();
@@ -35,8 +30,6 @@
 
 <div id="boot" class="boot"><span class="brand"><i>Meter</i> Gomoku</span></div>
 <script>
-/* 复盘窗（?rv=1）/ 识图窗（?vis=1）加载时遮罩上的名字与窗口标题各自换掉
-   （样式同款：斜体/加粗/灰蓝）。 */
 (function () {
   if (window.__isRv) {
     var b = document.querySelector('#boot .brand');
