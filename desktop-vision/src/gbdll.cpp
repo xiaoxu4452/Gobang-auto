@@ -171,8 +171,8 @@ int GbvScanImage(const char* img, int imgLen, int probe, char* out, int cap) {
             } else {
                 cv::resize(rgb, big, cv::Size(rgb.cols * 2, rgb.rows * 2), 0, 0, cv::INTER_CUBIC);
                 cv::cvtColor(big, bgray, cv::COLOR_RGB2GRAY);
-                if (tryAlt(bgray, 2.0, 2.0, "snap_alt_big", 30)) {}
-                else if (!tryAlt(gray, 1.0, 1.0, "snap_alt", 30)) {}
+                if (tryAlt(bgray, 2.0, 2.0, "snap_alt_big", 8)) {}
+                else if (!tryAlt(gray, 1.0, 1.0, "snap_alt", 8)) {}
             }
             if (!res.found)
                 res.diag.set("notfound_multi_alt", Json::makeBool(true));

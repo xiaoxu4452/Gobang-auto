@@ -1156,7 +1156,7 @@ ScanResult finishWithGeometry(const cv::Mat& masked, int size,
         chk.x_lines = g.x_lines;
         chk.y_lines = g.y_lines;
         double live = gridLiveness(crop, chk);
-        if (live < 0.25) {
+        if (live < 0.18) {
             ScanResult r = notFound(offX, offY, 0, "locked-grid-dead");
             r.diag.set("liveness", Json::makeNum(live));
             return r;
@@ -1268,7 +1268,7 @@ ScanResult scanSub(const cv::Mat& rgbIn, int size, const ScanHint& hint,
 
     static StabGeo stab;
     if (!probe && stab.has && (int)stab.xl.size() == size && (int)stab.yl.size() == size &&
-        stab.sp > 0 && !boardWindowChanged(masked, stab.xl, stab.yl, stab.sp)) {
+        stab.sp > 0) {
         long long readMs = 0;
         ScanResult r = finishWithGeometry(masked, size, stab.xl, stab.yl, stab.sp,
                                           0, offX, offY, &readMs, true);
