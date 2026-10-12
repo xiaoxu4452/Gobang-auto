@@ -1886,27 +1886,37 @@ static void RunVisionForVis(std::string req) {
       ? std::vector<unsigned char>() : Base64Decode(data.substr(p + 7));
   if (bytes.empty()) { fail("bad image payload"); return; }
 
+  // Modular test model: when a Vision-test folder ships with the app, the
+  // Vision capture window runs the one-shot Zhizi test recognizer; the shared
+  // formal service (used by board-linking) is never touched. Deleting the
+  // Vision-test folder restores the formal model for the capture window too.
+  std::wstring testExe = Join(Join(ExeDir(), L"Vision-test"), L"GomokuVision.exe");
+  bool visUseTest = FileExists(testExe);
   {
     int boardSize = JsonIntAfter(req, "\"size\":");
     if (boardSize < 9 || boardSize > 25) boardSize = 15;   
     std::string http;
     bool ok = false;
-    if (mode == "scan")
-      ok = VisionScanImage(bytes.data(), (int)bytes.size(), http);
-    else
-      ok = VisionRecognize(bytes.data(), (int)bytes.size(), boardSize, skipSnap, http);
-    if (ok) {
-      LogMsg("[vis] recognize ok (" + std::to_string(http.size()) +
-             " bytes, mode=" + mode + ")");
-      PostToVisPageSoon("{\"type\":\"visResult\",\"mode\":\"" + mode +
-                        (seq.empty() ? "" : "\",\"seq\":" + seq) +
-                        "\",\"result\":" + http + "}");
-      return;
+    if (!visUseTest) {
+      if (mode == "scan")
+        ok = VisionScanImage(bytes.data(), (int)bytes.size(), http);
+      else
+        ok = VisionRecognize(bytes.data(), (int)bytes.size(), boardSize, skipSnap, http);
+      if (ok) {
+        LogMsg("[vis] recognize ok (" + std::to_string(http.size()) +
+               " bytes, mode=" + mode + ")");
+        PostToVisPageSoon("{\"type\":\"visResult\",\"mode\":\"" + mode +
+                          (seq.empty() ? "" : "\",\"seq\":" + seq) +
+                          "\",\"result\":" + http + "}");
+        return;
+      }
+      LogMsg("[vis] http path unavailable -> spawn fallback (mode=" + mode + ")");
+    } else {
+      LogMsg("[vis] test model (Vision-test) -> one-shot CLI recognizer (mode=" + mode + ")");
     }
-    LogMsg("[vis] http path unavailable -> spawn fallback (mode=" + mode + ")");
   }
 
-  std::wstring exe = FindVisionExe();
+  std::wstring exe = visUseTest ? testExe : FindVisionExe();
   if (exe.empty()) { fail("GomokuVision.exe not found"); return; }
 
   wchar_t tmp[MAX_PATH] = { 0 };
