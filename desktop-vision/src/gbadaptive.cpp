@@ -680,6 +680,11 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
         }
         return tot > 0 ? (double)red / (double)tot : 0.0;
     };
+    // Colored decorations (e.g. lion corner logo over a star point) must
+    // not be read as stones.
+    auto coloredMarked = [&](int ax, int ay) -> bool {
+        return rawColoredFrac(ax, ay, 0.44) >= 0.18;
+    };
     const double RED_MARKER_MIN = 0.10;
     const int redDiscR = iRound(spacing * 0.44);
     auto redMarked = [&](int ax, int ay) -> bool {
@@ -982,7 +987,7 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
                 }
             }
 
-            if (redMarked(xo, yo)) { GB_TRACE(col, row, "REJECT red-marker"); return; }
+            if (redMarked(xo, yo) || coloredMarked(xo, yo)) { GB_TRACE(col, row, "REJECT marker/decoration"); return; }
             auto dc = decideColor(patch, coreM, ringM, ringSec, thrCell);
             int color = dc.first;
             double cconf = dc.second;
@@ -1098,7 +1103,7 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
             if (plateauGateVeto(plateau, lc, cellEdge.at<float>(row, col))) continue;
             
             {
-                if (redMarked(iRound(geo.x_lines[col]), iRound(geo.y_lines[row]))) continue;
+                if (redMarked(iRound(geo.x_lines[col]), iRound(geo.y_lines[row])) || coloredMarked(iRound(geo.x_lines[col]), iRound(geo.y_lines[row]))) continue;
                 int rcol = rawRefine(geo.x_lines[col], geo.y_lines[row], (lc < 0) ? BLACK : WHITE);
                 if (rcol == EMPTY) continue;
                 board.at<int8_t>(row, col) = (int8_t)rcol;
@@ -1161,7 +1166,7 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
                                    quadsPlateauVals(quadMeds, coreMed);
                     if (plateauGateVeto(plateau, coreMed, edge)) continue;   
 
-                    if (redMarked(x - pad, y - pad)) continue;
+                    if (redMarked(x - pad, y - pad) || coloredMarked(x - pad, y - pad)) continue;
                     auto dc = decideColor(patch, coreM, ringM, ringSec, thr);
                     if (dc.first != EMPTY) {
                         int refC = rawRefine(x - pad, y - pad, dc.first);
@@ -1205,6 +1210,19 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
 
     int removed = stripBorderArtifacts(board, &conf);
 
+    // Fixed star points of a 15x15 board: a low-confidence dark blob at a
+    // star point is the board marker (possibly occluded by a corner logo),
+    // not a stone.
+    if (n == 15) {
+        static const int starPts[4][2] = {{3,3},{3,11},{11,3},{11,11}};
+        for (const auto& sp : starPts) {
+            int c = sp[0], r = sp[1];
+            if (board.at<int8_t>(r, c) != BLACK) continue;
+            if (conf.at<float>(r, c) >= 0.55f) continue;
+            board.at<int8_t>(r, c) = EMPTY;
+            conf.at<float>(r, c) = 0.f;
+        }
+    }
     diag = Json::makeObj();
     diag.set("method", Json::makeStr("adaptive"));
     diag.set("threshold", Json::makeNum(npRound(thr * 100.0) / 100.0));
