@@ -2631,7 +2631,22 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     if (busy || HOST) return;
     busy = true;
     try {
-      await handleScan(await fetchJSON(SCAN_URL, { size: N }, 9000));
+      var body = { size: N };
+      // Locked-read fast path: once the board has been located, do not keep
+      // re-searching the board on every frame. Reuse the locked geometry so
+      // the vision service reads stones directly (~100ms). Only pressing the
+      // recognize button (forceScan) clears the lock and re-locates the board.
+      if (!forceScan && boardGeo && boardGeo.x_lines && boardGeo.y_lines &&
+          boardGeo.x_lines.length === N && boardGeo.y_lines.length === N) {
+        var xs = boardGeo.x_lines, ys = boardGeo.y_lines;
+        var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys);
+        var x1 = Math.max.apply(null, xs), y1 = Math.max.apply(null, ys);
+        var sp = boardGeo.spacing > 0 ? boardGeo.spacing : 12;
+        body.geometry = { x_lines: xs, y_lines: ys, spacing: sp };
+        body.region = [Math.round(x0 - sp * 0.6), Math.round(y0 - sp * 0.6),
+                       Math.round(x1 - x0 + sp * 1.2), Math.round(y1 - y0 + sp * 1.2)];
+      }
+      await handleScan(await fetchJSON(SCAN_URL, body, 9000));
     } catch (e) {
       offline();
     } finally { busy = false; }
