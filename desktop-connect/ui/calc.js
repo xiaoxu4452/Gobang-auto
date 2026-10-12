@@ -3706,7 +3706,7 @@ function toast(msg) {
   setStat(null, msg);
 }
 
-var APP_VERSION = '4.38';
+var APP_VERSION = '4.39';
 
 var UPDATE_URL = AI_REMOTE ? 'https://wwbbj.lanzout.com/b016l4d3id' : 'https://wwbbj.lanzout.com/b016l49aqj';
 var UPDATE_PWD = AI_REMOTE ? '55555' : '15';

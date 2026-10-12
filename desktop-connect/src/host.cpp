@@ -884,13 +884,38 @@ static void VisShotDeliver(RECT rc) {
 #define VSEL_CLOSE_W (VsS(78))          
 #define VSEL_AUTO_W  (VsS(92))          
 #define VSEL_BTN_GAP (VsS(10))          
+#define VSEL_MIN_BOARD (VsS(300))          
 #define VSEL_EDGE    (VsS(10))          
 
 enum { VSEL_NONE = 0, VSEL_MOVE, VSEL_L, VSEL_R, VSEL_T, VSEL_B,
        VSEL_TL, VSEL_TR, VSEL_BL, VSEL_BR,
        VSEL_BTN_SHOT = 100, VSEL_BTN_CLOSE = 101, VSEL_BTN_AUTO = 102 };
 
-static bool g_vselAuto = true;
+static bool VselLoadAuto() {
+  wchar_t path[MAX_PATH] = { 0 };
+  if (!GetEnvironmentVariableW(L"APPDATA", path, MAX_PATH)) return true;
+  std::wstring p = std::wstring(path) + L"\Meter Gomoku";
+  CreateDirectoryW(p.c_str(), nullptr);
+  std::wstring f = p + L"\vsel-auto.cfg";
+  FILE* fp = _wfopen(f.c_str(), L"r");
+  if (!fp) return true;
+  int v = 1;
+  if (fscanf(fp, "%d", &v) == 1) { fclose(fp); return v != 0; }
+  fclose(fp);
+  return true;
+}
+static void VselSaveAuto(bool on) {
+  wchar_t path[MAX_PATH] = { 0 };
+  if (!GetEnvironmentVariableW(L"APPDATA", path, MAX_PATH)) return;
+  std::wstring p = std::wstring(path) + L"\Meter Gomoku";
+  CreateDirectoryW(p.c_str(), nullptr);
+  std::wstring f = p + L"\vsel-auto.cfg";
+  FILE* fp = _wfopen(f.c_str(), L"w");
+  if (!fp) return;
+  fprintf(fp, "%d", on ? 1 : 0);
+  fclose(fp);
+}
+static bool g_vselAuto = VselLoadAuto();
 static RECT g_vselBtnAuto = { 0, 0, 0, 0 };
 static std::atomic<bool> g_vselAutoBusy(false);
 #define VSEL_WM_SNAP (WM_APP + 9)        
@@ -1134,16 +1159,34 @@ static void VselPaint(HWND h) {
   ReleaseDC(nullptr, sdc);
 }
 
+static bool VselAutoFindRect(RECT& br, double& step);
 static void VselShot(HWND h) {
   RECT wr;
   GetWindowRect(h, &wr);
-  int top = wr.top + VSEL_TITLE_H;          
+  int top = wr.top + VSEL_TITLE_H;
   RECT rc = { wr.left, top, wr.right, wr.bottom };
-  if (rc.right - rc.left < 24 || rc.bottom - rc.top < 24) return;   
-  LogMsg("[vis] hollow select confirm: screen (" + std::to_string(rc.left) + "," +
-         std::to_string(rc.top) + ") " + std::to_string(rc.right - rc.left) + "x" +
-         std::to_string(rc.bottom - rc.top));
-  
+  if (rc.right - rc.left < 24 || rc.bottom - rc.top < 24) return;
+  // Manual box too small to hold a board: run one automatic full-screen board
+  // search and use its (larger, 0.6-cell padded) rect instead.
+  if (rc.right - rc.left < VSEL_MIN_BOARD || rc.bottom - rc.top < VSEL_MIN_BOARD) {
+    RECT br;
+    double step = 0;
+    if (VselAutoFindRect(br, step)) {
+      double sp = step > 0 ? step : (double)(br.right - br.left) / 14.0;
+      int pad = (int)(sp * 0.6 + 0.5);
+      if (pad < 6) pad = 6;
+      int vx = GetSystemMetrics(SM_XVIRTUALSCREEN), vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+      int vw = GetSystemMetrics(SM_CXVIRTUALSCREEN), vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+      RECT ex = { br.left - pad, br.top - pad, br.right + pad, br.bottom + pad };
+      if (ex.left < vx) ex.left = vx;
+      if (ex.top < vy) ex.top = vy;
+      if (ex.right > vx + vw) ex.right = vx + vw;
+      if (ex.bottom > vy + vh) ex.bottom = vy + vh;
+      LogMsg("[vis] small manual box -> auto board rect used");
+      VisShotDeliver(ex);
+      return;
+    }
+  }
   VisShotDeliver(rc);
 }
 
@@ -1199,69 +1242,70 @@ static bool VselScanRect(const std::string& s, RECT& out, double& stepOut) {
   return true;
 }
 
+static bool VselAutoFindRect(RECT& br, double& step) {
+  int vx = GetSystemMetrics(SM_XVIRTUALSCREEN), vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+  int vw = GetSystemMetrics(SM_CXVIRTUALSCREEN), vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+  RECT rc = { vx, vy, vx + vw, vy + vh };
+  std::vector<unsigned char> png = CaptureRectPng(rc);
+  if (png.empty()) return false;
+  std::string out;
+  if (!VisionScanImage(png.data(), (int)png.size(), out)) {
+    std::wstring exe = FindVisionExe();
+    if (exe.empty()) return false;
+    wchar_t tmp[MAX_PATH] = { 0 };
+    GetTempPathW(MAX_PATH, tmp);
+    std::wstring imgPath = Join(std::wstring(tmp),
+                                L"gbvis-snap-" + std::to_wstring(GetCurrentProcessId()) + L".png");
+    {
+      FILE* f = _wfopen(imgPath.c_str(), L"wb");
+      if (!f) return false;
+      fwrite(png.data(), 1, png.size(), f);
+      fclose(f);
+    }
+    std::wstring cmd = L"\"" + exe + L"\" --scan-image \"" + imgPath + L"\"";
+    std::vector<wchar_t> cmdBuf(cmd.begin(), cmd.end()); cmdBuf.push_back(0);
+    SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
+    HANDLE rd = nullptr, wr = nullptr;
+    if (!CreatePipe(&rd, &wr, &sa, 0)) { DeleteFileW(imgPath.c_str()); return false; }
+    SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
+    STARTUPINFOW si = {};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = wr; si.hStdError = wr;
+    PROCESS_INFORMATION pi = {};
+    std::wstring cwd = exe.substr(0, exe.find_last_of(L"\\/"));
+    BOOL ok = CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, TRUE,
+                             CREATE_NO_WINDOW, nullptr, cwd.c_str(), &si, &pi);
+    CloseHandle(wr);
+    if (!ok) { CloseHandle(rd); DeleteFileW(imgPath.c_str()); return false; }
+    CloseHandle(pi.hThread);
+    if (g_job) AssignProcessToJobObject(g_job, pi.hProcess);
+    ApplyVisionAffinity(pi.hProcess);
+    ChildTrack(pi.hProcess);
+    char buf[4096];
+    DWORD n = 0;
+    while (ReadFile(rd, buf, sizeof(buf), &n, nullptr) && n > 0) out.append(buf, n);
+    CloseHandle(rd);
+    if (WaitForSingleObject(pi.hProcess, 15000) != WAIT_OBJECT_0)
+      TerminateProcess(pi.hProcess, 1);
+    CloseHandle(pi.hProcess);
+    DeleteFileW(imgPath.c_str());
+  }
+  if (!VselScanRect(out, br, step)) return false;
+  br.left += vx; br.right += vx; br.top += vy; br.bottom += vy;
+  return true;
+}
+
 static void VselAutoScan(HWND h) {
   if (g_vselAutoBusy.exchange(true)) return;
   std::thread([h] {
-    int vx = GetSystemMetrics(SM_XVIRTUALSCREEN), vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
-    int vw = GetSystemMetrics(SM_CXVIRTUALSCREEN), vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-    RECT rc = { vx, vy, vx + vw, vy + vh };
-    std::vector<unsigned char> png = CaptureRectPng(rc);
-    do {
-      if (png.empty()) break;
-      std::string out;
-      
-      if (!VisionScanImage(png.data(), (int)png.size(), out)) {
-        std::wstring exe = FindVisionExe();
-        if (exe.empty()) break;
-        wchar_t tmp[MAX_PATH] = { 0 };
-        GetTempPathW(MAX_PATH, tmp);
-        std::wstring imgPath = Join(std::wstring(tmp),
-                                    L"gbvis-snap-" + std::to_wstring(GetCurrentProcessId()) + L".png");
-        {
-          FILE* f = _wfopen(imgPath.c_str(), L"wb");
-          if (!f) break;
-          fwrite(png.data(), 1, png.size(), f);
-          fclose(f);
-        }
-        std::wstring cmd = L"\"" + exe + L"\" --scan-image \"" + imgPath + L"\"";
-        std::vector<wchar_t> cmdBuf(cmd.begin(), cmd.end()); cmdBuf.push_back(0);
-        SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
-        HANDLE rd = nullptr, wr = nullptr;
-        if (!CreatePipe(&rd, &wr, &sa, 0)) { DeleteFileW(imgPath.c_str()); break; }
-        SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
-        STARTUPINFOW si = {};
-        si.cb = sizeof(si);
-        si.dwFlags = STARTF_USESTDHANDLES;
-        si.hStdOutput = wr; si.hStdError = wr;
-        PROCESS_INFORMATION pi = {};
-        std::wstring cwd = exe.substr(0, exe.find_last_of(L"\\/"));
-        
-        BOOL ok = CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, TRUE,
-                                 CREATE_NO_WINDOW, nullptr, cwd.c_str(), &si, &pi);
-        CloseHandle(wr);
-        if (!ok) { CloseHandle(rd); DeleteFileW(imgPath.c_str()); break; }
-        CloseHandle(pi.hThread);
-        if (g_job) AssignProcessToJobObject(g_job, pi.hProcess);   
-        ApplyVisionAffinity(pi.hProcess);                          
-        ChildTrack(pi.hProcess);                                   
-        char buf[4096];
-        DWORD n = 0;
-        while (ReadFile(rd, buf, sizeof(buf), &n, nullptr) && n > 0) out.append(buf, n);
-        CloseHandle(rd);
-        if (WaitForSingleObject(pi.hProcess, 15000) != WAIT_OBJECT_0)
-          TerminateProcess(pi.hProcess, 1);
-        CloseHandle(pi.hProcess);
-        DeleteFileW(imgPath.c_str());
-      }
-      RECT br;
-      double step = 0;
-      if (VselScanRect(out, br, step)) {
-        g_vselStep = step;                   
-        br.left += vx; br.right += vx; br.top += vy; br.bottom += vy;   
-        RECT* rp = new RECT(br);
-        if (!PostMessageW(h, VSEL_WM_SNAP, 0, (LPARAM)rp)) delete rp;   
-      }
-    } while (0);
+    RECT br;
+    double step = 0;
+    if (VselAutoFindRect(br, step)) {
+      g_vselStep = step;
+      RECT* rp = new RECT(br);
+      if (!PostMessageW(h, VSEL_WM_SNAP, 0, (LPARAM)rp)) delete rp;
+    }
     g_vselAutoBusy = false;
   }).detach();
 }
@@ -1343,7 +1387,8 @@ static LRESULT CALLBACK VselProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         g_vselPressBtn = VSEL_NONE;
         if (hit == pressed) {
           if (pressed == VSEL_BTN_AUTO) {
-            g_vselAuto = !g_vselAuto;        
+            g_vselAuto = !g_vselAuto;
+            VselSaveAuto(g_vselAuto);        
             LogMsg(std::string("[vis] auto snap ") + (g_vselAuto ? "on" : "off"));
             if (g_vselAuto) VselAutoScan(h); 
             VselPaint(h);
