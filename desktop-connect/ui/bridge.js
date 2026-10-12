@@ -2134,6 +2134,14 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         };
         var libSource = 'none';
         try {
+          // The opening book follows the ACTIVE rule: the engine's SWAP2BOARD
+          // must run under INFO RULE <rule> (renju 2 = forbidden moves) or it
+          // falls back to the freestyle book and the opening becomes wrong.
+          await onMainLane(function () {
+            return engCmd('main', 'INFO RULE ' + rule).then(function () {
+              return engCmd('main', 'INFO THREAD_NUM ' + (S.threads || 4));
+            });
+          });
           var s2 = await onMainLane(function () { return wsCall('swap2board', {}, 8000); });
           if (s2 && s2.pts && s2.pts.length === 3 && !isLibFallback(s2.pts) && takeLib(s2.pts))
             libSource = 'engine';
