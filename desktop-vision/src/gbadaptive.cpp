@@ -1237,7 +1237,9 @@ void readStonesAdaptive(const cv::Mat& rgb, const GeoLike& geo,
     // star point is the board marker (possibly occluded by a corner logo),
     // not a stone.
     if (n == 15) {
-        static const int starPts[4][2] = {{3,3},{3,11},{11,3},{11,11}};
+        // Star points + tengen: a low-confidence dark blob there is the app's
+        // cross marker (some machines render it stone-like), not a stone.
+        static const int starPts[5][2] = {{3,3},{3,11},{11,3},{11,11},{7,7}};
         for (const auto& sp : starPts) {
             int c = sp[0], r = sp[1];
             if (board.at<int8_t>(r, c) != BLACK) continue;
