@@ -1,0 +1,8 @@
+﻿Desktop GomokuAssistant.exe
+LICENSES & COPYRIGHT NOTICES.txt
+overlay
+rapfi-native
+User Guide.txt
+Vision
+开源许可与版权声明.txt
+使用手册.txt

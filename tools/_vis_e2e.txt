@@ -1,0 +1,12 @@
+[vis-e2e] spawned pid=28208
+[vis-e2e] main target: http://127.0.0.1:8965/calc.html
+[vis-e2e] main vis click: CLICKED
+[vis-e2e] vis target: http://127.0.0.1:8965/calc.html?vis=1
+[vis-e2e] vis page state: OK busy=false
+[vis-e2e] image added: true (auto-recognize should kick in)
+[vis-e2e] poll 28ms busy=false msg=
+[vis-e2e] poll 745ms busy=true msg=识别中…
+[vis-e2e] poll 1457ms busy=false msg=识别到 5 颗黑子、3 颗白子
+[vis-e2e] DONE: 识别到 5 颗黑子、3 颗白子
+[vis-e2e] result state: {"msg":"识别到 5 颗黑子、3 颗白子","busy":false,"el":1457}
+[vis-e2e] PASS-THROUGH

@@ -1,0 +1,7 @@
+﻿img shape: (1144, 1450, 3)
+board gray: min 54.0 max 173.7 mean 168.9 std 16.0
+board p10/25/50/75/90: [173.7 173.7 173.7 173.7 173.7]
+darker than mean-25: 7.649%
+lighter than mean+25: 0.000%
+full gray min/max: 0.0 255.0
+phone-preview region: mean 206.4 std 30.4 min 4.7 max 255.0

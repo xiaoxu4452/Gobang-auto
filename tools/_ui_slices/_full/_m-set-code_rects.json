@@ -1,0 +1,16 @@
+{
+ "iw": 1500,
+ "ih": 1000,
+ "dpr": 2.0000000826009767,
+ "slices": [
+  {
+   "name": "m-set-code",
+   "sel": ".card[data-id=\"setup\"] .sec[data-sec=\"code\"]",
+   "x": 1182,
+   "y": 471,
+   "w": 293,
+   "h": 114,
+   "vis": "visible/block/1"
+  }
+ ]
+}

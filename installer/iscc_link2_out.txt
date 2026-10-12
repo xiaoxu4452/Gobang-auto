@@ -1,0 +1,126 @@
+﻿Inno Setup 7 Command-Line Compiler
+Copyright (C) 1997-2026 Jordan Russell. All rights reserved.
+Portions Copyright (C) 2000-2026 Martijn Laan. All rights reserved.
+Portions Copyright (C) 2001-2004 Alex Yackimoff. All rights reserved.
+https://www.innosetup.com
+
+Compiler engine version: Inno Setup 7.0.2
+Non-commercial use only
+
+Preprocessing
+   Reading file: C:\Program Files\Inno Setup 7\ISPPBuiltins.iss
+Parsing [Setup] section, line 50
+Parsing [Setup] section, line 52
+Parsing [Setup] section, line 53
+Parsing [Setup] section, line 54
+Parsing [Setup] section, line 55
+Parsing [Setup] section, line 56
+Parsing [Setup] section, line 57
+Parsing [Setup] section, line 58
+Parsing [Setup] section, line 59
+Parsing [Setup] section, line 60
+Parsing [Setup] section, line 62
+Parsing [Setup] section, line 64
+Parsing [Setup] section, line 66
+Parsing [Setup] section, line 67
+Parsing [Setup] section, line 68
+Parsing [Setup] section, line 69
+Parsing [Setup] section, line 70
+Parsing [Setup] section, line 72
+Parsing [Setup] section, line 74
+Parsing [Setup] section, line 76
+Parsing [Setup] section, line 77
+Parsing [Setup] section, line 78
+Parsing [Setup] section, line 80
+Parsing [Setup] section, line 81
+Parsing [Setup] section, line 83
+Parsing [Setup] section, line 85
+Parsing [Setup] section, line 86
+Parsing [Setup] section, line 87
+Parsing [Setup] section, line 88
+Reading file (WizardImageFile)
+Reading file (WizardSmallImageFile)
+Reading file (WizardImageFileDynamicDark)
+Reading file (WizardSmallImageFileDynamicDark)
+Preparing Setup program executable
+   Verification successful
+   Updating icons and style (SetupCustomStyle.e32)
+   Updating version info (SetupCustomStyle.e32)
+Determining language code pages
+Parsing [Languages] section, line 92
+   Reading file: C:\Users\harve\Desktop\Gobang auto\installer\languages\ChineseSimplified.isl
+Parsing [Languages] section, line 93
+   Reading file: C:\Program Files\Inno Setup 7\Default.isl
+   Messages in script file
+Reading default messages from Default.isl
+Parsing [Languages] section, line 92
+   Reading file: C:\Users\harve\Desktop\Gobang auto\installer\languages\ChineseSimplified.isl
+Parsing [Languages] section, line 93
+   Reading file: C:\Program Files\Inno Setup 7\Default.isl
+Parsing [LangOptions], [Messages], and [CustomMessages] sections
+   Messages in script file
+Reading [Code] section
+Parsing [Tasks] section, line 118
+Parsing [Icons] section, line 151
+Parsing [Icons] section, line 152
+Parsing [Icons] section, line 153
+Parsing [InstallDelete] section, line 122
+Parsing [InstallDelete] section, line 123
+Parsing [InstallDelete] section, line 124
+Parsing [InstallDelete] section, line 127
+Parsing [InstallDelete] section, line 128
+Parsing [InstallDelete] section, line 129
+Parsing [InstallDelete] section, line 130
+Parsing [UninstallDelete] section, line 167
+Parsing [UninstallDelete] section, line 168
+Parsing [UninstallDelete] section, line 169
+Parsing [Run] section, line 156
+Parsing [UninstallRun] section, line 161
+Parsing [UninstallRun] section, line 163
+Parsing [Files] section, line 134
+Parsing [Files] section, line 136
+Parsing [Files] section, line 137
+Parsing [Files] section, line 139
+Parsing [Files] section, line 141
+Parsing [Files] section, line 144
+Compiling [Code] section
+Deleting Meter Gomoku_Setup.exe from output directory
+Creating setup files
+   Verification successful
+   Updating icons (Setup.exe)
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\Desktop GomokuTrainer.exe
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\Vision\GomokuVision.exe
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\Vision\GomokuVision.dll
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\软件说明 (Software Description).pdf
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\calc\bridge.js.enc
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\calc\calc.css.enc
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\calc\calc.html.enc
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\calc\calc.js.enc
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\calc\engine-ai.js.enc
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\.variant-ok
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\classical210901.toml
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\classical220723.toml
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\config.toml
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\COPYING-GPLv3.txt
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\mix9svqfreestyle_bsmix.bin.lz4
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\mix9svqrenju_bs15_black.bin.lz4
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\mix9svqrenju_bs15_white.bin.lz4
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\mix9svqstandard_bs15.bin.lz4
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\model210901.bin
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\model220723.bin
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\NOTICE.txt
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\rapfi.db
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\RapfiEngine-avx2.exe
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\RapfiEngine-avx512.exe
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\RapfiEngine-avx512vnni.exe
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\RapfiEngine-avxvnni.exe
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\RapfiEngine-sse.exe
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\rapfi_bak1.db
+   Compressing: \\?\C:\Users\harve\Desktop\Gobang auto\Meter Gomoku\rapfi-native\rapfi_bak2.db
+   Compressing Setup program executable
+   Updating version info (Setup.exe)
+   Updating manifest (Setup.exe)
+
+
+Successful compile (9.547 sec). Resulting Setup program filename is:
+C:\Users\harve\Desktop\Gobang auto\installer\out\Meter Gomoku_Setup.exe

@@ -1,0 +1,9 @@
+MESSAGE Load config from "config.toml"
+MESSAGE Evaluator set to mix9svq.
+OK
+MESSAGE mix9svq nnue: load weight from mix9svqrenju_bs15_black.bin.lz4
+MESSAGE mix9svq nnue: load weight from mix9svqrenju_bs15_white.bin.lz4
+MESSAGE OptiTime 3573ms | MaxTime 3970ms
+MESSAGE Depth 0-3 | Eval -201 | Time 3ms | A1 E1 E5
+MESSAGE Speed 1415K | Depth 0-3 | Eval -201 | Node 4246 | Time 3ms
+0,14 4,14

@@ -1,0 +1,11 @@
+✓ Meter GomokuTrainer/calc/calc.html.enc 是最新代码（25656 字节）
+✓ Meter GomokuTrainer/calc/calc.css.enc 是最新代码（34024 字节）
+✓ Meter GomokuTrainer/calc/calc.js.enc 是最新代码（218106 字节）
+✓ Desktop version/calc/calc.html.enc 是最新代码（23632 字节）
+✓ Desktop version/calc/calc.css.enc 是最新代码（32093 字节）
+✓ Desktop version/calc/calc.js.enc 是最新代码（205708 字节）
+✓ Meter engine-server/calc/calc.html.enc 是最新代码（23632 字节）
+✓ Meter engine-server/calc/calc.css.enc 是最新代码（32093 字节）
+✓ Meter engine-server/calc/calc.js.enc 是最新代码（205708 字节）
+
+✓ 发布版就是最新代码（检查 9 个密文，跳过 0 个目录）

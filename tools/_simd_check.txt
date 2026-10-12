@@ -1,0 +1,3 @@
+wasm bytes: 1160894
+FD(sub<=0x0F) hits: 198 ≈ 170.6 per MB
+FE(sub<=0x0F) hits: 197

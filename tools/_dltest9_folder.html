@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0" />
+<title>五子棋训练工具</title>
+<link href="https://images.bakstotre.com/assets/img/t0.css" rel="stylesheet" type="text/css">
+<script type="text/javascript" src="https://images.bakstotre.com/assets/includes/js/jquery.js"></script>
+<link rel="shortcut icon" href="https://images.bakstotre.com/assets/favicon.ico">
+</head>
+<body>
+<div class="top">
+<div class="d1">
+<div class="d11 bgimg">
+<a href="/" class="d7"> </a></div>
+<div class="d12">
+<a href="/account.php?action=login">登录</a></div>
+</div>
+</div>
+<div class="pc bgimg"></div>
+<link href="https://images.bakstotre.com/assets/share/folder7.css" rel="stylesheet" type="text/css">
+
+<div id="pwdload">
+<div class="off"><div class="off0"><div class="off1"></div></div>文件受密码保护，请输入密码继续下载</div>
+<input type="text" name="pwd" class="input" id="pwd" value="" /><br>
+<input id="sub" onclick="file();" type="submit" class="btnpwd" value="确认" />
+<div id="pwderr"></div>
+</div>
+
+<link href="https://images.bakstotre.com/assets/share/folder9.css" rel="stylesheet" type="text/css">
+<style>
+
+</style>
+<div class="load2" id="load2"><div class="loader"></div><div class="loader2">努力加载中...</div></div>
+<div class="d" id="info">
+<div class="b"><div id="sp_name"></div>
+<div class="rets">09-28<a href="/q/jb/?f=14026119&l=b&report=2" target="_blank"><span class="retspan">文件投诉</span></a></div>
+</div>
+<div class="d2">
+<div class="nameh">文件名</div>
+<div class="sizeh">大小</div>
+<div class="timeh">时间</div>
+</div>
+<div id="infos"></div>
+<!--filemore-->
+<div id="infomores"><span id="filemore" onclick="more();">显示更多文件</span></div>
+
+
+<!--save-->
+<div id="save"><a href="https://api.ilanzou.com/unproved/pd/url?id=14026119&time=1790674141&token=7a471b111d0d4bb4e6a2937792538b90&type=2" target="_blank"><span>一键转存到我的网盘</span></a></div>
+
+</div>
+
+<script type="text/javascript">
+	var in3nf5 ='五子棋训练工具';
+	document.title = in3nf5;
+　　document.getElementById('sp_name').innerHTML=in3nf5;	var pwd;
+	var pgs;
+	var ib6zbj = '1790674741';
+	var _h5bdc = 'ed753825109b108ff9f94030de0a058b';
+	pgs =1;
+	function file(){
+		var pwd = document.getElementById('pwd').value;
+	$('#sub').val("提交中..."); 
+		$.ajax({
+			type : 'post',
+			url : '/filemoreajax.php?file=14026119',
+			data : { 
+			'lx':2,
+			'fid':14026119,
+			'uid':'4801414',
+			'puid':'CT0BbglkBmNRMwtsAGBccFI5VGYCZAY0BTQAMVw0WmoGMlcxWSlQNglvUDQHZQc2A29SZwNq',
+			'pg':pgs,
+			'rep':'0',
+			't':ib6zbj,
+			'k':_h5bdc,
+			'up':1,
+						'ls':1,
+			'pwd':pwd			},
+			dataType : 'json',
+			success:function(msg){
+				//隐藏
+				document.getElementById("load2").style.display="none";
+				if(msg.zt == '1'){
+										document.getElementById("pwdload").style.display="none";
+					document.getElementById("info").style.display="block";
+										var data = msg.text;
+					$.each(data, function(i, n){
+						var str;
+						var alink = '/' + n.id;
+						if(n.t ==1){
+							alink = n.id;
+							n.name_all = n.name_all + '<span class="s_ad">推广</span>';
+						}
+												str ='<div id=ready><div id=name>&nbsp;<img src=https://images.bakstotre.com/assets/images/filetype/'+ n.icon +'.gif align=absmiddle border=0>&nbsp;<a href=' + alink + ' target=_blank>' + n.name_all + '</a></div><div id=size>'+n.size+'</div><div id=time>'+n.time+'</div></div>';
+												if(n.id != '-1'){
+							$(str).appendTo("#infos");
+						}
+					});
+					pgs++;
+					//少于50条，隐"more"
+					if(data.length<50){
+						document.getElementById("filemore").style.display="none";
+					}
+				}else if(msg.zt == '2'){
+					$("#infos").html("<div style='clear: both;text-align: center;padding: 30px;'>没有文件</div>");
+					document.getElementById("filemore").style.display="none";
+										document.getElementById("pwdload").style.display="none";
+					document.getElementById("info").style.display="block";
+									}else if(msg.zt == '3'){
+										$("#pwderr").text(msg.info);
+					$('#sub').val("确认"); 
+									}else if(msg.zt == '6'){
+					//$("#infos").text(msg.info);
+					$("#infos").html("<div style='clear: both;text-align: center;padding: 30px;'>"+msg.info+"</div>");
+					document.getElementById("filemore").style.display="none";
+										document.getElementById("pwdload").style.display="none";
+					document.getElementById("info").style.display="block";
+									}else{
+					$("#infos").text(msg.info);
+				}
+			},
+			error:function(){
+				//隐藏
+				document.getElementById("load2").style.display="none";
+				$("#infos").text("获取失败，请重试");
+			}
+	
+	});
+}
+function more(){
+				var pwd = document.getElementById('pwd').value;
+				$("#filemore").text("文件获取中...");
+		$.ajax({
+			type : 'post',
+			url : '/filemoreajax.php?file=14026119',
+			data : { 
+			'lx':2,
+			'fid':14026119,
+			'uid':'4801414',
+			'puid':'CT0BbglkBmNRMwtsAGBccFI5VGYCZAY0BTQAMVw0WmoGMlcxWSlQNglvUDQHZQc2A29SZwNq',
+			'pg':pgs,
+			'rep':'0',
+			't':ib6zbj,
+			'k':_h5bdc,
+			'up':1,
+						'ls':1,
+			'pwd':pwd 
+			},
+			dataType : 'json',
+			success:function(msg){
+				if(msg.zt == '1'){
+					var data = msg.text;
+					$.each(data, function(i, n){
+						var str;
+						var alink = '/' + n.id;
+						if(n.t ==1){
+							alink = n.id;
+							n.name_all = n.name_all + '<span class="s_ad">推广</span>';
+						}
+												str ='<div id=ready><div id=name>&nbsp;<img src=https://images.bakstotre.com/assets/images/filetype/'+ n.icon +'.gif align=absmiddle border=0>&nbsp;<a href=' + alink + ' target=_blank>' + n.name_all + '</a></div><div id=size>'+n.size+'</div><div id=time>'+n.time+'</div></div>';
+												if(n.id != '-1'){
+							$(str).appendTo("#infos");
+						}
+					});
+					if(data.length<50){
+						document.getElementById("filemore").style.display="none";
+					}else{
+						$("#filemore").text("显示更多文件");
+					}
+					pgs++;
+
+				}else{
+					document.getElementById("filemore").style.display="none";
+				}
+			},
+			error:function(){
+				$("filemore").text("获取失败，请重试");
+			}
+	
+		});
+	}
+<!--save-->
+document.getElementById("save").addEventListener("click", function(){
+	$.ajax({
+			type : 'post',
+			url : '/savep.php',
+			data : { 'action':'save','puid':'CT0BbglkBmNRMwtsAGBccFI5VGYCZAY0BTQAMVw0WmoGMlcxWSlQNglvUDQHZQc2A29SZwNq','sid':'1' },
+			dataType : 'json',
+			success:function(msg){
+				var date = msg;
+				if(date.zt == '1'){
+				}else{
+				};
+			},
+			error:function(){
+				
+			}
+	
+		});
+});
+</script>
+<div class="foot_info">&copy; 2026 Lanzou</div>
+<div style="display:none"><script src="https://statics.woozooo.com/img/bd.js"></script></div>
+</body>
+</html>

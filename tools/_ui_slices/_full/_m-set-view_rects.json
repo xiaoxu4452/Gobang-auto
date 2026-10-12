@@ -1,0 +1,16 @@
+{
+ "iw": 1500,
+ "ih": 1000,
+ "dpr": 2.0000000826009767,
+ "slices": [
+  {
+   "name": "m-set-view",
+   "sel": ".card[data-id=\"setup\"] .sec[data-sec=\"view\"]",
+   "x": 1182,
+   "y": 447,
+   "w": 285,
+   "h": 182,
+   "vis": "visible/block/1"
+  }
+ ]
+}

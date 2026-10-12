@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>五子棋练习器 · 详细用法说明书</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --panel:#ffffff; --ink:#1d2330; --sub:#5b6478; --line:#e3e7f0;
+    --brand:#2f6df0; --brand2:#7a5af8; --accent:#16b8a6; --warn:#e8624a;
+    --bk:#7a5af8; --wt:#7fb0ef; --ok:#16b8a6; --soft:#eef2ff;
+    --shadow:0 6px 24px rgba(31,40,70,.08);
+  }
+  html.dark{--bg:#161a23;--panel:#1f2532;--ink:#e8ecf5;--sub:#9aa4bd;--line:#2c3445;
+    --brand:#5b8cff;--brand2:#9a7dff;--soft:#222a3a;--shadow:0 6px 24px rgba(0,0,0,.35);}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.7;font-size:15px;}
+  a{color:var(--brand);text-decoration:none}
+  .top{position:sticky;top:0;z-index:20;background:linear-gradient(100deg,var(--brand),var(--brand2));
+    color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow)}
+  .top h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.5px}
+  .top .ver{font-size:12px;opacity:.85}
+  .top .themebtn{margin-left:auto;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);
+    color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}
+  .top .themebtn:hover{background:rgba(255,255,255,.3)}
+  .wrap{display:flex;max-width:1180px;margin:0 auto;gap:0}
+  nav{position:sticky;top:58px;align-self:flex-start;width:220px;flex:0 0 220px;height:calc(100vh - 58px);
+    overflow:auto;padding:18px 14px;border-right:1px solid var(--line);background:var(--bg)}
+  nav h4{margin:6px 8px 8px;font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:1px}
+  nav a{display:block;padding:7px 10px;border-radius:8px;color:var(--ink);font-size:13.5px;margin:2px 0}
+  nav a:hover{background:var(--soft)}
+  nav a .n{display:inline-block;width:20px;color:var(--brand);font-weight:700}
+  main{flex:1;padding:26px 34px 80px;min-width:0}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 30px;
+    margin:0 0 24px;box-shadow:var(--shadow)}
+  section>h2{margin:0 0 4px;font-size:21px;display:flex;align-items:center;gap:10px}
+  section>h2 .badge{background:var(--brand);color:#fff;width:30px;height:30px;border-radius:9px;
+    display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+  section>.lead{color:var(--sub);margin:0 0 18px}
+  h3{margin:22px 0 8px;font-size:16px;color:var(--brand)}
+  h3 .k{background:var(--soft);color:var(--brand2);border-radius:6px;padding:1px 8px;font-size:13px;margin-right:6px}
+  p{margin:8px 0}
+  ul,ol{margin:8px 0;padding-left:22px}
+  li{margin:5px 0}
+  .key{display:inline-block;background:var(--soft);border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:6px;padding:1px 8px;font-size:13px;font-family:"SFMono-Regular",Consolas,monospace;color:var(--ink)}
+  .btnchip{display:inline-block;background:var(--brand);color:#fff;border-radius:7px;padding:2px 10px;font-size:13px;
+    font-weight:600;box-shadow:0 2px 0 rgba(0,0,0,.12)}
+  .btnghost{display:inline-block;background:#fff;border:1px solid var(--brand);color:var(--brand);border-radius:7px;
+    padding:2px 10px;font-size:13px;font-weight:600}
+  .tip{background:var(--soft);border-left:3px solid var(--brand);border-radius:0 8px 8px 0;padding:10px 14px;margin:12px 0;color:var(--sub)}
+  .warn{background:#fff3ef;border-left:3px solid var(--warn);border-radius:0 8px 8px 0;padding:10px 14px;margin:12px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+  .card-ui{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card-ui h4{margin:0 0 8px;font-size:14px;color:var(--brand2)}
+  svg{display:block;max-width:100%}
+  .fig{background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:16px;margin:14px 0;text-align:center}
+  .fig .cap{color:var(--sub);font-size:13px;margin-top:8px}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft);color:var(--brand2)}
+  .pill{display:inline-block;background:var(--brand);color:#fff;border-radius:999px;padding:1px 10px;font-size:12px;font-weight:700}
+  .b1{color:var(--bk)} .b2{color:var(--wt)} .b3{color:var(--ok)} .b4{color:var(--warn)}
+  .foot{color:var(--sub);font-size:13px;text-align:center;padding:20px}
+  .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px}
+  .qstep{background:var(--soft);border-radius:12px;padding:16px}
+  .qstep .no{font-size:24px;font-weight:800;color:var(--brand)}
+  @media (max-width:880px){nav{display:none}.wrap{display:block}main{padding:18px}.grid2,.quick{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>五子棋练习器 · 详细用法说明书</h1>
+  <span class="ver">Meter Gomoku Trainer</span>
+  <button class="themebtn" id="themeBtn">🌙 深色</button>
+</div>
+
+<div class="wrap">
+<nav>
+  <h4>目录</h4>
+  <a href="#s0"><span class="n">0</span>快速开始</a>
+  <a href="#s1"><span class="n">1</span>界面总览</a>
+  <a href="#s2"><span class="n">2</span>三种模式</a>
+  <a href="#s3"><span class="n">3</span>对局设置</a>
+  <a href="#s4"><span class="n">4</span>落子与对局</a>
+  <a href="#s5"><span class="n">5</span>计算评估</a>
+  <a href="#s6"><span class="n">6</span>引擎仪表盘</a>
+  <a href="#s7"><span class="n">7</span>复盘窗口</a>
+  <a href="#s8"><span class="n">8</span>识图窗口</a>
+  <a href="#s9"><span class="n">9</span>历史管理</a>
+  <a href="#s10"><span class="n">10</span>外观配色</a>
+  <a href="#s11"><span class="n">11</span>快捷键</a>
+</nav>
+
+<main>
+
+<!-- ============ 0 快速开始 ============ -->
+<section id="s0">
+  <h2><span class="badge">0</span>快速开始</h2>
+  <p class="lead">三步上手：选模式 → 摆好或开下 → 用 AI 辅助与复盘提升棋力。</p>
+  <div class="quick">
+    <div class="qstep"><div class="no">1</div><p><b>选模式</b>：右侧「对局设置」卡里选 <span class="btnchip">对弈</span> /
+      <span class="btnchip">摆盘</span> / <span class="btnchip">残局</span>。对弈时再开 <span class="btnghost">AI 执黑</span> / <span class="btnghost">AI 执白</span> 开关。</p></div>
+    <div class="qstep"><div class="no">2</div><p><b>开下 / 摆盘</b>：对弈模式点棋盘落子；摆盘模式自由放子；残局模式摆好局面后点 <span class="btnchip">确定</span> 锁定。</p></div>
+    <div class="qstep"><div class="no">3</div><p><b>提升</b>：点 <span class="btnchip">分析计算</span> 看落点评估，用「计算评估」卡的 <span class="btnchip">计算</span> / <span class="btnchip">前瞻</span> / <span class="btnchip">VCF</span> / <span class="btnchip">VCT</span> 找最佳手，再用「复盘」背诵。</p></div>
+  </div>
+  <div class="tip">💡 所有卡片右上角有「固定 / ✕」和一条横杠：横杠点一下折叠卡片；按住标题栏可把卡片拖到左侧或右侧、或调整顺序。</div>
+</section>
+
+<!-- ============ 1 界面总览 ============ -->
+<section id="s1">
+  <h2><span class="badge">1</span>界面总览</h2>
+  <p class="lead">主窗口由「顶栏 + 中央棋盘 + 底栏 + 右侧停靠栏」四部分组成。下面的示意图标出各区域与编号。</p>
+  <div class="fig">
+    <!-- 主窗口示意 -->
+    <svg viewBox="0 0 720 470" xmlns="http://www.w3.org/2000/svg" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="12">
+      <defs>
+        <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#2f6df0"/><stop offset="1" stop-color="#7a5af8"/>
+        </linearGradient>
+      </defs>
+      <rect x="6" y="6" width="708" height="458" rx="14" fill="#fff" stroke="#e3e7f0"/>
+      <!-- 顶栏 -->
+      <rect x="6" y="6" width="708" height="38" rx="14" fill="url(#bar)"/>
+      <rect x="6" y="28" width="708" height="16" fill="url(#bar)"/>
+      <text x="20" y="30" fill="#fff" font-weight="700">五子棋练习器</text>
+      <g fill="#fff" opacity=".95">
+        <rect x="520" y="14" width="42" height="22" rx="6" fill="#ffffff22"/><text x="530" y="29" fill="#fff">识图</text>
+        <rect x="568" y="14" width="42" height="22" rx="6" fill="#ffffff22"/><text x="578" y="29" fill="#fff">复盘</text>
+        <rect x="614" y="14" width="42" height="22" rx="6" fill="#ffffff22"/><text x="624" y="29" fill="#fff">历史</text>
+        <rect x="660" y="14" width="42" height="22" rx="6" fill="#ffffff22"/><text x="670" y="29" fill="#fff">关于</text>
+      </g>
+      <!-- 棋盘 -->
+      <rect x="216" y="58" width="288" height="288" rx="8" fill="#d9b878" stroke="#b8945a"/>
+      <g id="grid" stroke="#7a5a2e" stroke-width="1">
+        <line x1="240" y1="82" x2="480" y2="82"/><line x1="240" y1="118" x2="480" y2="118"/>
+        <line x1="240" y1="154" x2="480" y2="154"/><line x1="240" y1="190" x2="480" y2="190"/>
+        <line x1="240" y1="226" x2="480" y2="226"/><line x1="240" y1="262" x2="480" y2="262"/>
+        <line x1="240" y1="298" x2="480" y2="298"/><line x1="240" y1="334" x2="480" y2="334"/>
+        <line x1="240" y1="82" x2="240" y2="334"/><line x1="276" y1="82" x2="276" y2="334"/>
+        <line x1="312" y1="82" x2="312" y2="334"/><line x1="348" y1="82" x2="348" y2="334"/>
+        <line x1="384" y1="82" x2="384" y2="334"/><line x1="420" y1="82" x2="420" y2="334"/>
+        <line x1="456" y1="82" x2="456" y2="334"/><line x1="480" y1="82" x2="480" y2="334"/>
+      </g>
+      <circle cx="348" cy="190" r="11" fill="#222"/>
+      <circle cx="384" cy="226" r="11" fill="#fff" stroke="#999"/>
+      <circle cx="312" cy="154" r="11" fill="#222"/>
+      <!-- 底栏 -->
+      <rect x="216" y="356" width="288" height="40" rx="8" fill="#eef2ff" stroke="#dfe6ff"/>
+      <text x="226" y="380" fill="#2f6df0" font-size="11">分析计算</text>
+      <text x="318" y="380" fill="#444" font-size="10" text-anchor="middle">‹ › 重新开始 ❚❚ 保存 ⇄ ↻</text>
+      <text x="470" y="380" fill="#2f6df0" font-size="10" text-anchor="end">AI执子 设置</text>
+      <!-- 右侧停靠栏 -->
+      <rect x="520" y="58" width="186" height="338" rx="10" fill="#f3f5fb" stroke="#e3e7f0"/>
+      <rect x="528" y="66" width="170" height="96" rx="8" fill="#fff" stroke="#e3e7f0"/>
+      <text x="536" y="82" font-weight="700" fill="#7a5af8">对局设置</text>
+      <text x="536" y="100" font-size="10" fill="#5b6478">模式 · AI执子 · 思考时间</text>
+      <text x="536" y="114" font-size="10" fill="#5b6478">规则 · 核心/哈希 · 并行</text>
+      <text x="536" y="128" font-size="10" fill="#5b6478">摆棋评分 · 序号 · 代码</text>
+      <rect x="528" y="172" width="170" height="96" rx="8" fill="#fff" stroke="#e3e7f0"/>
+      <text x="536" y="188" font-weight="700" fill="#7a5af8">计算评估</text>
+      <text x="536" y="206" font-size="10" fill="#5b6478">多点分析 · 扫描防守</text>
+      <text x="536" y="220" font-size="10" fill="#5b6478">平衡一/二 · 计算</text>
+      <text x="536" y="234" font-size="10" fill="#5b6478">前瞻 · VCF · VCT</text>
+      <text x="536" y="248" font-size="10" fill="#5b6478">AI视图 · 指导视图</text>
+      <rect x="528" y="278" width="170" height="108" rx="8" fill="#fff" stroke="#e3e7f0"/>
+      <text x="536" y="294" font-weight="700" fill="#7a5af8">引擎仪表盘</text>
+      <text x="536" y="312" font-size="10" fill="#5b6478">深度/速度/节点/用时</text>
+      <text x="536" y="326" font-size="10" fill="#5b6478">评估/最佳 · 评估曲线</text>
+      <rect x="536" y="340" width="154" height="34" rx="5" fill="#eef2ff"/>
+      <text x="540" y="361" font-size="9" fill="#5b6478">曲线</text>
+      <!-- 标注引线 -->
+      <g font-size="11" fill="#2f6df0">
+        <line x1="6" y1="25" x2="6" y2="6" stroke="#2f6df0"/><text x="14" y="20">①顶栏</text>
+        <line x1="216" y1="202" x2="208" y2="202" stroke="#2f6df0"/><text x="120" y="200">②棋盘</text>
+        <line x1="360" y1="396" x2="360" y2="406" stroke="#2f6df0"/><text x="312" y="418">③底栏</text>
+        <line x1="520" y1="180" x2="512" y2="180" stroke="#2f6df0"/><text x="430" y="178">④右停靠栏</text>
+      </g>
+    </svg>
+    <div class="cap">图 1 · 主窗口四大区域：① 顶栏功能键　② 中央棋盘　③ 棋盘底栏（左/中/右三段）　④ 右侧停靠栏（可拖到左侧）</div>
+  </div>
+  <table>
+    <tr><th>区域</th><th>包含内容</th></tr>
+    <tr><td>① 顶栏</td><td>识图 · 复盘 · 历史 · 关于 · EN(中英文切换) · 颜色(打开调色窗)</td></tr>
+    <tr><td>② 棋盘</td><td>15×15 落子区；落子、悬停预览框、AI视图/指导视图热力、算杀虚线、评估徽标均标在此处</td></tr>
+    <tr><td>③ 底栏</td><td>左段「分析计算」· 中段对局键(‹ › / 重新开始 / ❚❚ / 保存局面 / ⇄↻✥) · 右段「AI执子」「设置」</td></tr>
+    <tr><td>④ 右停靠栏</td><td>对局设置卡 · 计算评估卡 · 引擎仪表盘卡（可拖到左侧停靠栏、可折叠/固定/排序）</td></tr>
+  </table>
+</section>
+
+<!-- ============ 2 三种模式 ============ -->
+<section id="s2">
+  <h2><span class="badge">2</span>三种模式</h2>
+  <p class="lead">在右侧「对局设置」卡的 <b>模式</b> 虚线框里切换。三种模式决定棋盘上能做什么。</p>
+  <div class="grid2">
+    <div class="card-ui">
+      <h4>🆚 对弈（pve）</h4>
+      <p>你与 AI 对局。开 <span class="btnghost">AI 执黑</span> 或 <span class="btnghost">AI 执白</span> 决定谁先走；两开关都关 = 你一人下双方；两开关都开 = AI 自己打自己（你旁观）。</p>
+      <p>底栏正中 <span class="key">❚❚</span> 键 = 「AI 辅助落一子 / 暂停 / 自打开关」，随状态在 ▶ 与 ❚❚ 间切换。</p>
+    </div>
+    <div class="card-ui">
+      <h4>🧩 摆盘（place）</h4>
+      <p>自由摆放黑白双方任意子。用来练定式、造局面、复现棋谱。底栏 <span class="key">❚❚</span> 键在此模式<b>禁用</b>（摆盘不会自动落子）。</p>
+      <p>配合低栏的 <span class="btnchip">⇄</span> 翻转、<span class="btnchip">↻</span> 旋转、<span class="btnchip">✥</span> 平移变换布局。</p>
+    </div>
+    <div class="card-ui">
+      <h4>♟ 残局（endgame）</h4>
+      <p>专练残局：棋盘下方出现摆盘行 <span class="btnchip">确定</span> · <span class="btnchip">顺序摆盘</span> · <span class="btnchip">任意摆盘</span>。</p>
+      <ul>
+        <li><b>顺序摆盘</b>：黑白轮流落子。</li>
+        <li><b>任意摆盘</b>：弹小框选「黑子/白子」，可连续摆该色（如 30 黑 + 10 白）。</li>
+        <li><b>确定</b>：把当前盘定为本残局；此后「重新开始」回到此局面，存进历史时它也是首帧。</li>
+      </ul>
+    </div>
+    <div class="card-ui">
+      <h4>🔁 切换副作用</h4>
+      <p>切到「残局」会自动清掉基准盘并进入摆盘；VC 载入或 openRecord-vc 同样清基准。残局记录带绿色 <span class="pill">Endgame</span> 徽标。</p>
+      <p>「重新开始」= 整个局面消失（已自动存进历史），不再铺回基准；打开历史才重新展开该残局。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 对局设置 ============ -->
+<section id="s3">
+  <h2><span class="badge">3</span>对局设置卡</h2>
+  <p class="lead">右侧停靠栏最上方卡片，控制一局的所有参数。各控件如下。</p>
+  <table>
+    <tr><th>控件</th><th>说明</th></tr>
+    <tr><td><b>模式</b></td><td>对弈 / 摆盘 / 残局（见第 2 节）</td></tr>
+    <tr><td><b>AI 执子</b></td><td>两个独立拨动开关：<span class="btnghost">AI 执黑</span>(开=浅紫)、<span class="btnghost">AI 执白</span>(开=浅蓝)。
+      <ul><li>只开执黑 → 你执白（AI 先手）</li><li>只开执白 → 你执黑（你先手）</li><li>都开 → AI 自打</li><li>都关 → 你下双方</li></ul></td></tr>
+    <tr><td><b>思考时间</b></td><td>填<b>秒</b>（0.2~300，可三位小数）。AI 每手算多久。底栏/弹窗内同一含义。</td></tr>
+    <tr><td><b>规则</b></td><td>① 无禁手　② 无禁手·长连不赢　③ <b>连珠（有禁手）</b>　④ 山口(Yamaguchi)　⑤ 塔拉山口(Taraguchi)　⑥ 一手交换</td></tr>
+    <tr><td><b>核心数 / 哈希表</b></td><td>引擎线程数与哈希表大小；按机器配置选。</td></tr>
+    <tr><td><b>并行引擎</b></td><td>1 单引擎 / 2 双引擎投票 / 3 三引擎投票。多引擎不同线程数互补，对同手加权投票选最优。</td></tr>
+    <tr><td><b>摆棋评分</b></td><td>勾选后在空点标出每手评估分（默认开）。</td></tr>
+    <tr><td><b>后台预热</b></td><td>对手思考时后台持续计算，落子更快更深（默认开）。</td></tr>
+    <tr><td><b>显示序号</b></td><td>棋子上标第几手。</td></tr>
+    <tr><td><b>预览框</b></td><td>鼠标悬停时的圆角方框（默认开）。</td></tr>
+    <tr><td><b>局面代码</b></td><td><span class="key">复制</span> 总代码 / <span class="key">粘贴</span> / <span class="key">载入</span>。格式 = 小写列字母+行号逐手拼，如 <code>h8h9g7…</code>（与 gomocalc.com 同格式）。</td></tr>
+  </table>
+  <div class="tip">📌 交换类规则（一手交换 / 山口 / 塔拉山口）交换完成后，棋盘下方会弹小窗让你亲自选「先手·执黑」或「后手·执白」，选定后 AI 自动执另一色并立即计算。</div>
+</section>
+
+<!-- ============ 4 落子与对局 ============ -->
+<section id="s4">
+  <h2><span class="badge">4</span>落子与对局操作</h2>
+  <p class="lead">棋盘底栏中段的按键负责走子与局面变换。</p>
+  <div class="fig">
+    <svg viewBox="0 0 640 70" xmlns="http://www.w3.org/2000/svg" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="12">
+      <g>
+        <rect x="10" y="14" width="34" height="34" rx="8" fill="#eef2ff" stroke="#dfe6ff"/><text x="27" y="37" text-anchor="middle" fill="#2f6df0" font-size="16">‹</text>
+        <text x="62" y="37" fill="#5b6478" font-size="10">上一步</text>
+        <rect x="120" y="14" width="34" height="34" rx="8" fill="#eef2ff" stroke="#dfe6ff"/><text x="137" y="37" text-anchor="middle" fill="#2f6df0" font-size="16">›</text>
+        <text x="172" y="37" fill="#5b6478" font-size="10">下一步</text>
+      </g>
+      <rect x="230" y="14" width="84" height="34" rx="8" fill="#fff" stroke="#cdd6ea"/><text x="272" y="37" text-anchor="middle" fill="#1d2330">重新开始</text>
+      <rect x="324" y="14" width="34" height="34" rx="8" fill="#fff" stroke="#cdd6ea"/><text x="341" y="37" text-anchor="middle" fill="#1d2330" font-size="14">❚❚</text>
+      <text x="378" y="37" fill="#5b6478" font-size="10">AI辅助/暂停</text>
+      <rect x="430" y="14" width="84" height="34" rx="8" fill="#fff" stroke="#cdd6ea"/><text x="472" y="37" text-anchor="middle" fill="#1d2330">保存局面</text>
+      <g>
+        <rect x="528" y="14" width="30" height="34" rx="8" fill="#fff" stroke="#cdd6ea"/><text x="543" y="37" text-anchor="middle" fill="#2f6df0" font-size="15">↻</text>
+        <rect x="566" y="14" width="30" height="34" rx="8" fill="#fff" stroke="#cdd6ea"/><text x="581" y="37" text-anchor="middle" fill="#2f6df0" font-size="15">⇄</text>
+        <rect x="604" y="14" width="30" height="34" rx="8" fill="#fff" stroke="#cdd6ea"/><text x="619" y="37" text-anchor="middle" fill="#2f6df0" font-size="15">✥</text>
+      </g>
+    </svg>
+    <div class="cap">图 2 · 底栏中段对局键</div>
+  </div>
+  <ul>
+    <li><span class="key">‹</span> / <span class="key">›</span>：回退 / 前进一步（浏览历史手顺）。</li>
+    <li><span class="btnchip">重新开始</span>：整局清空（当前局面已自动存入历史）。</li>
+    <li><span class="key">❚❚</span>：AI 辅助落一子 / 暂停 / 自打开关。自由摆盘与残局模式下禁用。</li>
+    <li><span class="btnchip">保存局面</span>：把当前盘存进历史。</li>
+    <li><span class="btnchip">↻</span> 旋转：整体棋子顺时针转 90°（坐标轴不动）。</li>
+    <li><span class="btnchip">⇄</span> 翻转：弹小窗选「左右 / 上下 / ╲对角 / ╱对角」翻转棋子布局。</li>
+    <li><span class="btnchip">✥</span> 平移：弹小窗向 ← ↑ ↓ → 平移一格（有子会出盘则整体不动并提示）。</li>
+    <li><span class="btnchip">十打</span>：开局引导行里的键，叫出 10 个候选点（仅开局流程出现）。</li>
+  </ul>
+  <div class="tip">⚡ 底栏<b>左段</b>的 <span class="btnchip">分析计算</span>：点击开启「持续落点评估」——最佳点青色胶囊+边框，其余点青→红四色渐变（越差越红、填充越浅）；再点变「停止分析」清除所有评估标记。</div>
+</section>
+
+<!-- ============ 5 计算评估 ============ -->
+<section id="s5">
+  <h2><span class="badge">5</span>计算评估卡</h2>
+  <p class="lead">右侧中间卡片，所有分析、算杀与热力视图都在此触发，结果直接标在棋盘上。</p>
+  <h3><span class="k">A</span>六个分析键</h3>
+  <table>
+    <tr><th>键</th><th>作用</th></tr>
+    <tr><td><span class="btnchip">多点分析</span></td><td>列出当前局面最佳若干个候选点（数量由「分析点数」决定，最多 8）。棋盘上标名次徽标+评估分。</td></tr>
+    <tr><td><span class="btnchip">扫描防守</span></td><td>在周围 N×M 方块扫描对手成形状凶点，百分比铺盘 + A/B/C 徽标（越要防越高）。</td></tr>
+    <tr><td><span class="btnchip">平衡一</span> / <span class="btnchip">平衡二</span></td><td>两套平衡策略的评估对比。</td></tr>
+    <tr><td><span class="btnchip">计算</span></td><td>主分析键（accent 蓝）。算的时候变「停止计算」，算完自动变回「计算」。</td></tr>
+    <tr><td><span class="btnchip">清除标记</span></td><td>清掉计算评估里所有棋盘标记（含计算/多点/平衡/扫描 + 前瞻/VCF/VCT 的虚线与序号）。</td></tr>
+  </table>
+  <h3><span class="k">B</span>前瞻 / 算杀（VCF · VCT）</h3>
+  <div class="fig">
+    <svg viewBox="0 0 560 96" xmlns="http://www.w3.org/2000/svg" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="12">
+      <rect x="10" y="12" width="64" height="32" rx="8" fill="#16b8a6"/><text x="42" y="33" text-anchor="middle" fill="#fff" font-weight="700">前瞻</text>
+      <rect x="84" y="12" width="56" height="32" rx="8" fill="#fff" stroke="#16b8a6"/><text x="112" y="33" text-anchor="middle" fill="#16b8a6" font-weight="700">VCF</text>
+      <rect x="148" y="12" width="56" height="32" rx="8" fill="#fff" stroke="#16b8a6"/><text x="176" y="33" text-anchor="middle" fill="#16b8a6" font-weight="700">VCT</text>
+      <rect x="470" y="12" width="80" height="32" rx="8" fill="#7a5af8"/><text x="510" y="33" text-anchor="middle" fill="#fff" font-weight="700">确定</text>
+      <text x="10" y="66" fill="#5b6478">图例：</text>
+      <rect x="64" y="56" width="54" height="22" rx="6" fill="#fff" stroke="#7a5af8"/><text x="91" y="71" text-anchor="middle" fill="#7a5af8">黑子</text>
+      <rect x="128" y="56" width="54" height="22" rx="6" fill="#fff" stroke="#7fb0ef"/><text x="155" y="71" text-anchor="middle" fill="#7fb0ef">白子</text>
+      <text x="196" y="71" fill="#5b6478">（进攻方指示框，自动=轮走方；算杀题=子多一方）</text>
+      <text x="10" y="90" fill="#5b6478">选中某步 → 点「确定」把该步落盘；棋盘用虚线把杀路串起来标注。</text>
+    </svg>
+    <div class="cap">图 3 · 前瞻框：逐手推演 + VCF/VCT 算杀</div>
+  </div>
+  <ul>
+    <li><b>前瞻</b>：逐手推演未来走法，框内显示推演进度与着法代码链（白子浅蓝框、黑子紫框），悬浮预览、点击选中、点「确定」落盘。</li>
+    <li><b>VCF</b>：只搜连续冲四的必胜路线。</li>
+    <li><b>VCT</b>：搜冲四 + 活三的必胜路线。</li>
+    <li>选中键变浅粉紫；有解走完整条链，无解弹窗明确提示（进攻方由系统判定，不可手动点）。</li>
+  </ul>
+  <h3><span class="k">C</span>AI视图 / 指导视图（热力）</h3>
+  <ul>
+    <li><b>AI视图</b>：AI 思考时只标出它准备下的那一点，落子即消失。</li>
+    <li><b>指导视图</b>：方形四色热力——AI 帮你算最佳落点，落子即消失。
+      <span class="b3">■最佳</span> <span class="b1">■良好</span> <span class="b4">■一般</span> <span class="b4">■劣势</span>（四色图例见卡内）。</li>
+  </ul>
+  <div class="tip">🧠 并行引擎设为 3 时，三条独立车道（不同线程数）对同一手同时搜，结果加权投票，落子与标注取最优；设为 1 即纯单引擎（对照/降级）。</div>
+</section>
+
+<!-- ============ 6 引擎仪表盘 ============ -->
+<section id="s6">
+  <h2><span class="badge">6</span>引擎仪表盘卡</h2>
+  <p class="lead">右侧底部卡片，实时显示引擎状态与评估曲线（默认显示）。</p>
+  <ul>
+    <li><b>状态胶囊</b>：绿点=空闲；红点脉冲+「计算中·功能名」=正在算。</li>
+    <li><b>六项指标</b>：深度 / 速度 / 节点 / 用时 / 评估 / 最佳（最佳=AI 推荐的下一手坐标）。</li>
+    <li><b>评估曲线</b>：黑子(紫)与白子(蓝)的评估分随手数滚动；左轴为固定刻度，右侧为横向滚动绘图区。</li>
+  </ul>
+  <div class="tip">⚙ 卡片标题栏「固定 / ✕」：未固定显示「固定」（点后开别的卡它不被收起）；固定后变「✕」（点即取消固定并关闭）。横杠 = 折叠/展开；按住标题栏拖动换栏或调序。</div>
+</section>
+
+<!-- ============ 7 复盘窗口 ============ -->
+<section id="s7">
+  <h2><span class="badge">7</span>复盘窗口</h2>
+  <p class="lead">点顶栏 <span class="btnchip">复盘</span> 打开独立窗口（Gomoku Review）。纯空盘进入时只有常驻键；选历史后才出现背诵/回顾键。</p>
+  <div class="fig">
+    <svg viewBox="0 0 560 60" xmlns="http://www.w3.org/2000/svg" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="11">
+      <rect x="8" y="12" width="76" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="46" y="32" text-anchor="middle" fill="#1d2330">背诵复盘</text>
+      <rect x="92" y="12" width="76" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="130" y="32" text-anchor="middle" fill="#1d2330">回顾复盘</text>
+      <rect x="176" y="12" width="60" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="206" y="32" text-anchor="middle" fill="#5b6478">背错 0</text>
+      <rect x="244" y="12" width="40" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="264" y="32" text-anchor="middle" fill="#1d2330">◀</text>
+      <text x="296" y="32" text-anchor="middle" fill="#2f6df0">0 / 0</text>
+      <rect x="332" y="12" width="40" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="352" y="32" text-anchor="middle" fill="#1d2330">▶</text>
+      <rect x="388" y="12" width="50" height="30" rx="7" fill="#16b8a6"/><text x="413" y="32" text-anchor="middle" fill="#fff">播放</text>
+      <rect x="446" y="12" width="50" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="471" y="32" text-anchor="middle" fill="#1d2330">序号</text>
+      <rect x="504" y="12" width="50" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="529" y="32" text-anchor="middle" fill="#1d2330">重来</text>
+    </svg>
+    <div class="cap">图 4 · 复盘窗功能键（选中历史后）</div>
+  </div>
+  <ul>
+    <li><span class="btnchip">背诵复盘</span>：凭记忆逐手落子（不显示序号，靠脑记），错了记「背错 N」。</li>
+    <li><span class="btnchip">回顾复盘</span>：自动/手动一手手走，点「播放」按间隔(0.5~5s)自动播放，方向键 ←/→ 逐子操控。</li>
+    <li><span class="key">◀</span> <span class="key">▶</span> / 胶囊 <code>n / m</code>：在记谱里步进。</li>
+    <li><span class="btnchip">序号</span>：给每颗子标第几手（复盘窗专属；主窗「显示序号」在这里不生效，避免背诵时泄答案）。</li>
+    <li><span class="btnchip">重来</span> / <span class="btnchip">保存局面</span> / <span class="btnchip">历史</span>：回到开局第 0 手 / 存盘 / 取一局。</li>
+  </ul>
+  <div class="tip">⌨ 复盘窗快捷键：<span class="key">Ctrl+Z</span> 上一手 · <span class="key">Ctrl+R</span> 重来（回到第 0 手）。残局/VC 标记会随记录投到复盘窗，首帧即整个残局，背诵从残局后第一手起。</div>
+</section>
+
+<!-- ============ 8 识图窗口 ============ -->
+<section id="s8">
+  <h2><span class="badge">8</span>识图窗口</h2>
+  <p class="lead">点顶栏 <span class="btnchip">识图</span> 打开独立窗口（Gomoku Vision）：把截图/图片里的棋盘识别成可下局面。</p>
+  <div class="fig">
+    <svg viewBox="0 0 600 96" xmlns="http://www.w3.org/2000/svg" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="12">
+      <rect x="10" y="12" width="84" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="52" y="32" text-anchor="middle" fill="#1d2330">上传图片</text>
+      <rect x="102" y="12" width="84" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="144" y="32" text-anchor="middle" fill="#1d2330">屏幕截图</text>
+      <rect x="194" y="12" width="56" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="222" y="32" text-anchor="middle" fill="#1d2330">裁剪</text>
+      <rect x="258" y="12" width="30" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="273" y="32" text-anchor="middle" fill="#2f6df0">‹</text>
+      <rect x="296" y="12" width="50" height="30" rx="7" fill="#eef2ff"/><text x="321" y="32" text-anchor="middle" fill="#2f6df0">0/0</text>
+      <rect x="354" y="12" width="30" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="369" y="32" text-anchor="middle" fill="#2f6df0">›</text>
+      <rect x="10" y="56" width="64" height="30" rx="7" fill="#16b8a6"/><text x="42" y="76" text-anchor="middle" fill="#fff" font-weight="700">识别</text>
+      <rect x="82" y="56" width="86" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="125" y="76" text-anchor="middle" fill="#1d2330">保存到历史</text>
+      <rect x="176" y="56" width="86" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="219" y="76" text-anchor="middle" fill="#1d2330">加载到练习</text>
+      <rect x="270" y="56" width="64" height="30" rx="7" fill="#fff" stroke="#7a5af8"/><text x="302" y="76" text-anchor="middle" fill="#7a5af8">VC 模式</text>
+      <rect x="342" y="56" width="64" height="30" rx="7" fill="#fff" stroke="#cdd6ea"/><text x="374" y="76" text-anchor="middle" fill="#1d2330">修改</text>
+    </svg>
+    <div class="cap">图 5 · 识图窗功能键</div>
+  </div>
+  <ul>
+    <li><b>上传图片 / 屏幕截图</b>：选图或截屏；可一次多张（≤150）。</li>
+    <li><b>裁剪</b>：拖矩形框选保留区域，确定后就地裁掉。</li>
+    <li><b>翻页 ‹ n/m ›</b>：多张之间切换；点胶囊 <code>n/m</code> 弹出左侧图片抽屉（缩略图选/移除）。</li>
+    <li><b>识别</b>：把图片里的棋盘识别成局面（结果同步到「棋盘代码」框）。</li>
+    <li><b>保存到历史 / 加载到练习</b>：存进历史，或发回主窗接着下（残盘居中加载 + 提示）。</li>
+    <li><b>VC 模式</b>：算杀题模式。放行黑白子数不统一盘面，加载到练习后自动 VCF/VCT 模拟推演。</li>
+    <li><b>修改</b>：识别不准时人工微调。修改模式功能行：交换黑白子 / 删除棋子 / 补充黑子 / 补充白子 / 添加黑白子(成对) / 撤销。</li>
+  </ul>
+  <div class="warn">⚠ 识别依赖自包含视觉引擎（GomokuVision.exe）。截图会自动贴盘（外扩约棋盘 1/30 并钳回虚拟屏）。如识别偏差，先用「裁剪」框住棋盘再识别，或用「修改」人工校正。</div>
+</section>
+
+<!-- ============ 9 历史管理 ============ -->
+<section id="s9">
+  <h2><span class="badge">9</span>历史管理</h2>
+  <p class="lead">点顶栏 <span class="btnchip">历史</span>（或复盘窗内「历史」）弹出抽屉，管理所有对局与保存的局面。</p>
+  <div class="fig">
+    <svg viewBox="0 0 560 84" xmlns="http://www.w3.org/2000/svg" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="11">
+      <rect x="8" y="10" width="40" height="26" rx="6" fill="#2f6df0"/><text x="28" y="27" text-anchor="middle" fill="#fff">历史</text>
+      <rect x="54" y="10" width="70" height="26" rx="6" fill="#fff" stroke="#cdd6ea"/><text x="89" y="27" text-anchor="middle" fill="#1d2330">保存历史</text>
+      <rect x="130" y="10" width="64" height="26" rx="6" fill="#fff" stroke="#2f6df0"/><text x="162" y="27" text-anchor="middle" fill="#2f6df0">全部选中</text>
+      <rect x="360" y="10" width="50" height="26" rx="6" fill="#fff" stroke="#cdd6ea"/><text x="385" y="27" text-anchor="middle" fill="#1d2330">打开</text>
+      <rect x="416" y="10" width="64" height="26" rx="6" fill="#16b8a6"/><text x="448" y="27" text-anchor="middle" fill="#fff">保存选中</text>
+      <rect x="486" y="10" width="50" height="26" rx="6" fill="#e8624a"/><text x="511" y="27" text-anchor="middle" fill="#fff">删除</text>
+      <rect x="8" y="44" width="50" height="26" rx="6" fill="#fff" stroke="#cdd6ea"/><text x="33" y="61" text-anchor="middle" fill="#1d2330">导入</text>
+      <rect x="64" y="44" width="50" height="26" rx="6" fill="#fff" stroke="#cdd6ea"/><text x="89" y="44" text-anchor="middle" fill="#1d2330"></text><text x="89" y="61" text-anchor="middle" fill="#1d2330">导出</text>
+      <rect x="120" y="44" width="50" height="26" rx="6" fill="#fff" stroke="#cdd6ea"/><text x="145" y="61" text-anchor="middle" fill="#1d2330">关闭</text>
+    </svg>
+    <div class="cap">图 6 · 历史抽屉</div>
+  </div>
+  <ul>
+    <li><b>两个标签页</b>：历史（对局记录） / 保存历史（你永久保存的局）。</li>
+    <li><b>全部选中</b>：一键勾选当前页全部；再点取消全选（对两页都生效）。</li>
+    <li><b>打开</b>：把勾选的局载入（复盘窗里则进复盘窗）。</li>
+    <li><b>保存选中</b>：把勾选的局永久存入「保存历史」。</li>
+    <li><b>删除 / 导入 / 导出</b>：删除勾选；从 .txt 导入局面代码；导出选中局为 .txt（代码格式与 gomocalc 兼容）。</li>
+    <li><b>右键菜单</b>：每条历史右键 → 打开复盘 / 重命名 / 导出这一局 / 存入保存历史 / 删除。</li>
+  </ul>
+  <div class="tip">🗂 残局记录带绿色 <span class="pill">Endgame</span> 徽标；VC 载入的记录也带相应标记随复盘投送。</div>
+</section>
+
+<!-- ============ 10 外观配色 ============ -->
+<section id="s10">
+  <h2><span class="badge">10</span>外观与配色</h2>
+  <p class="lead">点顶栏 <span class="btnchip">颜色</span> 打开仿 PS 调色窗，自定义深浅主题与棋盘/背景色，全部持久化。</p>
+  <ul>
+    <li><b>主题</b>：浅色 / 深色 / 自定义（一旦改色自动切「自定义」）。</li>
+    <li><b>调色对象</b>：棋盘 / 背景 二选一（选背景时不显示预制色）。</li>
+    <li><b>取色盘</b>：上方「饱和度×明度」方块 + 下方色相条，鼠标拖动取色。</li>
+    <li><b>RGB</b>：R/G/B 三个数字框；也可直接填 <code>#rrggbb</code> 或 <code>rgb(r,g,b)</code> 代码框。</li>
+    <li><b>预制色</b>：选「棋盘」时出现一排预设棋盘色块，一键选用。</li>
+    <li><b>恢复默认</b>：还原出厂配色（棋盘 #d9b878 + 象牙白背景）。</li>
+  </ul>
+  <div class="tip">🎨 配色、主题、语言(EN 键)都会首帧即时生效并持久化——下次启动直接是对的样子，不会闪一下默认色。</div>
+</section>
+
+<!-- ============ 11 快捷键 ============ -->
+<section id="s11">
+  <h2><span class="badge">11</span>快捷键与小贴士</h2>
+  <table>
+    <tr><th>操作</th><th>快捷键 / 方式</th></tr>
+    <tr><td>中英文切换</td><td>顶栏 <span class="btnchip">EN</span> / <span class="btnchip">中</span></td></tr>
+    <tr><td>回退 / 前进一步</td><td>底栏 <span class="key">‹</span> / <span class="key">›</span></td></tr>
+    <tr><td>复盘上一手 / 重来</td><td><span class="key">Ctrl+Z</span> / <span class="key">Ctrl+R</span>（复盘窗）</td></tr>
+    <tr><td>回顾复盘逐子</td><td>方向键 <span class="key">←</span> / <span class="key">→</span></td></tr>
+    <tr><td>识图修改撤销</td><td><span class="key">Ctrl+Z</span></td></tr>
+    <tr><td>折叠 / 展开卡片</td><td>点卡片标题栏横杠</td></tr>
+    <tr><td>拖动卡片换栏/调序</td><td>按住卡片标题栏拖动</td></tr>
+    <tr><td>固定卡片不被收起</td><td>卡片右上「固定」键</td></tr>
+  </table>
+  <div class="warn">📌 连珠（有禁手）规则下，禁手红叉常驻显示（轮到白方时减淡）；对弈模式轮到黑方点红叉会被拦下并提示。禁手只判三类：长连 / 四四 / 三三（四三是合法取胜手）。</div>
+  <div class="tip">📤 想导出说明书存档？在浏览器里打开本页后「打印 → 另存为 PDF」即可生成一份可分享的图文说明书。</div>
+</section>
+
+<div class="foot">Meter Gomoku Trainer · 用法说明书（依据练习器界面源码整理）· 可与「关于」弹窗内的版本/开源组件信息对照</div>
+</div>
+
+<script>
+  var b=document.getElementById('themeBtn');
+  b.onclick=function(){
+    var d=document.documentElement.classList.toggle('dark');
+    b.textContent=d?'☀ 浅色':'🌙 深色';
+    try{localStorage.setItem('manualTheme',d?'dark':'light');}catch(e){}
+  };
+  try{if(localStorage.getItem('manualTheme')==='dark'){document.documentElement.classList.add('dark');b.textContent='☀ 浅色';}}catch(e){}
+</script>
+</body>
+</html>

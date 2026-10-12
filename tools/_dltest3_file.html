@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0" />
+<title>文件</title>
+<meta name="description" content="文件大小：38.2 M" />
+<script type="text/javascript" src="https://images.bakstotre.com/assets/includes/js/jquery.js"></script>
+<script type="text/javascript" src="https://images.bakstotre.com/assets/img/qrcode.min.js"></script>
+<link rel="shortcut icon" href="https://images.bakstotre.com/assets/favicon.ico">
+</head>
+<body>
+<link href="https://images.bakstotre.com/assets/share/pc1.css" rel="stylesheet" type="text/css">
+<link href="https://images.bakstotre.com/assets/share/pc2.css" rel="stylesheet" type="text/css">
+<div id="file" class="filter">
+<div class="n_hd"><div class="user-ico"><div class="user-ico-div"><div class="user-ico-div-1"></div><div class="user-ico-div-2"></div></div> <span class="user-name">15**</span><span class="user-name-txt">分享文件</span></div><a href="/q/jb/?f=321463779&report=1" class="n_login"><font id="rpt"> </font></a></div>
+<div class="n_box">
+<div class="jingshi" id="jingshi"></div><div class="n_box_ico"><span class="filename"><img src="https://images.bakstotre.com/assets/images/type/exe_max.gif"></span></div>
+<!--<div class="n_box_2fn"></div> -->
+<div class="n_box_3fn" id="filenajax">文件</div>
+<!--<div class="n_file_info"></div> -->
+<div class="n_file_info"><span class="n_file_infos">48 分钟前</span> <span class="n_file_infos">Win桌面</span></div>
+<div class="n_file"><div class="n_filesize">大小：38.2 M</div><div id="downajax"></div></div>
+<div class="n_box_des"></div>
+</div>
+<div class="n_bot">
+<div id="pcode"></div>
+<div id="code"></div>
+</div>
+<div class="n_foot" id="n_foot"></div></div>
+<div id="passwddiv">
+<div class="passwddiv-center">
+<div class="passwddiv-userico"><div class="passwddiv-userico-0"><div class="passwddiv-userico-1"></div><div class="passwddiv-userico-2"></div></div></div>
+<div class="passwddiv-user">获取<span>15**</span>的文件</div>
+<div class="passwddiv-input"><input type="text" name="pwd" class="passwdinput" id="pwd" value="" placeholder="输入密码" />
+<div class="passwddiv-btn" onclick="down_p();"><div class="passwddiv-btn-1"></div><div class="passwddiv-btn-2"></div></div></div>
+<div id="info"></div>
+</div>
+</div>
+
+
+
+
+
+<script type="text/javascript">
+//回车事件
+$(document).keyup(function (e) {
+	if (e.keyCode == 13) {
+		down_p();
+	}
+});
+
+function down_p(){
+		var kdns =1;
+
+		var lanosso = '';
+		
+		var isngis = '';
+		
+		var isngis = 'VzFXaQEwBjdUXQI9U2MCPlsyATZSPFRiVmcGMwJpW20BOABxWnMGb1YxA2JXOgAxAW1TYV4yV2cAMQY3AHpXI1c_aVz0BbwY0VGQCZVM3AmVbZQFlUj1UY1ZnBjkCZ1ttATAAYVo3BmRWOQMwV2AANgFpU2BeY1dgAGEGMgBpVzJXNVc3AXoGIlRjAidTdAJ0W2UBd1IwVGc_c';
+	
+		//data : { 'action':'downprocess','sign':isngis,'kd':kdns,'p':pwd, },
+		var pwd =document.getElementById('pwd').value;
+		if (pwd == '' || pwd == undefined || pwd == null) {
+			$(".passwdinput").focus();
+			return false;
+		}
+		
+		$.ajax({
+			type : 'post',
+			url : 'https://apifile.woozooo.com/ajaxfile.php?file=321463779',////
+///
+//data : { 'action':'downprocess','sign':isngis,'kd':kdns,'p':pwd, },/////data
+			data : { 'action':'downprocess','sign':isngis,'kd':kdns,'p':pwd, },//
+			//data : { 'action':'downprocess','sign':v,'kd':kdns,'p':pwd, },//
+			dataType : 'json',
+			success:function(msg){
+				var date = msg;
+				var dom_down = date.dom;
+				if(date.zt == '1'){
+					$("#downajax").html("<a href="+dom_down+"/file/"+ date.url + lanosso +" target=_blank rel=noreferrer>下载</a>");
+					$("#passwddiv").hide();
+					$("#filenajax").text(date.inf);
+					document.title = date.inf;
+					$(".n_box_des").show();
+					$("#file").removeClass("filter");
+				}else{
+					$("#info").text(date.inf);
+				};
+				
+			},
+			error:function(){
+				$("#info").html("失败，请刷新");
+			}
+	
+		});
+}
+</script>
+
+<script type="text/javascript" src="https://images.bakstotre.com/assets/share/pc2.js"></script>
+
+<div style="display:none"><script src="https://statics.woozooo.com/img/bd.js"></script></div>
+</body>
+</html>

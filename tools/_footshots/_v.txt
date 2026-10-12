@@ -1,0 +1,4 @@
+shot bar_900.png
+shot bar_700.png
+shot bar_620.png
+shot bar_560.png
