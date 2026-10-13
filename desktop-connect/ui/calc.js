@@ -1499,7 +1499,7 @@ function paint() {
     var isStage2 = G.ana.marks.some(function (mk) { return String(mk.badge) === '4'; });
     if (G.moves.length >= (isStage2 ? 5 : 3)) balHide = true;
   }
-  if (G.ana.marks.length && aiDecorOn() && !balHide) {
+  if (G.ana.marks.length && (aiDecorOn() || G.ana.kind === 'bal' || G.ana.kind === 'bal1') && !balHide) {
     
     var mr = Math.max(6, gap * 0.40);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
@@ -8346,6 +8346,39 @@ async function anaBalPoints() {
         } catch (eEv) { evQ = ''; }
         marksArr.push({ x: pQ[0], y: pQ[1], color: colQ, ev: evQ, seq: String(qi + 1) });
         namesB.push(coordName(pQ[0], pQ[1]));
+      }
+      if (!marksArr.length) { renderAna(T('anEmpty')); return; }
+      renderBalMarks(marksArr, T('anBalDone').replace('{n}', String(marksArr.length)).replace('{list}', namesB.join(', ')));
+      return;
+    }
+    if (!empty) {
+      // Local engine (hard bridge): one balanced pick per side, alternating
+      // colours; each point is really placed on a working copy so the search
+      // sees a genuine position. The engine returns the near-zero-advantage
+      // candidate for the side to move, which is exactly a balance point.
+      var bmB = G.board.map(function (r) { return r.slice(); });
+      var plyB = G.moves.length;
+      var marksArr = [], namesB = [];
+      var qMs = Math.max(600, Math.min(1200, turnMs));
+      var lanesB = ['main', 'sub', 'fwd'];
+      for (var qi = 0; qi < need; qi++) {
+        var curB = ((plyB + qi) % 2 === 0);
+        var rQ = null;
+        try {
+          rQ = await analyze(qMs, 8, lanesB[qi % 3], curB ? 1 : 2, T('tagBal1'), { board: bmB });
+        } catch (eQ) { rQ = null; }
+        if (gen !== G.ana.gen) return;
+        var csQ = (rQ && rQ.candidates) || [];
+        if (!csQ.length) break;
+        var biQ = 0, bvQ = Infinity;
+        csQ.forEach(function (c, i) {
+          var v = evalNum(c.eval);
+          if (!isNaN(v) && Math.abs(v) < bvQ) { bvQ = Math.abs(v); biQ = i; }
+        });
+        var pQ = csQ[biQ];
+        bmB[pQ.y][pQ.x] = curB ? 1 : 2;
+        marksArr.push({ x: pQ.x, y: pQ.y, color: curB ? 'b' : 'w', ev: (pQ.eval != null ? pQ.eval : ''), seq: String(qi + 1) });
+        namesB.push(coordName(pQ.x, pQ.y));
       }
       if (!marksArr.length) { renderAna(T('anEmpty')); return; }
       renderBalMarks(marksArr, T('anBalDone').replace('{n}', String(marksArr.length)).replace('{list}', namesB.join(', ')));

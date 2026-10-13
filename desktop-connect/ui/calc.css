@@ -1129,3 +1129,9 @@ html[lang="en"] body.linkOn #hdr .brand::after{ content:'· Linking'; }
 .anbtns .dashed-group{display:inline-flex;align-items:center;justify-content:center;gap:.2rem;border:1px dashed var(--accent);border-radius:.4rem;padding:.12rem .2rem;box-sizing:border-box;min-width:0;max-width:100%}
 .anbtns .dashed-group .btn{width:auto;min-width:0;padding:.3rem .3rem}
 .anbtns .dashed-group select{width:2.9rem;min-width:0;padding:.22rem .15rem;font-size:.82rem;border:1px solid var(--line, #cfd8e3);border-radius:.3rem;background:transparent;color:inherit}
+.anbtns .dashed-group{grid-column:1 / -1; display:flex; align-items:center; justify-content:center;gap:.25rem; width:100%; border:1px dashed var(--accent); border-radius:.4rem;padding:.12rem .2rem; box-sizing:border-box; min-width:0; max-width:100%}
+.anbtns .dashed-group .btn{flex:1; min-width:0;}
+.anbtns .dashed-group select{flex:0 0 2.9rem; min-width:0; padding:.22rem .15rem;font-size:.82rem; border:1px solid var(--line, #cfd8e3); border-radius:.3rem; background:transparent; color:inherit}
+.lk-btns .dashed-group{display:flex; align-items:center; gap:.3rem; width:100%;border:1px dashed var(--accent); border-radius:.4rem; padding:.12rem .2rem; box-sizing:border-box; min-width:0}
+.lk-btns .dashed-group #lk_bal{flex:1; min-width:0;}
+.lk-btns .dashed-group select{flex:0 0 2.9rem; min-width:0; padding:.22rem .15rem;font-size:.82rem; border:1px solid var(--line, #cfd8e3); border-radius:.3rem; background:transparent; color:inherit}
