@@ -3142,6 +3142,63 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     tick();
   }
   
+  window.GB_BAL_POINTS = async function (req) {
+    // Official engine balance search for the main panel: req = {
+    //   board: 0/1/2 matrix, moves: ply count, need: 1..6, rule: 0/1/2/5,
+    //   turnMs, onMarks(marks), onStatus(text) }.
+    // One near-zero-advantage point per side, really placed so colours
+    // alternate like real moves; every point is then scored across lanes.
+    if (swBusy || balBusy) { try { req.onMarks([]); } catch (e) {} return; }
+    balBusy = true;
+    var bmN = (req.board || []).map(function (r) { return r.slice(); });
+    var plyBase = req.moves || 0;
+    var needN = Math.max(1, Math.min(6, req.need || 2));
+    var ruleN = (req.rule === 0 || req.rule === 1 || req.rule === 2 || req.rule === 5) ? req.rule : 0;
+    var tmsN = Math.max(600, Math.min(1500, (req.turnMs || 2000) * 0.6));
+    var marksN = [];
+    try {
+      await onMainLane(function () { return engCmd('main', 'INFO RULE ' + ruleN); });
+      for (var qi2 = 0; qi2 < needN; qi2++) {
+        var curB2 = ((plyBase + qi2) % 2 === 0);
+        var colN = curB2 ? 'b' : 'w';
+        var qb = { board: bmN, moveList: [], n: 1, mode: 'one', bias: 0,
+                   rule: ruleN, turnMs: tmsN, lane: 'main',
+                   cid: 'gb-balpts-' + plyBase + '-' + qi2,
+                   side: curB2 ? 1 : 2 };
+        var jn = null;
+        try { jn = await onMainLane(function () { return wsCall('balance', qb, tmsN + 6000); }); }
+        catch (eN) { jn = null; }
+        if (!jn || jn.error || jn.swap || !jn.moves || !jn.moves.length) break;
+        var ptn2 = jn.moves[0];
+        marksN.push({ p: ptn2, color: colN });
+        bmN[ptn2[1]][ptn2[0]] = colN === 'b' ? 1 : 2;
+      }
+      var evsN = [];
+      if (marksN.length) {
+        var lanes3 = ['main', 'sub', 'fwd'];
+        var evMs = Math.max(250, Math.min(400, Math.round(tmsN * 0.3)));
+        var evTasks = marksN.map(function (m, mi) {
+          var scB = (req.board || []).map(function (r) { return r.slice(); });
+          for (var si = 0; si <= mi; si++) scB[marksN[si].p[1]][marksN[si].p[0]] = marksN[si].color === 'b' ? 1 : 2;
+          return wsCall('analyze', {
+            board: scB, moveList: [], matchMs: 600000, turnMs: evMs,
+            timeUsedMs: 0, topN: 1, rule: ruleN, lane: lanes3[mi % 3],
+            cid: 'gb-balpts-ev-' + plyBase + '-' + mi,
+          }, evMs + 6000).then(function (jv) {
+            if (jv && !jv.error && jv.candidates && jv.candidates.length) return jv.candidates[0].eval || '';
+            return '';
+          }).catch(function () { return ''; });
+        });
+        evsN = await Promise.all(evTasks);
+      }
+      var out = marksN.map(function (m, mi) {
+        return { x: m.p[0], y: m.p[1], color: m.color, ev: evsN[mi] || '', seq: String(mi + 1) };
+      });
+      try { req.onMarks(out); } catch (e) {}
+    } finally {
+      balBusy = false;
+    }
+  };
   window.GB_LINK_SWAPBAL = runSwapBal;
   window.GB_LINK_SWAPEVAL = runSwapEval;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

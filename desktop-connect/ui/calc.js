@@ -1526,13 +1526,10 @@ function paint() {
       ctx.beginPath();
       if (mk.inline && mk.label) {
         // Balance mark: hollow upper half (sequence) + filled lower half (eval)
-        var rr2 = mr * 0.6;
         ctx.arc(px, py, mr, Math.PI, Math.PI * 2);
         ctx.fillStyle = pal.badge; ctx.fill();
         ctx.lineWidth = Math.max(1.4, gap * 0.06);
         ctx.strokeStyle = pal.ring;
-        ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI); ctx.stroke();
-        ctx.beginPath(); ctx.arc(px, py, rr2, 0, Math.PI); ctx.stroke();
         ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI * 2); ctx.stroke();
       } else if (multi) {
         if (ctx.roundRect) ctx.roundRect(px - pw / 2, py - ph / 2, pw, ph, ph / 2);
@@ -1568,10 +1565,10 @@ function paint() {
         var mt = anaInlineMetrics(ctx, mk, mr);
         ctx.fillStyle = '#ffffff';
         if (mk.label) {
-          ctx.font = '700 ' + mt.rf + 'px "Segoe UI",system-ui,sans-serif';
-          ctx.fillText(mk.badge, px, py - mt.ph * 0.34);
-          ctx.font = '600 ' + mt.ef + 'px "Segoe UI",system-ui,sans-serif';
-          ctx.fillText(mk.label, px, py + mt.ph * 0.34);
+          ctx.font = '700 ' + Math.max(9, mr * 0.6) + 'px "Segoe UI",system-ui,sans-serif';
+          ctx.fillText(mk.badge, px, py - mr * 0.48);
+          ctx.font = '600 ' + Math.max(8, mr * 0.4) + 'px "Segoe UI",system-ui,sans-serif';
+          ctx.fillText(mk.label, px, py + mr * 0.48);
         } else {
           
           ctx.font = '700 ' + Math.max(9, mr * 0.9) + 'px "Segoe UI",system-ui,sans-serif';
@@ -8352,7 +8349,23 @@ async function anaBalPoints() {
       return;
     }
     if (!empty) {
-      // Local engine (hard bridge): one balanced pick per side, alternating
+      if (typeof window.GB_BAL_POINTS === 'function') {
+        var marksArr = [], namesB = [];
+        try {
+          await window.GB_BAL_POINTS({
+            board: G.board, moves: G.moves.length, need: need, rule: engineRule(),
+            turnMs: Math.max(2000, S.turnMs || 2000),
+            onMarks: function (ms) { marksArr = ms || []; },
+          });
+        } catch (eB) { marksArr = []; }
+        if (gen !== G.ana.gen) return;
+        if (marksArr && marksArr.length) {
+          marksArr.forEach(function (m) { namesB.push(coordName(m.x, m.y)); });
+          renderBalMarks(marksArr, T('anBalDone').replace('{n}', String(marksArr.length)).replace('{list}', namesB.join(', ')));
+          return;
+        }
+      }
+      // Fallback: local engine (hard bridge), one balanced pick per side, alternating
       // colours; each point is really placed on a working copy so the search
       // sees a genuine position. The engine returns the near-zero-advantage
       // candidate for the side to move, which is exactly a balance point.
