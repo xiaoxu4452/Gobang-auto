@@ -2360,7 +2360,7 @@ async function aiMove() {
     var moverIsBlack = (G.moves.length % 2 === 0);
     pushCurve(G.moves.length, evalNum(c0.eval), moverIsBlack);
     G.redo = [];                            
-    place(best[0], best[1]);
+    place(best[0], best[1], false, true);
     
     if (linkSessionOn() && S.linkAuto && !G.over) {
       adFireAt(best[0], best[1], linkBoardFp(G.board), false, false);
@@ -2453,7 +2453,7 @@ async function aiAssistOnce() {
   if (S.coach && !G.over) refreshCoach().then(paint);   
 }
 
-function place(x, y, fromRedo) {
+function place(x, y, fromRedo, byAI) {
   if (x < 0 || y < 0 || x >= N || y >= N) return false;
   if (G.board[y][x]) return false;
   
@@ -2468,7 +2468,18 @@ function place(x, y, fromRedo) {
   G.ana.gen++;
   if (G.ana.defTimer) { clearTimeout(G.ana.defTimer); G.ana.defTimer = null; }
   G.ana.defWinUntil = 0; G.ana.defRefining = false;
-  if (G.ana.kind !== 'bal') {
+  if (G.ana.kind === 'bal' && G.ana.marks.length) {
+    if (!byAI) {
+      G.ana.balLeft = (G.ana.balLeft || G.ana.marks.length) - 1;
+      if (G.ana.balLeft <= 0) {
+        G.ana.gen++; G.ana.busy = false;
+        G.ana.marks = []; G.ana.rows = []; G.ana.defCells = null;
+        G.ana.kind = '';
+        anaMark(null); renderAna(T('anIdle'));
+      }
+    }
+    G.ana.busy = false;
+  } else {
     G.ana.busy = false; G.ana.kind = '';
     anaReset();
   }
@@ -2560,19 +2571,11 @@ function afterMove() {
   
   if (boardDecided() && (G.ana.marks.length || G.ana.defCells)) {
     if (G.ana.kind === 'bal' && G.ana.marks.length) {
-      // Balance picks persist like the Link overlay: keep the marks until
-      // the required number of stones has been played (any cells), then
-      // release the balance engine and hand control to the main analysis.
-      G.ana.balLeft = (G.ana.balLeft || G.ana.marks.length) - 1;
+      // Balance picks persist like the Link overlay. Only the user's own
+      // stones count them down (place() with byAI=false); AI auto-moves
+      // never clear the marks.
       G.ana.busy = false;
-      if (G.ana.balLeft <= 0) {
-        G.ana.gen++;
-        G.ana.marks = []; G.ana.rows = []; G.ana.defCells = null;
-        G.ana.kind = '';
-        anaMark(null); renderAna(T('anIdle'));
-      } else {
-        anaMark(null);
-      }
+      anaMark(null);
     } else {
       G.ana.gen++; G.ana.busy = false;
       if (G.ana.defTimer) { clearTimeout(G.ana.defTimer); G.ana.defTimer = null; }
@@ -8442,10 +8445,28 @@ async function anaBalPoints() {
       return;
     }
     if (empty) {
-      // Empty board: fixed 3 points (2 black + 1 white). The engine scores
-      // every OFFICIAL balanced opening (rule-aware books, no winning lines)
-      // and we keep the two most balanced black-3 points plus their shared
-      // white-2 - exactly the "nearest to 0 score" balance-point logic.
+      // Empty board: the SAME official balance search as gomocalc - three
+      // sequential YXBALANCEONE queries (black, white, black), each point
+      // really placed, so the returned points are the ones closest to 0
+      // advantage for both sides (never a forced-win opening). Rule-bound.
+      if (typeof window.GB_BAL_POINTS === 'function') {
+        var marksE0 = [], namesE0 = [];
+        try {
+          await window.GB_BAL_POINTS({
+            board: G.board, moves: 0, need: 3, rule: engineRule(),
+            turnMs: Math.max(2000, S.turnMs || 2000),
+            onMarks: function (ms) { marksE0 = ms || []; },
+          });
+        } catch (eE0) { marksE0 = []; }
+        if (gen !== G.ana.gen) return;
+        if (marksE0 && marksE0.length) {
+          marksE0.forEach(function (m) { namesE0.push(coordName(m.x, m.y)); });
+          renderBalMarks(marksE0, T('anBalDone').replace('{n}', String(marksE0.length)).replace('{list}', namesE0.join(', ')));
+          return;
+        }
+      }
+      // Fallback (engine unavailable): fixed 3 points from the OFFICIAL
+      // balanced openings scored by the engine, winning lines excluded.
       var probeE2 = Math.max(400, Math.min(800, Math.round(turnMs * 0.4)));
       var lanesE = ['main', 'sub', 'sub'];
       var rsE = [];
