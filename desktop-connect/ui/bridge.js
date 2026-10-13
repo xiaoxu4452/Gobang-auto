@@ -2086,39 +2086,21 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           [[11, 7], [10, 6], [13, 5]],
           [[3, 7], [1, 8], [0, 4]],
         ];
-        // Official 26 Renju openings (RIF three-move exchange, rule 2 = forbidden
-        // moves): black1 on tengen (7,7), white2 on I9 (8,8, diagonal) or H9
-        // (7,8, direct), black3 per the official opening table. Two black + one
-        // white; the 8-symmetry expansion below covers all board orientations.
+        // Official Renju (RIF) balanced openings only, rule 2 (forbidden moves).
+        // 18 of the 26 RIF openings are black-forced wins and 2 (Yusei/Suisei)
+        // are white wins, so they must never be offered as exchange points.
+        // The 6 balanced openings (black1 tengen (7,7); white2 I9 (8,8) diagonal
+        // or H9 (7,8) direct; black3 per the official table) give near-zero
+        // advantage to both sides and are safe for the three-move exchange.
         var RENJU_OPENINGS = [
           // diagonal (indirect): white2 = I9 (8,8)
-          [[7, 7], [8, 8], [9, 9]],   // 1. Chosei  long star  (J10)
-          [[7, 7], [8, 8], [9, 8]],   // 2. Kyogetsu  gorge moon  (J9)
-          [[7, 7], [8, 8], [9, 7]],   // 3. Kosei  fixed star  (J8)
-          [[7, 7], [8, 8], [9, 6]],   // 4. Suigetsu  water moon  (J7)
-          [[7, 7], [8, 8], [9, 5]],   // 5. Ryusei  meteor  (J6)
-          [[7, 7], [8, 8], [8, 7]],   // 6. Ungetsu  cloud moon  (I8)
-          [[7, 7], [8, 8], [8, 6]],   // 7. Pugetsu  shore moon  (I7)
-          [[7, 7], [8, 8], [8, 5]],   // 8. Rangetsu  storm moon  (I6)
-          [[7, 7], [8, 8], [7, 6]],   // 9. Gingetsu  silver moon  (H7)
-          [[7, 7], [8, 8], [7, 5]],   // 10. Meisei  bright star  (H6)
-          [[7, 7], [8, 8], [6, 6]],   // 11. Shagetsu  slant moon  (G7)
-          [[7, 7], [8, 8], [6, 5]],   // 12. Meigetsu  famous moon  (G6)
-          [[7, 7], [8, 8], [5, 5]],   // 13. Suisei  comet  (F6)
+          [[7, 7], [8, 8], [9, 9]],   // 1. Chosei  long star  (J10, balanced)
+          [[7, 7], [8, 8], [9, 5]],   // 2. Ryusei  meteor  (J6, balanced)
+          [[7, 7], [8, 8], [8, 7]],   // 3. Ungetsu  cloud moon  (I8, balanced)
           // direct: white2 = H9 (7,8)
-          [[7, 7], [7, 8], [7, 9]],   // 14. Kansai  cold star  (H10)
-          [[7, 7], [7, 8], [9, 9]],   // 15. Sosei  sparse star  (J10)
-          [[7, 7], [7, 8], [8, 8]],   // 16. Kagetsu  flower moon  (I9)
-          [[7, 7], [7, 8], [9, 8]],   // 17. Zangetsu  waning moon  (J9)
-          [[7, 7], [7, 8], [9, 7]],   // 18. Kinsei  gold star  (J8)
-          [[7, 7], [7, 8], [7, 6]],   // 19. Shogetsu  pine moon  (H7)
-          [[7, 7], [7, 8], [9, 6]],   // 20. Shingetsu  new moon  (J7)
-          [[7, 7], [7, 8], [7, 5]],   // 21. Zuisei  lucky star  (H6)
-          [[7, 7], [7, 8], [8, 5]],   // 22. Sangetsu  mountain moon  (I6)
-          [[7, 7], [7, 8], [8, 9]],   // 23. Keigetsu  brook moon  (I10)
-          [[7, 7], [7, 8], [8, 7]],   // 24. Ugetsu  rain moon  (I8)
-          [[7, 7], [7, 8], [8, 6]],   // 25. Kyugetsu  hill moon  (I7)
-          [[7, 7], [7, 8], [9, 5]],   // 26. Yusei  wander star  (J6)
+          [[7, 7], [7, 8], [7, 9]],   // 4. Kansai  cold star  (H10, balanced)
+          [[7, 7], [7, 8], [9, 9]],   // 5. Sosei  sparse star  (J10, balanced)
+          [[7, 7], [7, 8], [7, 5]],   // 6. Zuisei  lucky star  (H6, balanced)
         ];
         
         var SWAP2_SYM = [
@@ -2678,8 +2660,11 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         var x1 = Math.max.apply(null, xs), y1 = Math.max.apply(null, ys);
         var sp = boardGeo.spacing > 0 ? boardGeo.spacing : 12;
         body.geometry = { x_lines: xs, y_lines: ys, spacing: sp };
-        body.region = [Math.round(x0 - sp * 0.6), Math.round(y0 - sp * 0.6),
-                       Math.round(x1 - x0 + sp * 1.2), Math.round(y1 - y0 + sp * 1.2)];
+        // Keep at least a full cell of margin around the outer lines so the
+        // vision service never clips edge stones/grid lines: 1.0 cell pad on
+        // each side (2.0 on w/h).
+        body.region = [Math.round(x0 - sp), Math.round(y0 - sp),
+                       Math.round(x1 - x0 + 2 * sp), Math.round(y1 - y0 + 2 * sp)];
       }
       await handleScan(await fetchJSON(SCAN_URL, body, 9000));
     } catch (e) {
