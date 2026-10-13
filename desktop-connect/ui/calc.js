@@ -2456,13 +2456,7 @@ function place(x, y, fromRedo) {
   G.ana.gen++;
   if (G.ana.defTimer) { clearTimeout(G.ana.defTimer); G.ana.defTimer = null; }
   G.ana.defWinUntil = 0; G.ana.defRefining = false;
-  if (G.ana.kind === 'bal' && G.ana.marks.length) {
-    // Balance picks: keep the marks until the user has played the required
-    // number of stones (any cells), then clear them automatically.
-    G.ana.balLeft = (G.ana.balLeft || G.ana.marks.length) - 1;
-    if (G.ana.balLeft <= 0) { anaReset(); }
-    else { G.ana.busy = false; G.ana.kind = 'bal'; anaMark(null); }
-  } else {
+  if (G.ana.kind !== 'bal') {
     G.ana.busy = false; G.ana.kind = '';
     anaReset();
   }
@@ -2553,11 +2547,27 @@ function afterMove() {
   if (S.paused) return;
   
   if (boardDecided() && (G.ana.marks.length || G.ana.defCells)) {
-    G.ana.gen++; G.ana.busy = false;
-    if (G.ana.defTimer) { clearTimeout(G.ana.defTimer); G.ana.defTimer = null; }
-    G.ana.autoDefend = false;
-    G.ana.marks = []; G.ana.rows = []; G.ana.defCells = null;
-    anaMark(null); renderAna(T('anIdle'));
+    if (G.ana.kind === 'bal' && G.ana.marks.length) {
+      // Balance picks persist like the Link overlay: keep the marks until
+      // the required number of stones has been played (any cells), then
+      // release the balance engine and hand control to the main analysis.
+      G.ana.balLeft = (G.ana.balLeft || G.ana.marks.length) - 1;
+      G.ana.busy = false;
+      if (G.ana.balLeft <= 0) {
+        G.ana.gen++;
+        G.ana.marks = []; G.ana.rows = []; G.ana.defCells = null;
+        G.ana.kind = '';
+        anaMark(null); renderAna(T('anIdle'));
+      } else {
+        anaMark(null);
+      }
+    } else {
+      G.ana.gen++; G.ana.busy = false;
+      if (G.ana.defTimer) { clearTimeout(G.ana.defTimer); G.ana.defTimer = null; }
+      G.ana.autoDefend = false;
+      G.ana.marks = []; G.ana.rows = []; G.ana.defCells = null;
+      anaMark(null); renderAna(T('anIdle'));
+    }
   }
   if (S.mode === 'place' || S.mode === 'endgame') {
     paint(); return;
@@ -8298,6 +8308,28 @@ async function anaNbest() {
   }
 }
 
+// Official balanced openings only (no winning lines): renju (forbidden
+// moves) 6 sets, freestyle / long-no-win 9 sets. Mirrors the rapfi official
+// logic used by gomocalc and the Link window's opening book.
+var BAL_RJ = [
+  [[7, 7], [8, 8], [9, 9]],   // Chosei  long star
+  [[7, 7], [8, 8], [9, 5]],   // Ryusei  meteor
+  [[7, 7], [8, 8], [8, 7]],   // Ungetsu  cloud moon
+  [[7, 7], [7, 8], [7, 9]],   // Kansai  cold star
+  [[7, 7], [7, 8], [9, 9]],   // Sosei  sparse star
+  [[7, 7], [7, 8], [7, 5]],   // Zuisei  lucky star
+];
+var BAL_FR = [
+  [[6, 7], [6, 4], [4, 2]],
+  [[3, 3], [5, 5], [6, 6]],
+  [[3, 2], [5, 4], [4, 5]],
+  [[5, 2], [1, 5], [1, 6]],
+  [[8, 5], [5, 8], [6, 7]],
+  [[5, 5], [8, 8], [7, 7]],
+  [[13, 12], [13, 9], [10, 12]],
+  [[11, 7], [10, 6], [13, 5]],
+  [[3, 7], [1, 8], [0, 4]],
+];
 async function anaBalPoints() {
   if (!anaGuard(0)) return;
   evalQuietAi();
@@ -8398,20 +8430,22 @@ async function anaBalPoints() {
       return;
     }
     if (empty) {
-      // Official balanced opening set: fixed 3 points (2 black + 1 white).
-      // Evaluate every RIF balanced opening with the engine and keep the two
-      // most balanced black-3 points plus their shared white-2.
-      var probeE2 = Math.max(200, Math.min(400, Math.round(turnMs * 0.2)));
+      // Empty board: fixed 3 points (2 black + 1 white). The engine scores
+      // every OFFICIAL balanced opening (rule-aware books, no winning lines)
+      // and we keep the two most balanced black-3 points plus their shared
+      // white-2 - exactly the "nearest to 0 score" balance-point logic.
+      var probeE2 = Math.max(400, Math.min(800, Math.round(turnMs * 0.4)));
       var lanesE = ['main', 'sub', 'fwd'];
       var rsE = [];
-      var tasksE = RIF_OPENINGS.map(function (op, i) {
+      var BOOKS = (engineRule() === 2) ? BAL_RJ : BAL_FR;
+      var tasksE = BOOKS.map(function (op, i) {
         var bdE = newBoard();
-        bdE[7][7] = 1; bdE[op.w[1]][op.w[0]] = 2; bdE[op.b[1]][op.b[0]] = 1;
+        bdE[op[0][1]][op[0][0]] = 1; bdE[op[1][1]][op[1][0]] = 2; bdE[op[2][1]][op[2][0]] = 1;
         return analyze(probeE2, 1, lanesE[i % 3], 2, T('tagBal1'), { board: bdE }).then(function (rE) {
           var csE = (rE && rE.candidates) || [];
           if (csE.length) {
             var evE = evalNum(csE[0].eval);
-            if (!isNaN(evE)) rsE.push({ x: op.b[0], y: op.b[1], w: op.w, ev: evE });
+            if (!isNaN(evE)) rsE.push({ x: op[2][0], y: op[2][1], w: op[1], ev: evE });
           }
         }).catch(function () {});
       });
