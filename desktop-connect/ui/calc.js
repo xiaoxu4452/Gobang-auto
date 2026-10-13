@@ -411,6 +411,7 @@ tagDefend: '扫描防守', tagCalc: '计算评估', tagNbest: '多点分析',
     anBalnSet: '平衡点数已设为 {n}（空盘固定 3）',
     anBalnHint: '平衡点数（1~6，空盘固定 3）',
     anBalLabel: '点数',
+    anBalColor: '（蓝色 = 白子，紫色 = 黑子）',
     
     balCall: '平衡打点',
     balCallT: '按官方平衡搜索（YXBALANCE）自动叫点',
@@ -805,6 +806,7 @@ tagDefend: 'Defence scan', tagCalc: 'Evaluate', tagNbest: 'N-best',
     anBalnSet: 'Balance point count set to {n} (3 fixed on empty board)',
     anBalnHint: 'Balance point count (1-6, 3 fixed on empty board)',
     anBalLabel: 'Points',
+    anBalColor: ' (Blue = White, Purple = Black)',
     
     balCall: 'Balance picks',
     balCallT: 'Auto-call picks via the official balance search (YXBALANCE)',
@@ -1574,18 +1576,10 @@ function paint() {
       }
       
       if (mk.inline) {
-        var mt = anaInlineMetrics(ctx, mk, mr);
         ctx.fillStyle = '#ffffff';
-        if (mk.label) {
-          ctx.font = '700 ' + Math.max(9, mr * 0.6) + 'px "Segoe UI",system-ui,sans-serif';
-          ctx.fillText(mk.badge, px, py - mr * 0.48);
-          ctx.font = '600 ' + Math.max(8, mr * 0.4) + 'px "Segoe UI",system-ui,sans-serif';
-          ctx.fillText(mk.label, px, py + mr * 0.48);
-        } else {
-          
-          ctx.font = '700 ' + Math.max(9, mr * 0.9) + 'px "Segoe UI",system-ui,sans-serif';
-          ctx.fillText(mk.badge, px, py + 0.5);
-        }
+        // Sequence number only, in the hollow upper half (no eval score)
+        ctx.font = '700 ' + Math.max(9, mr * 0.6) + 'px "Segoe UI",system-ui,sans-serif';
+        ctx.fillText(mk.badge, px, py - mr * 0.48);
         return;
       }
       
@@ -8445,65 +8439,47 @@ async function anaBalPoints() {
       return;
     }
     if (empty) {
-      // Empty board: the SAME official balance search as gomocalc - three
-      // sequential YXBALANCEONE queries (black, white, black), each point
-      // really placed, so the returned points are the ones closest to 0
-      // advantage for both sides (never a forced-win opening). Rule-bound.
+      // Official opening balance (gomocalc logic): black 1 is FIXED at the
+      // tengen, then the engine evaluates exactly two balance points -
+      // white 2 and black 3 (one white, one black), each really placed, so
+      // the three marks are black-tengen / white / black and never a
+      // forced-win opening. Rule-bound (renju / freestyle).
       if (typeof window.GB_BAL_POINTS === 'function') {
-        var marksE0 = [], namesE0 = [];
-        try {
-          await window.GB_BAL_POINTS({
-            board: G.board, moves: 0, need: 3, rule: engineRule(),
-            turnMs: Math.max(2000, S.turnMs || 2000),
-            onMarks: function (ms) { marksE0 = ms || []; },
-          });
-        } catch (eE0) { marksE0 = []; }
-        if (gen !== G.ana.gen) return;
-        if (marksE0 && marksE0.length) {
-          marksE0.forEach(function (m) { namesE0.push(coordName(m.x, m.y)); });
-          renderBalMarks(marksE0, T('anBalDone').replace('{n}', String(marksE0.length)).replace('{list}', namesE0.join(', ')));
-          return;
+        var tgB = G.board.map(function (r) { return r.slice(); });
+        var cyB = (N - 1) >> 1;
+        if (!tgB[cyB][cyB]) {
+          tgB[cyB][cyB] = 1;
+          var marksE0 = [], namesE0 = [];
+          try {
+            await window.GB_BAL_POINTS({
+              board: tgB, moves: 1, need: 2, rule: engineRule(),
+              turnMs: Math.max(2000, S.turnMs || 2000),
+              onMarks: function (ms) { marksE0 = ms || []; },
+            });
+          } catch (eE0) { marksE0 = []; }
+          if (gen !== G.ana.gen) return;
+          if (marksE0 && marksE0.length) {
+            var fullE = [{ x: cyB, y: cyB, color: 'b', ev: '', seq: '1' }];
+            marksE0.forEach(function (m) {
+              fullE.push({ x: m.x, y: m.y, color: m.color, ev: '', seq: String(fullE.length + 1) });
+            });
+            fullE.forEach(function (m) { namesE0.push(coordName(m.x, m.y)); });
+            renderBalMarks(fullE, T('anBalDone').replace('{n}', String(fullE.length)).replace('{list}', namesE0.join(', ')));
+            return;
+          }
         }
       }
-      // Fallback (engine unavailable): fixed 3 points from the OFFICIAL
-      // balanced openings scored by the engine, winning lines excluded.
-      var probeE2 = Math.max(400, Math.min(800, Math.round(turnMs * 0.4)));
-      var lanesE = ['main', 'sub', 'sub'];
-      var rsE = [];
+      // Fallback (engine unavailable): tengen black + the official balanced
+      // opening's white-2 and black-3, winning lines excluded.
       var BOOKS = (engineRule() === 2) ? BAL_RJ : BAL_FR;
-      var tasksE = BOOKS.map(function (op, i) {
-        var bdE = newBoard();
-        bdE[op[0][1]][op[0][0]] = 1; bdE[op[1][1]][op[1][0]] = 2; bdE[op[2][1]][op[2][0]] = 1;
-        return analyze(probeE2, 1, lanesE[i % 3], 2, T('tagBal1'), { board: bdE }).then(function (rE) {
-          var csE = (rE && rE.candidates) || [];
-          if (csE.length) {
-            var evE = evalNum(csE[0].eval);
-            if (!isNaN(evE)) rsE.push({ x: op[2][0], y: op[2][1], w: op[1], ev: evE });
-          }
-        }).catch(function () {});
-      });
-      await Promise.all(tasksE);
-      if (gen !== G.ana.gen) return;
-      if (!rsE.length) {
-        // Engine scoring unavailable: still show the official balanced opening
-        var fb = BOOKS[0];
-        var fbMarks = fb.map(function (pt, fi) {
-          return { x: pt[0], y: pt[1], color: fi === 1 ? 'w' : 'b', ev: '', seq: String(fi + 1) };
-        });
-        renderBalMarks(fbMarks, T('anBalDone').replace('{n}', '3').replace('{list}', fbMarks.map(function (m) { return coordName(m.x, m.y); }).join(', ')));
-        return;
-      }
-      rsE.sort(function (a, b) { return Math.abs(a.ev) - Math.abs(b.ev); });
-      var topE = rsE.slice(0, 2);
-      var marksE = [], namesE = [];
-      topE.forEach(function (tE) {
-        marksE.push({ x: tE.x, y: tE.y, color: 'b', ev: fmtEval(tE.ev), seq: '3' });
-        namesE.push(coordName(tE.x, tE.y));
-      });
-      var w2 = topE[0].w || [8, 8];
-      marksE.push({ x: w2[0], y: w2[1], color: 'w', ev: '', seq: '2' });
-      namesE.push(coordName(w2[0], w2[1]));
-      renderBalMarks(marksE, T('anBalDone').replace('{n}', '3').replace('{list}', namesE.join(', ')));
+      var fb = BOOKS[Math.floor(Math.random() * BOOKS.length)];
+      var cyB2 = (N - 1) >> 1;
+      var fbMarks = [
+        { x: cyB2, y: cyB2, color: 'b', ev: '', seq: '1' },
+        { x: fb[1][0], y: fb[1][1], color: 'w', ev: '', seq: '2' },
+        { x: fb[2][0], y: fb[2][1], color: 'b', ev: '', seq: '3' },
+      ];
+      renderBalMarks(fbMarks, T('anBalDone').replace('{n}', '3').replace('{list}', fbMarks.map(function (m) { return coordName(m.x, m.y); }).join(', ')));
       return;
     }
     // local engine fallback: single balanced pick
@@ -8528,13 +8504,14 @@ async function anaBalPoints() {
 function renderBalMarks(arr, msg) {
   G.ana.balLeft = arr.length;
   G.ana.marks = arr.map(function (m, i) {
-    return { x: m.x, y: m.y, badge: m.seq, label: m.ev ? fmtEval(m.ev) : '', tier: -1, inline: true,
+    // Sequence number only - no eval score on balance marks
+    return { x: m.x, y: m.y, badge: m.seq, label: '', tier: -1, inline: true,
              col: m.color === 'b' ? null : 'rgba(70,190,255,.55)' };
   });
   G.ana.rows = arr.map(function (m, i) {
-    return { i: i, badge: m.seq, coord: coordName(m.x, m.y), eval: m.ev ? fmtEval(m.ev) : '', pv: '', tier: -1 };
+    return { i: i, badge: m.seq, coord: coordName(m.x, m.y), eval: '', pv: '', tier: -1 };
   });
-  renderAna(msg);
+  renderAna(msg + T('anBalColor'));
   paint();
   if (linkSessionOn() && arr.length) {
     var gm2 = null;
