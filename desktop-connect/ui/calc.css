@@ -1,4 +1,4 @@
-/* Meter Gomoku Trainer - overlay UI stylesheet (board, panels, controls; adapts to light/dark theme). */
+﻿/* Meter Gomoku Trainer - overlay UI stylesheet (board, panels, controls; adapts to light/dark theme). */
 
 
 :root{
@@ -1126,3 +1126,6 @@ html[lang="en"] body.linkOn #hdr .brand::after{ content:'· Linking'; }
 #linkPane .lk-ai-row .numbox.ainum .unit{
   position:absolute; right:.32rem; font-size:.72rem; color:var(--sub); pointer-events:none;
 }
+.anbtns .dashed-group{display:inline-flex;align-items:center;justify-content:center;gap:.2rem;border:1px dashed var(--accent);border-radius:.4rem;padding:.12rem .2rem;box-sizing:border-box;min-width:0;max-width:100%}
+.anbtns .dashed-group .btn{width:auto;min-width:0;padding:.3rem .3rem}
+.anbtns .dashed-group select{width:2.9rem;min-width:0;padding:.22rem .15rem;font-size:.82rem;border:1px solid var(--line, #cfd8e3);border-radius:.3rem;background:transparent;color:inherit}

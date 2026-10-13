@@ -2740,14 +2740,19 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
 
   function balPointSync() {
     var bp = document.getElementById('__gb_balpoint');
-    if (bp) bp.textContent = '×' + balPointN;
+    if (bp && bp.tagName === 'SELECT') bp.value = String(balPointN);
+    else if (bp) bp.textContent = '×' + balPointN;
     var lb = document.getElementById('lk_baln');
-    if (lb) lb.textContent = '×' + balPointN;
+    if (lb && lb.tagName === 'SELECT') lb.value = String(balPointN);
+    else if (lb) lb.textContent = '×' + balPointN;
     var mb = document.getElementById('btn_an_baln');
-    if (mb) mb.textContent = '×' + balPointN;
+    if (mb && mb.tagName === 'SELECT') mb.value = String(balPointN);
+    else if (mb) mb.textContent = '×' + balPointN;
   }
-  on('__gb_balpoint', 'click', function () {
-    balPointN = (balPointN % 6) + 1;
+  on('__gb_balpoint', 'change', function () {
+    var el = document.getElementById('__gb_balpoint');
+    var v = parseInt(el ? el.value : '2', 10);
+    if (!isNaN(v) && v >= 1 && v <= 6) balPointN = v;
     try { localStorage.setItem('gb_bal_point_n', String(balPointN)); } catch (e) {}
     balPointSync();
     ui('setStatus', '<b style="color:#0e7490">' + LT('balPointSet').replace('%1', balPointN) + '</b>');

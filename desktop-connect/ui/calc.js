@@ -1493,7 +1493,9 @@ function paint() {
   }
   
   var balHide = false;
-  if (G.ana.kind === 'bal1' && G.ana.marks.length) {
+  if (G.ana.kind === 'bal' && G.ana.marks.length) {
+    if (G.moves.length >= G.ana.marks.length) balHide = true;
+  } else if (G.ana.kind === 'bal1' && G.ana.marks.length) {
     var isStage2 = G.ana.marks.some(function (mk) { return String(mk.badge) === '4'; });
     if (G.moves.length >= (isStage2 ? 5 : 3)) balHide = true;
   }
@@ -1522,15 +1524,28 @@ function paint() {
         ph = mr * 1.6;
       }
       ctx.beginPath();
-      if (multi) {
+      if (mk.inline && mk.label) {
+        // Balance mark: hollow upper half (sequence) + filled lower half (eval)
+        var rr2 = mr * 0.6;
+        ctx.arc(px, py, mr, Math.PI, Math.PI * 2);
+        ctx.fillStyle = pal.badge; ctx.fill();
+        ctx.lineWidth = Math.max(1.4, gap * 0.06);
+        ctx.strokeStyle = pal.ring;
+        ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.arc(px, py, rr2, 0, Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI * 2); ctx.stroke();
+      } else if (multi) {
         if (ctx.roundRect) ctx.roundRect(px - pw / 2, py - ph / 2, pw, ph, ph / 2);
         else ctx.rect(px - pw / 2, py - ph / 2, pw, ph);
+        ctx.fillStyle = pal.badge; ctx.fill();
+        ctx.lineWidth = Math.max(1.6, gap * 0.07);
+        ctx.strokeStyle = pal.ring; ctx.stroke();
       } else {
         ctx.arc(px, py, mr, 0, Math.PI * 2);
+        ctx.fillStyle = pal.badge; ctx.fill();
+        ctx.lineWidth = Math.max(1.6, gap * 0.07);
+        ctx.strokeStyle = pal.ring; ctx.stroke();
       }
-      ctx.fillStyle = pal.badge; ctx.fill();
-      ctx.lineWidth = Math.max(1.6, gap * 0.07);
-      ctx.strokeStyle = pal.ring; ctx.stroke();
       taken.push({ x1: px - pw / 2 - 1, y1: py - ph / 2 - 1, x2: px + pw / 2 + 1, y2: py + ph / 2 + 1 });
     });
     G.ana.marks.forEach(function (mk) {
@@ -1554,9 +1569,9 @@ function paint() {
         ctx.fillStyle = '#ffffff';
         if (mk.label) {
           ctx.font = '700 ' + mt.rf + 'px "Segoe UI",system-ui,sans-serif';
-          ctx.fillText(mk.badge, px, py - mt.ph * 0.19);
+          ctx.fillText(mk.badge, px, py - mt.ph * 0.34);
           ctx.font = '600 ' + mt.ef + 'px "Segoe UI",system-ui,sans-serif';
-          ctx.fillText(mk.label, px, py + mt.ph * 0.24);
+          ctx.fillText(mk.label, px, py + mt.ph * 0.34);
         } else {
           
           ctx.font = '700 ' + Math.max(9, mr * 0.9) + 'px "Segoe UI",system-ui,sans-serif';
@@ -2444,9 +2459,16 @@ function place(x, y, fromRedo) {
   G.ana.gen++;
   if (G.ana.defTimer) { clearTimeout(G.ana.defTimer); G.ana.defTimer = null; }
   G.ana.defWinUntil = 0; G.ana.defRefining = false;
-  G.ana.busy = false; G.ana.kind = '';
-  
-  anaReset();
+  if (G.ana.kind === 'bal' && G.ana.marks.length) {
+    // Balance picks: keep the marks until the user has played the required
+    // number of stones (any cells), then clear them automatically.
+    G.ana.balLeft = (G.ana.balLeft || G.ana.marks.length) - 1;
+    if (G.ana.balLeft <= 0) { anaReset(); }
+    else { G.ana.busy = false; G.ana.kind = 'bal'; anaMark(null); }
+  } else {
+    G.ana.busy = false; G.ana.kind = '';
+    anaReset();
+  }
   paint();
   
   if (G.fwd && G.fwd.on && !G.fwd.hold) fwdQueue();
@@ -5900,7 +5922,7 @@ function applyLang() {
     els.btn_an_nbest.textContent = (G.ana.busy && G.ana.kind === 'nbest') ? d.anStop : d.anNbest;   
     els.btn_an_defend.textContent = d.anDefend;
     els.btn_an_bal.textContent = d.anBal;
-    if (els.btn_an_baln) { els.btn_an_baln.textContent = '×' + balPN(); els.btn_an_baln.title = d.anBalnHint; }
+    if (els.btn_an_baln) { els.btn_an_baln.value = String(balPN()); els.btn_an_baln.title = d.anBalnHint; }
     
     if (els.btn_fwd) els.btn_fwd.textContent = d.fwd;
     if (els.btn_fwd_ok) els.btn_fwd_ok.textContent = d.fwdOk;
@@ -8383,6 +8405,7 @@ async function anaBalPoints() {
 }
 
 function renderBalMarks(arr, msg) {
+  G.ana.balLeft = arr.length;
   G.ana.marks = arr.map(function (m, i) {
     return { x: m.x, y: m.y, badge: m.seq, label: m.ev ? fmtEval(m.ev) : '', tier: -1, inline: true,
              col: m.color === 'b' ? null : 'rgba(70,190,255,.55)' };
@@ -8401,8 +8424,12 @@ function renderBalMarks(arr, msg) {
 }
 
 function balPN() {
+  if (els.btn_an_baln && els.btn_an_baln.value) {
+    var v = parseInt(els.btn_an_baln.value, 10);
+    if (v >= 1 && v <= 6) return v;
+  }
   var n = 2;
-  try { var v = parseInt(localStorage.getItem('gb_bal_point_n') || '2', 10); if (v >= 1 && v <= 6) n = v; } catch (e) {}
+  try { var sv = parseInt(localStorage.getItem('gb_bal_point_n') || '2', 10); if (sv >= 1 && sv <= 6) n = sv; } catch (e) {}
   return n;
 }
 
@@ -8435,10 +8462,10 @@ function wireAnalysis() {
   });
   els.btn_an_defend.onclick = function () { evalQuietAi(); anaDefend(true); };   
   els.btn_an_bal.onclick = function () { anaBalPoints(); };
-  els.btn_an_baln.onclick = function () {
-    var n = balPN(); n = (n % 6) + 1;
+  if (els.btn_an_baln) els.btn_an_baln.onchange = function () {
+    var n = parseInt(els.btn_an_baln.value, 10);
+    if (isNaN(n) || n < 1 || n > 6) n = 2;
     try { localStorage.setItem('gb_bal_point_n', String(n)); } catch (e) {}
-    els.btn_an_baln.textContent = '×' + n;
     toast(T('anBalnSet').replace('{n}', String(n)));
   };
   els.num_nbest.onchange = function () {
@@ -9801,9 +9828,11 @@ function bootLink() {
           '</div>' +
         '</div>' +
         '<div class="lk-sec lk-fn lk-btns">' +
+          '<span class="dashed-group">' +
           '<button id="lk_bal" class="btn">' + lkL('交换平衡点', 'Swap Balance') + '</button>' +
-          '<button id="lk_baln" class="btn" title="' + lkL('平衡点数（1~6，空盘固定 3）', 'Balance point count (1-6, 3 fixed on empty board)') + '">×2</button>' +
+          '<select id="lk_baln" class="sel" title="' + lkL('平衡点数（1~6，空盘固定 3）', 'Balance point count (1-6, 3 fixed on empty board)') + '"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>' +
           '<button id="lk_eval" class="btn">' + lkL('交换评估', 'Swap Eval') + '</button>' +
+          '</span>' +
         '</div>' +
         '<div class="lk-stats">' +
           '<div class="lk-stat"><span class="k">' + lkL('深度', 'Depth') + '</span><span class="v" id="lk_s_depth">-</span></div>' +
@@ -9938,7 +9967,7 @@ function bootLink() {
       '<button id="__gb_autodrop"></button><button id="__gb_adcount"></button>' +
       
       '<button id="__gb_realclick"></button>' +
-      '<button id="__gb_swbal"></button><button id="__gb_balpoint"></button><button id="__gb_sweval"></button>' +
+      '<button id="__gb_swbal"></button><select id="__gb_balpoint" class="sel"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select><button id="__gb_sweval"></button>' +
       '<span id="__gb_st_depth"></span><span id="__gb_st_eval"></span><span id="__gb_st_speed"></span>' +
       '<span id="__gb_st_nodes"></span><span id="__gb_st_line"></span>' +
       '<button data-rule="0"></button><button data-rule="1"></button><button data-rule="2"></button>';
@@ -10015,10 +10044,12 @@ function bootLink() {
         }
         var srcBP = document.getElementById('__gb_balpoint'), dstBP = document.getElementById('lk_baln');
         if (srcBP && dstBP) {
-          dstBP.textContent = srcBP.textContent;
-          new MutationObserver(function () { dstBP.textContent = srcBP.textContent; })
-            .observe(srcBP, { childList: true, characterData: true, subtree: true });
-          dstBP.onclick = function () { srcBP.click(); };
+          dstBP.value = srcBP.value || '2';
+          dstBP.onchange = function () {
+            srcBP.value = dstBP.value;
+            try { srcBP.dispatchEvent(new Event('change')); }
+            catch (e) { if (srcBP.onchange) srcBP.onchange(); }
+          };
         }
         
         var srcAD = document.getElementById('__gb_autodrop'), dstAD = document.getElementById('lk_auto');
