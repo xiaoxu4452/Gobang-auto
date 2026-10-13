@@ -294,6 +294,7 @@ var LBAL = {
     adPtUnreachable: '这一手没落上（目标窗口是否在前台？）—— 等棋盘变化自动重试',
     
     swBalEmpty: '空盘交换平衡计算中（1 白 + 2 黑三点组）…', swBalPair: '交换平衡计算中（1 白 + 1 黑）…',
+    swBalMax: '交换平衡点仅限开局五手（3 手 + 2 手），当前盘面已超出交换阶段',
     swBalStage: '交换平衡点只在空盘（两黑一白 3 点）或已有 3 子（一黑一白 2 点）时可用；当前手数不在交换窗口',
     swBalDone: '交换平衡点已标出（浅蓝=白、浅紫=黑）：', swPlacing: '自动摆点：第 %1/%2 个（',
     swPlaced: '交换平衡摆子完成（%1 个点已自动落完）',
@@ -335,6 +336,7 @@ var LBAL = {
     adPtUnreachable: 'Move did not land (is the target window in front?) — will retry when the board changes',
     
     swBalEmpty: 'Balancing 3-point swap set (1 white + 2 black)…', swBalPair: 'Balancing swap pair (1 white + 1 black)…',
+    swBalMax: 'Swap balance applies only to the 5-move opening (3 + 2); this position is past the exchange phase',
     swBalStage: 'Swap balance only works on an empty board (2 black + 1 white, 3 points) or after 3 stones (a black-white pair, 2 points); the current move count is outside the swap window',
     swBalDone: 'Swap balance points marked (light blue=white, light purple=black): ', swPlacing: 'Auto-placing point %1/%2 (',
     swPlaced: 'Swap placement finished (%1 points dropped)',
@@ -2242,15 +2244,17 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         }   
       } else {
         
-        // Any stone count: evaluate the user-selected number of balanced
-        // candidate points (1..6, default 2). Each round asks the engine's
-        // official balance search (YXBALANCEONE) for one point that gives
-        // neither side a visible advantage, then really places it, so the
-        // next round searches the updated position and point colors
-        // alternate exactly like real moves.
-        var need = balPointN; if (need < 1 || need > 6) need = 2;
+        // Second exchange: the swap rule allows at most 5 moves (3 opening
+        // stones + 2 second-exchange points, one black + one white). Points
+        // are offered only while the position is exactly at 3 stones; any
+        // other count is past the exchange phase.
         var bmN = boardMatrix(lastBl, lastWh);
         var plyBase = lastBl.length + lastWh.length;
+        if (plyBase !== 3) {
+          ui('setStatus', '<span style="color:#e67e22;">' + LT('swBalMax') + '</span>');
+          return;
+        }
+        var need = 2;
         for (var qi = 0; qi < need && leftMs() > 500; qi++) {
           var curB = ((plyBase + qi) % 2 === 0);
           var colQ = curB ? 'b' : 'w';

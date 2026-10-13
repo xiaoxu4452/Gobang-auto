@@ -6090,15 +6090,20 @@ static void LselPaint(HWND h) {
               if (!inFrame(x, y)) continue;
               float br = (float)(sp2 * 0.42);
               if (br < 4.0f) br = 4.0f;
-              // classic circle marker (Link look): filled disc with a white
-              // rim, sequence number centred, small eval text in the lower half
-              Gdiplus::SolidBrush body(Gdiplus::Color(215, (BYTE)ringR, (BYTE)ringG, (BYTE)ringB));
-              g.FillEllipse(&body, x - br, y - br, br * 2, br * 2);
-              Gdiplus::Pen rim(Gdiplus::Color(255, 255, 255, 255), 1.6f);
+              // balance mark (same as the main board): hollow UPPER half carries
+              // the sequence number, translucent filled LOWER half carries the
+              // eval score; white rim, no inner arc
+              Gdiplus::GraphicsPath path;
+              path.AddPie(x - br, y - br, br * 2, br * 2, 0.0f, 180.0f);
+              Gdiplus::SolidBrush body(Gdiplus::Color(150, (BYTE)ringR, (BYTE)ringG, (BYTE)ringB));
+              g.FillPath(&body, &path);
+              Gdiplus::Pen band(Gdiplus::Color(235, (BYTE)ringR, (BYTE)ringG, (BYTE)ringB), 3.2f);
+              g.DrawArc(&band, x - br, y - br, br * 2, br * 2, 180.0f, 180.0f);
+              Gdiplus::Pen rim(Gdiplus::Color(255, 255, 255, 255), 1.4f);
               g.DrawEllipse(&rim, x - br, y - br, br * 2, br * 2);
               int seq = (mi < seqv.size()) ? seqv[mi] : 0;
               if (seq > 0 && br >= 8.0f) {
-                float fsz = sp2 * 0.42f; if (fsz < 10.0f) fsz = 10.0f; if (fsz > 20.0f) fsz = 20.0f;
+                float fsz = sp2 * 0.38f; if (fsz < 9.0f) fsz = 9.0f; if (fsz > 18.0f) fsz = 18.0f;
                 Gdiplus::FontFamily ff3(L"Segoe UI");
                 Gdiplus::Font f3(&ff3, fsz, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
                 if (f3.GetLastStatus() == Gdiplus::Ok) {
@@ -6107,7 +6112,7 @@ static void LselPaint(HWND h) {
                   sf3.SetAlignment(Gdiplus::StringAlignmentCenter);
                   sf3.SetLineAlignment(Gdiplus::StringAlignmentCenter);
                   Gdiplus::SolidBrush fg3(Gdiplus::Color(255, 255, 255, 255));
-                  Gdiplus::RectF rcU(x - br, y - br * 0.6f, br * 2, br * 1.0f);
+                  Gdiplus::RectF rcU(x - br, y - br * 0.55f, br * 2, br * 1.0f);
                   g.DrawString(num, -1, &f3, rcU, &sf3, &fg3);
                 }
               }

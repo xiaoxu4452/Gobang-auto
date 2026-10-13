@@ -410,6 +410,7 @@ tagDefend: '扫描防守', tagCalc: '计算评估', tagNbest: '多点分析',
     anBalFail: '平衡搜索失败：',
     anBalnSet: '平衡点数已设为 {n}（空盘固定 3）',
     anBalnHint: '平衡点数（1~6，空盘固定 3）',
+    anBalLabel: '点数',
     
     balCall: '平衡打点',
     balCallT: '按官方平衡搜索（YXBALANCE）自动叫点',
@@ -803,6 +804,7 @@ tagDefend: 'Defence scan', tagCalc: 'Evaluate', tagNbest: 'N-best',
     anBalFail: 'Balance search failed: ',
     anBalnSet: 'Balance point count set to {n} (3 fixed on empty board)',
     anBalnHint: 'Balance point count (1-6, 3 fixed on empty board)',
+    anBalLabel: 'Points',
     
     balCall: 'Balance picks',
     balCallT: 'Auto-call picks via the official balance search (YXBALANCE)',
@@ -1525,12 +1527,22 @@ function paint() {
       }
       ctx.beginPath();
       if (mk.inline && mk.label) {
-        // Balance mark: hollow upper half (sequence) + filled lower half (eval)
-        ctx.arc(px, py, mr, Math.PI, Math.PI * 2);
-        ctx.fillStyle = pal.badge; ctx.fill();
-        ctx.lineWidth = Math.max(1.4, gap * 0.06);
-        ctx.strokeStyle = pal.ring;
-        ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI * 2); ctx.stroke();
+        // Balance mark: hollow UPPER half carries the sequence number,
+        // translucent filled LOWER half carries the eval score
+        ctx.beginPath(); ctx.arc(px, py, mr, Math.PI, Math.PI * 2);   // upper arc
+        ctx.strokeStyle = pal.badge;
+        ctx.lineWidth = Math.max(2.2, gap * 0.09);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI);             // lower half
+        ctx.closePath();
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = pal.badge;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI * 2);         // white rim
+        ctx.strokeStyle = 'rgba(255,255,255,.92)';
+        ctx.lineWidth = Math.max(1.2, gap * 0.05);
+        ctx.stroke();
       } else if (multi) {
         if (ctx.roundRect) ctx.roundRect(px - pw / 2, py - ph / 2, pw, ph, ph / 2);
         else ctx.rect(px - pw / 2, py - ph / 2, pw, ph);
@@ -8405,7 +8417,7 @@ async function anaBalPoints() {
       var plyB = G.moves.length;
       var marksArr = [], namesB = [];
       var qMs = Math.max(600, Math.min(1200, turnMs));
-      var lanesB = ['main', 'sub', 'fwd'];
+      var lanesB = ['main', 'sub', 'sub'];
       for (var qi = 0; qi < need; qi++) {
         var curB = ((plyB + qi) % 2 === 0);
         var rQ = null;
@@ -8435,7 +8447,7 @@ async function anaBalPoints() {
       // and we keep the two most balanced black-3 points plus their shared
       // white-2 - exactly the "nearest to 0 score" balance-point logic.
       var probeE2 = Math.max(400, Math.min(800, Math.round(turnMs * 0.4)));
-      var lanesE = ['main', 'sub', 'fwd'];
+      var lanesE = ['main', 'sub', 'sub'];
       var rsE = [];
       var BOOKS = (engineRule() === 2) ? BAL_RJ : BAL_FR;
       var tasksE = BOOKS.map(function (op, i) {
@@ -8451,7 +8463,15 @@ async function anaBalPoints() {
       });
       await Promise.all(tasksE);
       if (gen !== G.ana.gen) return;
-      if (!rsE.length) { renderAna(T('anEmpty')); return; }
+      if (!rsE.length) {
+        // Engine scoring unavailable: still show the official balanced opening
+        var fb = BOOKS[0];
+        var fbMarks = fb.map(function (pt, fi) {
+          return { x: pt[0], y: pt[1], color: fi === 1 ? 'w' : 'b', ev: '', seq: String(fi + 1) };
+        });
+        renderBalMarks(fbMarks, T('anBalDone').replace('{n}', '3').replace('{list}', fbMarks.map(function (m) { return coordName(m.x, m.y); }).join(', ')));
+        return;
+      }
       rsE.sort(function (a, b) { return Math.abs(a.ev) - Math.abs(b.ev); });
       var topE = rsE.slice(0, 2);
       var marksE = [], namesE = [];
@@ -9910,7 +9930,6 @@ function bootLink() {
         '<div class="lk-sec lk-fn lk-btns">' +
           '<span class="dashed-group">' +
           '<button id="lk_bal" class="btn">' + lkL('交换平衡点', 'Swap Balance') + '</button>' +
-          '<select id="lk_baln" class="sel" title="' + lkL('平衡点数（1~6，空盘固定 3）', 'Balance point count (1-6, 3 fixed on empty board)') + '"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>' +
           '<button id="lk_eval" class="btn">' + lkL('交换评估', 'Swap Eval') + '</button>' +
           '</span>' +
         '</div>' +
@@ -10121,15 +10140,6 @@ function bootLink() {
           new MutationObserver(function () { dstAC.textContent = srcAC.textContent; })
             .observe(srcAC, { childList: true, characterData: true, subtree: true });
           dstAC.onclick = function () { srcAC.click(); };
-        }
-        var srcBP = document.getElementById('__gb_balpoint'), dstBP = document.getElementById('lk_baln');
-        if (srcBP && dstBP) {
-          dstBP.value = srcBP.value || '2';
-          dstBP.onchange = function () {
-            srcBP.value = dstBP.value;
-            try { srcBP.dispatchEvent(new Event('change')); }
-            catch (e) { if (srcBP.onchange) srcBP.onchange(); }
-          };
         }
         
         var srcAD = document.getElementById('__gb_autodrop'), dstAD = document.getElementById('lk_auto');
