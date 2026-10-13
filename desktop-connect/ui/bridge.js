@@ -272,6 +272,7 @@ var LBAL = {
     balWon: '盘面已有成五点（%1）—— 必胜局面没有平衡可言，以上是引擎直接给出的必胜点',
     
     adBtn: '自动落子', swBalBtn: '交换平衡点', swEvalBtn: '交换评估',
+    balPointBtn: '点数', balPointSet: '平衡点数已设为 %1（空盘固定 3）',
     
     adOn: '自动落子已开启（盯推荐第一点）', adOff: '自动落子已关闭',
     
@@ -315,6 +316,7 @@ var LBAL = {
     balWon: 'Board already has a winning five (%1) — no balance exists in a won position; these are the engine\'s direct winning points',
     
     adBtn: 'Auto drop', swBalBtn: 'Swap balance point', swEvalBtn: 'Swap eval',
+    balPointBtn: 'Points', balPointSet: 'Balance point count set to %1 (3 fixed on empty board)',
     
     adOn: 'Auto-drop ON (watching top recommendation)', adOff: 'Auto-drop OFF',
     
@@ -2016,6 +2018,8 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
 
   var swQueue = null, swIdx = 0;         
   var pendingBal = null;                 
+  var balPointN = 2;
+  try { var _bpn = parseInt(localStorage.getItem('gb_bal_point_n') || '2', 10); if (_bpn >= 1 && _bpn <= 6) balPointN = _bpn; } catch (e) {}
   var swBusy = false, swEvalBusy = false;
   
   var swQuietSide = false;
@@ -2049,11 +2053,6 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     
     if (!boardGeo) { ui('setStatus', '<span style="color:#e67e22;">' + T('no_board') + '</span>'); return; }
     
-    var swPly = lastBl.length + lastWh.length;
-    if (swPly !== 0 && swPly !== 3) {
-      ui('setStatus', swTipCol(LT('swBalStage'), '#e67e22'));
-      return;
-    }
     swBusy = true;
     
     swQuietSide = true;
@@ -2243,36 +2242,64 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         }   
       } else {
         
-        var pairMs = Math.max(400, Math.min(turnMs, leftMs() - 300));
-        var pairBody = {
-          board: boardMatrix(lastBl, lastWh), moveList: [], n: 1, mode: 'two', bias: 0,
-          rule: rule, turnMs: pairMs, lane: 'main',
-          cid: 'desktop-swbal2-' + (lastBl.length + lastWh.length),
-          side: toBlack ? 1 : 2,
-        };
-        var j1 = null;
-        try {
-          
-          j1 = await onMainLane(function () {
-            return wsCall('balance', pairBody, pairMs + 6000);
-          });
-        } catch (ePair) { j1 = null; }
-        if (!j1 || j1.error) {
-          ui('setStatus', '<span style="color:#c0392b">' + LT('balFail') + ((j1 && j1.error) || 'no response') + '</span>');
-          return;
+        // Any stone count: evaluate the user-selected number of balanced
+        // candidate points (1..6, default 2). Each round asks the engine's
+        // official balance search (YXBALANCEONE) for one point that gives
+        // neither side a visible advantage, then really places it, so the
+        // next round searches the updated position and point colors
+        // alternate exactly like real moves.
+        var need = balPointN; if (need < 1 || need > 6) need = 2;
+        var bmN = boardMatrix(lastBl, lastWh);
+        var plyBase = lastBl.length + lastWh.length;
+        for (var qi = 0; qi < need && leftMs() > 500; qi++) {
+          var curB = ((plyBase + qi) % 2 === 0);
+          var colQ = curB ? 'b' : 'w';
+          var qMs = Math.max(300, Math.min(1500, leftMs() * 0.5));
+          var qBody = {
+            board: bmN, moveList: [], n: 1, mode: 'one', bias: 0,
+            rule: rule, turnMs: qMs, lane: 'main',
+            cid: 'desktop-swbal-n-' + plyBase + '-' + qi,
+            side: curB ? 1 : 2,
+          };
+          var jq = null;
+          try {
+            jq = await onMainLane(function () { return wsCall('balance', qBody, qMs + 6000); });
+          } catch (eQ) { jq = null; }
+          if (!jq || jq.error || jq.swap || !jq.moves || !jq.moves.length) break;
+          var ptn = jq.moves[0];
+          marks.push({ p: ptn, color: colQ });
+          bmN[ptn[1]][ptn[0]] = colQ === 'b' ? 1 : 2;
+          balFromEngine++;
         }
-        if (j1.swap) { ui('setStatus', '<b style="color:#7c3aed">' + LT('swSwapNow') + '</b>'); return; }
-        var pts1 = (j1.moves || []).slice(0, 2);
-        if (pts1.length < 2) { ui('setStatus', '<span style="color:#c0392b">' + LT('balNone') + '</span>'); return; }
-        marks.push({ p: pts1[0], color: toBlack ? 'b' : 'w' });
-        marks.push({ p: pts1[1], color: toBlack ? 'w' : 'b' });
-        balFromEngine = 2;
+        if (!marks.length) { ui('setStatus', '<span style="color:#c0392b">' + LT('balNone') + '</span>'); return; }
+      }
+      
+      // Score every balanced point with a short parallel analysis across
+      // main/sub/fwd lanes; the eval appears in the lower half of each mark.
+      var evs = [];
+      if (marks.length) {
+        var lanes3 = ['main', 'sub', 'fwd'];
+        var evMs = Math.max(250, Math.min(400, Math.floor(leftMs() / Math.max(1, marks.length))));
+        var evTasks = marks.map(function (m, mi) {
+          var scB = boardMatrix(lastBl, lastWh);
+          for (var si = 0; si <= mi; si++) scB[marks[si].p[1]][marks[si].p[0]] = marks[si].color === 'b' ? 1 : 2;
+          var ln = lanes3[mi % 3];
+          return wsCall('analyze', {
+            board: scB, moveList: [], matchMs: 600000, turnMs: evMs,
+            timeUsedMs: 0, topN: 1, rule: rule, lane: ln,
+            cid: 'desktop-swbal-ev-' + (lastBl.length + lastWh.length) + '-' + mi,
+          }, evMs + 6000).then(function (jv) {
+            if (jv && !jv.error && jv.candidates && jv.candidates.length) return jv.candidates[0].eval || '';
+            return '';
+          }).catch(function () { return ''; });
+        });
+        evs = await Promise.all(evTasks);
       }
       
       var parts = [], names = [];
       for (var i = 0; i < marks.length; i++) {
         var p = boardToScreen(marks[i].p[0], marks[i].p[1]);
-        if (p) parts.push(p.x + ',' + p.y + ',' + (i + 1) + ',' + marks[i].color);
+        if (p) parts.push(p.x + ',' + p.y + ',' + (i + 1) + ',' + marks[i].color + ',' + (evs[i] || ''));
         names.push(coordOf(marks[i].p[0], marks[i].p[1]));
       }
       
@@ -2710,6 +2737,22 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     adBtnSync();
     ui('setStatus', LT('adCount') + '×' + adCount);
   });
+
+  function balPointSync() {
+    var bp = document.getElementById('__gb_balpoint');
+    if (bp) bp.textContent = '×' + balPointN;
+    var lb = document.getElementById('lk_baln');
+    if (lb) lb.textContent = '×' + balPointN;
+    var mb = document.getElementById('btn_an_baln');
+    if (mb) mb.textContent = '×' + balPointN;
+  }
+  on('__gb_balpoint', 'click', function () {
+    balPointN = (balPointN % 6) + 1;
+    try { localStorage.setItem('gb_bal_point_n', String(balPointN)); } catch (e) {}
+    balPointSync();
+    ui('setStatus', '<b style="color:#0e7490">' + LT('balPointSet').replace('%1', balPointN) + '</b>');
+  });
+  balPointSync();
 
   on('__gb_swbal', 'click', function () {
     

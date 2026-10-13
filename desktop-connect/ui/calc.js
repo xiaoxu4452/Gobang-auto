@@ -1,4 +1,4 @@
-/* Meter Gomoku Trainer - analysis and calculation bridge. Wraps the native rapfi engine through in-process hard links and exposes evaluation/analysis APIs to the overlay UI. */
+﻿/* Meter Gomoku Trainer - analysis and calculation bridge. Wraps the native rapfi engine through in-process hard links and exposes evaluation/analysis APIs to the overlay UI. */
 
 
 'use strict';
@@ -76,7 +76,7 @@ var I18N = {
     fwdVctNone: '当前局面，{c}（所选进攻方）不存在VCT强制连续冲四杀棋',
     fwdClear: '清除标记',
     
-    markCleared: '已清除棋盘上的所有分析标记（计算 / 多点分析 / 平衡一 / 平衡二 / 扫描防守 / 前瞻 · VCF · VCT）',
+    markCleared: '已清除棋盘上的所有分析标记（计算 / 多点分析 / 平衡点 / 扫描防守 / 前瞻 · VCF · VCT）',
     vcxPopTitle: '算杀结果',
     fwdAtkAuto: '进攻方：自动 —— 轮走方（算杀题面按惯例 = 子多的一方）。黑/白框只是**指示框，不可点**',
     fwdAtkB: '进攻方：黑棋（自动判定）',
@@ -115,10 +115,10 @@ var I18N = {
       ]},
       { t: '三、计算评估', ps: [
         '「计算」= 单路深搜当前局面并把最佳点标在棋盘上（再点一次 = 停止计算）；「多点分析」按「分析点数」一次给出 2~8 个候选，圆圈里是名次与评估分。',
-        '「平衡一」= 在候选里挑评估最接近 0 的一手（最均衡）；「平衡二」= 先把候选逐个虚拟落子、再看对手的应手，挑最稳的一手；「扫描防守」= 在 9×9 邻域逐个空点打分，给出该防的点（W = 距赢几步，L = 距输几步），徽标颜色按危险度连续渐变 —— 越危险越红、安全的一头是青；点过一次后随落子**自动重扫**（Yixin 式动态刷新），「清除标记」或重开才停。',
+        '「平衡点」= 官方平衡搜索（YXBALANCE）按你选的「点数」一次给出黑白双方都没有明显优势的候选点；「点数」可在 1~6 之间切换（空盘固定 3 个，两黑一白官方定式）；「扫描防守」= 在 9×9 邻域逐个空点打分，给出该防的点（W = 距赢几步，L = 距输几步），徽标颜色按危险度连续渐变 —— 越危险越红、安全的一头是青；点过一次后随落子**自动重扫**（Yixin 式动态刷新），「清除标记」或重开才停。',
         '「AI 视图」= AI 思考期间在棋盘上铺它的候选点（圆形、格内是评估分），AI 一落子就撤掉；「指导视图」= 轮到你时用方形四色提示最佳落点，你一落子就消失。',
         '「分析计算」= 棋盘下方的开关型功能键：开启后在**主车道**持续深算当前局面，铺出引擎当前榜单（最佳点+候选，最多 8 个）；随搜索加深自然微变并收敛，用户落子 / 悔棋自动重开会话，仪表盘用时跨轮累加；再点一次 = 停止。摆盘 / 残局 / 双人手动对弈同样可用。',
-        '「清除标记」与「计算」并排：一键擦掉**本卡里任意项目**留在棋盘上的标记 —— 计算 / 多点分析 / 平衡一 / 平衡二的徽标与评估分、扫描防守的百分比与 W/L 徽标，以及前瞻 · VCF · VCT 的序号、虚线与代码链；只清标记，不动局面本身。',
+        '「清除标记」与「计算」并排：一键擦掉**本卡里任意项目**留在棋盘上的标记 —— 计算 / 多点分析 / 平衡点的徽标与评估分、扫描防守的百分比与 W/L 徽标，以及前瞻 · VCF · VCT 的序号、虚线与代码链；只清标记，不动局面本身。',
         '仪表盘同步给出深度、速度、节点、用时与评估分；下方评估曲线按黑 / 白两条记录整局走势（纵轴随分数自动进位）。',
       ]},
       { t: '四、前瞻 / VCF / VCT', ps: [
@@ -147,10 +147,10 @@ var I18N = {
         '分工：连线窗负责识别与 AI；主窗大棋盘只同步显示识别到的局面与执子设置，不参与评估、不落子 —— 所以不会出现两侧互相抢着算的情况。',
         'AI 执子与思考时间：连线窗的「AI 执黑」/「AI 执白」二者互斥，选中会无条件同步到主窗「对局设置」里的执子；「思考时间」同样同步（两边一个口径）。',
         '自动落子：打开后识别到对方落子即自动思考，并用三级模拟点击替你落子（先 PostMessage 直达目标窗口，无效升 SendInput，再不行用真实点击兜底），物理鼠标全程不受干扰；一局结束（五子连珠）自动关闭，下一局需重新打开。',
-        '交换平衡点：点它的同时会自动取消已选的 AI 执黑 / 执白（避免相互干扰）。空盘点一次给出三个平衡点（两黑一白），棋盘上已有棋子给两个（一黑一白）；评估完成后标记留在识别框中，平衡评估引擎随即释放、不再占用算力。你把这几个子下完，标记自动消失。',
+        '交换平衡点：点它的同时会自动取消已选的 AI 执黑 / 执白（避免相互干扰）。空盘固定给出三个平衡点（两黑一白官方定式）；棋盘上已有棋子时，按你选的「点数」（1~6）评估出相应数量的最平衡候选，黑紫白天蓝，可反复点击重新评估。评估完成引擎随即释放；你把相应子数下完（不管下哪），标记自动消失，也可点「清除标记」关闭。',
         '交换平衡点 + 自动落子的顺序逻辑：先点交换平衡点、后打开自动落子 → 评估完成时若自动落子已开，就按顺序自动把这几个平衡点落下（与单机版五子棋助手完全一致）；若是评估完才打开自动落子，则打开的那一刻按序补摆。',
         '交换评估：与交换平衡点相互独立的另一项功能，用于评估当前交换局面的优劣，判断是否值得交换。',
-        '盘中标记：推荐落点为天蓝圈；交换平衡点为紫圈（黑）/ 蓝圈（白）并带 1、2、3 序号 —— 全部直接画在识别框内的对应交点，且不会被截图识别（绝不会被误读成棋子）。',
+        '盘中标记：推荐落点为天蓝圈；平衡标记为圆形 —— 上半中空显示落子序号、下半半透明填充显示评估分，黑子紫、白子天蓝；全部直接画在识别框内的对应交点，位于截图识别不到的最上层（绝不会被误读成棋子）。 —— 全部直接画在识别框内的对应交点，且不会被截图识别（绝不会被误读成棋子）。',
         '关闭：关掉连线窗后，主窗自动恢复你自己原来的模式与设置，对弈 / 计算等功能照常使用。',
       ]},
     ],
@@ -174,7 +174,7 @@ var I18N = {
       '多引擎投票已移除（算力集中一路 = 智力上限）：引擎为单实例、吃满「核心数」所选全部线程；裁决层只保留必应护栏（连五 / 堵五 / 活三）与引擎头名，选点更稳',
       '扫描防守配色升级：徽标与清单从五档名次色改为青→绿→黄→橙→红的连续渐变（%越高越红）',
       '识图强化：密集局面识别失败时按锁定网线整盘外推重建（不再 no-grid）；识别窗口向外扩约棋盘 1/30，边缘棋子读得更全',
-      '「清除标记」搬家并泛化：键从「前瞻」框移到「计算评估」卡、与「计算」并排（各占半宽），一次点击可擦掉**任意项目**留下的棋盘标记（计算 / 多点分析 / 平衡一 / 平衡二 / 扫描防守 / 前瞻 · VCF · VCT）',
+      '「清除标记」搬家并泛化：键从「前瞻」框移到「计算评估」卡、与「计算」并排（各占半宽），一次点击可擦掉**任意项目**留下的棋盘标记（计算 / 多点分析 / 平衡点 / 扫描防守 / 前瞻 · VCF · VCT）',
       '新增「残局」模式：顺序摆盘 / 任意摆盘（数量与顺序都不限），并用「确定」键把局面定下来 —— 重新开始回到它，存进历史时它就是首帧',
       '识图「VC 模式」放开：补充黑 / 白子不限数量、删除棋子任意删，左侧提示栏逐条说明',
       'VCF / VCT 标记精简：只留蓝色虚线杀路 + 五（深蓝双环）/ 四（天蓝方框），不再满盘花',
@@ -188,7 +188,7 @@ var I18N = {
     aboutFeatList: [
       '三种模式：对弈（AI 执黑 / AI 执白可自由开关，两个都开即 AI 自打）/ 自由摆盘 / 残局（自摆局面 + 「确定」定盘，重新开始回到该局面）',
       '前瞻推演：一路走到盘面真的五子连珠；VCF / VCT 本地算杀（多线程并行 + 迭代加深）',
-      '计算评估：计算 / 清除标记 / 多点分析 / 平衡一 / 平衡二 / 扫描防守，另配 AI 视图与指导视图',
+      '计算评估：计算 / 清除标记 / 多点分析 / 平衡点 / 点数 / 扫描防守，另配 AI 视图与指导视图',
       '评估曲线：纵轴随分数动态进位，最大可到 ±1200；仪表盘给出深度 / 速度 / 节点 / 用时',
       '三种规则：无禁手 / 无禁手 · 长连不赢 / 连珠（有禁手）',
       '识图：截图或上传自动贴盘识别，VC 算杀题模式，人工修改（换色 / 删子 / 补子 / 裁剪）与图片抽屉',
@@ -294,7 +294,7 @@ tagDefend: '扫描防守', tagCalc: '计算评估', tagNbest: '多点分析',
     analysis: '计算评估',
     
     anCalc: '计算', anStop: '停止计算', anDefend: '扫描防守',
-    anNbest: '多点分析', anBal1: '平衡一', anBal2: '平衡二',
+    anNbest: '多点分析', anBal: '平衡点', anBaln: '点数',
     anDefendDone: '扫 {c} 点：%越高越要防，W=距赢 L=距输',
     anDefendRefine: '持续加深…第 {r} 轮 · 每轮 {t}s',
     anDefendStable: '已收敛，结论稳定',
@@ -405,8 +405,11 @@ tagDefend: '扫描防守', tagCalc: '计算评估', tagNbest: '多点分析',
     anDraft: '演算中…第 {r} 轮草稿',
     anDone: '第 {n} 手 · {ev} · 深度 {d}',
     anBest: '最佳', anBalance: '平衡',
-    anBal1Done: '最均衡的一手：{ev}',
-    anBal2Done: '两手后最均衡的一对：{ev}',
+    anBalBusy: '官方平衡搜索中…',
+    anBalDone: '已给出 {n} 个平衡点：{list}',
+    anBalFail: '平衡搜索失败：',
+    anBalnSet: '平衡点数已设为 {n}（空盘固定 3）',
+    anBalnHint: '平衡点数（1~6，空盘固定 3）',
     
     balCall: '平衡打点',
     balCallT: '按官方平衡搜索（YXBALANCE）自动叫点',
@@ -483,7 +486,7 @@ tagDefend: '扫描防守', tagCalc: '计算评估', tagNbest: '多点分析',
     fwdVcfNone: 'No VCF (forcing fours) win exists for {c} (the chosen attacker) in this position',
     fwdVctNone: 'No VCT (continuous threats) win exists for {c} (the chosen attacker) in this position',
     fwdClear: 'Clear marks',
-    markCleared: 'Cleared every analysis mark on the board (Calculating / Multi-point / Balance 1 / Balance 2 / Scan def / Lookahead \u00b7 VCF \u00b7 VCT)',
+    markCleared: 'Cleared every analysis mark on the board (Calculating / Multi-point / Balance picks / Scan def / Lookahead \u00b7 VCF \u00b7 VCT)',
     vcxPopTitle: 'Solver result',
     fwdAtkAuto: 'Attacker: auto - the side to move (mate puzzles: the majority side, as usual). The black/white frames are indicators only, not clickable',
     fwdAtkB: 'Attacker: Black (auto)',
@@ -686,7 +689,7 @@ tagDefend: 'Defence scan', tagCalc: 'Evaluate', tagNbest: 'N-best',
     cardSideL: 'L', cardSideR: 'R',
     analysis: 'Analysis',
     anCalc: 'Compute', anStop: 'Stop', anDefend: 'Defend scan',
-    anNbest: 'Multi-point', anBal1: 'Balance 1', anBal2: 'Balance 2',
+    anNbest: 'Multi-point', anBal: 'Balance picks', anBaln: 'Points',
     anDefendDone: 'Scanned {c} points: higher % = more urgent (W = to win, L = to lose)',
     anDefendRefine: 'Deepening… round {r} · {t}s each',
     anDefendStable: 'Converged: result stable',
@@ -795,8 +798,11 @@ tagDefend: 'Defence scan', tagCalc: 'Evaluate', tagNbest: 'N-best',
     anDraft: 'Drafting… round {r}',
     anDone: 'Move {n} · {ev} · depth {d}',
     anBest: 'Best', anBalance: 'Balance',
-    anBal1Done: 'Most balanced move: {ev}',
-    anBal2Done: 'Most balanced pair after two plies: {ev}',
+    anBalBusy: 'Official balance search…',
+    anBalDone: '{n} balanced points: {list}',
+    anBalFail: 'Balance search failed: ',
+    anBalnSet: 'Balance point count set to {n} (3 fixed on empty board)',
+    anBalnHint: 'Balance point count (1-6, 3 fixed on empty board)',
     
     balCall: 'Balance picks',
     balCallT: 'Auto-call picks via the official balance search (YXBALANCE)',
@@ -1035,7 +1041,7 @@ function grab() {
    't_cpTheme','t_cpTarget','t_cpHex','t_cpPreset',
    'btn_set','setPop','btn_aiside','aiSidePop','btn_ai_close',   
    'ai_side_b','ai_side_w','t_aiTurn','num_turn2','btn_live',
-   't_analysis','btn_an_stop','btn_an_nbest','btn_an_bal1','btn_an_bal2','btn_an_defend',
+   't_analysis','btn_an_stop','btn_an_nbest','btn_an_bal','btn_an_baln','btn_an_defend',
    'num_nbest','t_nbest','t_nbestHint','anStatus','anList','anStatusRow',
    't_history','t_saved','t_drTip'].forEach(function (id) {
     els[id] = document.getElementById(id);
@@ -5893,8 +5899,8 @@ function applyLang() {
     if (els.t_curveTtl) els.t_curveTtl.textContent = d.curve;   
     els.btn_an_nbest.textContent = (G.ana.busy && G.ana.kind === 'nbest') ? d.anStop : d.anNbest;   
     els.btn_an_defend.textContent = d.anDefend;
-    els.btn_an_bal1.textContent = d.anBal1;
-    els.btn_an_bal2.textContent = d.anBal2;
+    els.btn_an_bal.textContent = d.anBal;
+    if (els.btn_an_baln) { els.btn_an_baln.textContent = '×' + balPN(); els.btn_an_baln.title = d.anBalnHint; }
     
     if (els.btn_fwd) els.btn_fwd.textContent = d.fwd;
     if (els.btn_fwd_ok) els.btn_fwd_ok.textContent = d.fwdOk;
@@ -6482,7 +6488,7 @@ function pvText(line) {
 }
 
 function anaMark(btn) {
-  [els.btn_an_nbest, els.btn_an_bal1, els.btn_an_bal2, els.btn_an_defend].forEach(function (b) {
+  [els.btn_an_nbest, els.btn_an_bal, els.btn_an_baln, els.btn_an_defend].forEach(function (b) {
     if (b) b.classList.toggle('on', !!btn && b === btn);
   });
   anaCalcUI();
@@ -7815,6 +7821,7 @@ function clearAllMarks() {
   anaReset();                               
   G.ana.defCells = null;                    
   G.ana.autoDefend = false;                 
+  try { tellHost({ type: 'balance', on: false }); } catch (e) {}
   paint();
   toast(T('markCleared'));
 }
@@ -8272,116 +8279,92 @@ async function anaNbest() {
   }
 }
 
-async function anaBal1() {
+async function anaBalPoints() {
   if (!anaGuard(0)) return;
-  evalQuietAi();                              
-  var gen = ++G.ana.gen, N = Math.max(4, anaIp());
-  G.ana.busy = true; G.ana.kind = 'bal1';
-  anaMark(els.btn_an_bal1);
+  evalQuietAi();
+  var gen = ++G.ana.gen;
+  G.ana.busy = true; G.ana.kind = 'bal';
+  anaMark(els.btn_an_bal);
   renderAna(T('anRunning'));
+  var turnMs = Math.max(2000, S.turnMs || 2000);
+  var empty = !G.moves.length;
+  var need = empty ? 3 : Math.max(1, Math.min(6, balPN()));
   try {
-    if (AI_REMOTE) {
-      var j = await apiBalance({
-        board: G.board, moveList: [], n: 1, mode: 'one', rule: engineRule(),
-        turnMs: Math.max(2000, S.turnMs || 2000), lane: 'main',
-        cid: 'calc-bal1-' + G.moves.length, side: curColor(),
-      });
-      if (gen !== G.ana.gen) return;
-      G.ana.marks = []; G.ana.rows = [];
-      if (j && j.swap) { renderAna(T('balSwapNow')); paint(); return; }
-      var pts = (j && j.moves) || [];
-      if (!pts.length) { renderAna(T('anEmpty')); return; }
-      pts.forEach(function (p, i) {
-        G.ana.marks.push({ x: p[0], y: p[1], badge: '≡', label: '', tier: -1 });
-        G.ana.rows.push({ i: i, badge: '≡', coord: coordName(p[0], p[1]), eval: '', pv: '', tier: -1 });
-      });
-      renderAna(T('anBal1Off').replace('{list}',
-        pts.map(function (p) { return coordName(p[0], p[1]); }).join(', ')));
-      paint();
-      return;
-    }
-    
-    if (G.moves.length === 3) {
-      
-      var probe3 = Math.max(300, Math.min(500, Math.round((S.turnMs || 2000) * 0.25)));
-      var rs3 = [];
-      var tasks3 = [];
-      ['main', 'sub', 'fwd'].forEach(function (ln) {
-        tasks3.push(analyze(probe3, 4, ln, 3, T('tagBal1'), { board: G.board })
-          .then(function (r3) {
-            var cs3 = (r3 && r3.candidates) || [];
-            cs3.forEach(function (c3) {
-              var ev3 = evalNum(c3.eval);
-              if (!isNaN(ev3)) rs3.push({ x: c3.x, y: c3.y, ev: ev3 });
-            });
-          }).catch(function () {}));
-      });
-      await Promise.all(tasks3);
-      if (gen !== G.ana.gen) return;
-      if (!rs3.length) { renderAna(T('anEmpty')); return; }
-      rs3.sort(function (a, b) { return Math.abs(a.ev) - Math.abs(b.ev); });
-      var top2b = rs3.slice(0, 2);
-      G.ana.marks = [];
-      top2b.forEach(function (t2b) {
-        G.ana.marks.push({ x: t2b.x, y: t2b.y, badge: '4', label: fmtEval(t2b.ev), tier: 4 });
-      });
-      G.ana.rows = top2b.map(function (t2b, i) {
-        return { i: i, badge: '4', coord: coordName(t2b.x, t2b.y),
-                 eval: fmtEval(t2b.ev), pv: '', tier: 4 };
-      });
-      renderAna(T('anBal1Done').replace('{ev}', fmtEval(top2b[0].ev)));
-      paint();
-      if (linkSessionOn()) {
-        var mkArr2 = [];
-        top2b.forEach(function (t2b) { mkArr2.push({ x: t2b.x, y: t2b.y, num: '4', color: 'sky' }); });
-        tellHost({ type: 'linkBalanceDone', kind: 'bal1', marks: mkArr2,
-                   move: coordName(top2b[0].x, top2b[0].y), ev: fmtEval(top2b[0].ev) });
+    if (AI_REMOTE && !empty) {
+      // Any stone count: evaluate the user-chosen number of balanced
+      // candidate points (1..6, default 2) through the official balance
+      // search (YXBALANCEONE); each point is really placed before the next
+      // one is searched, so colors alternate exactly like real moves.
+      var bmB = G.board.map(function (r) { return r.slice(); });
+      var plyB = G.moves.length;
+      var marksArr = [], namesB = [];
+      var qMs = Math.max(600, Math.min(1200, turnMs));
+      for (var qi = 0; qi < need; qi++) {
+        var curB = ((plyB + qi) % 2 === 0);
+        var colQ = curB ? 'b' : 'w';
+        var jQ = null;
+        try {
+          jQ = await apiBalance({
+            board: bmB, moveList: [], n: 1, mode: 'one', rule: engineRule(),
+            turnMs: qMs, lane: 'main', cid: 'calc-balpts-' + G.moves.length + '-' + qi,
+            side: curB ? 1 : 2,
+          }, qMs + 20000);
+        } catch (eQ) { jQ = null; }
+        if (gen !== G.ana.gen) return;
+        if (jQ && jQ.swap) { renderAna(T('balSwapNow')); paint(); return; }
+        var pQ = (jQ && jQ.moves && jQ.moves[0]) || null;
+        if (!pQ) break;
+        bmB[pQ[1]][pQ[0]] = colQ === 'b' ? 1 : 2;
+        var evQ = '';
+        try {
+          var rEv = await analyze(280, 1, qi % 2 ? 'sub' : 'main', curB ? 1 : 2, T('tagBal1'), { board: bmB });
+          if (gen !== G.ana.gen) return;
+          if (rEv && rEv.candidates && rEv.candidates[0] && rEv.candidates[0].eval != null)
+            evQ = rEv.candidates[0].eval;
+        } catch (eEv) { evQ = ''; }
+        marksArr.push({ x: pQ[0], y: pQ[1], color: colQ, ev: evQ, seq: String(qi + 1) });
+        namesB.push(coordName(pQ[0], pQ[1]));
       }
+      if (!marksArr.length) { renderAna(T('anEmpty')); return; }
+      renderBalMarks(marksArr, T('anBalDone').replace('{n}', String(marksArr.length)).replace('{list}', namesB.join(', ')));
       return;
     }
-    if (!G.moves.length) {
-      var probe2 = Math.max(200, Math.min(400, Math.round((S.turnMs || 2000) * 0.2)));
-      var lanes = ['main', 'sub', 'fwd'];
-      var rs = [];
-      var tasks = RIF_OPENINGS.map(function (op, i) {
-        var bd = newBoard();
-        bd[7][7] = 1; bd[op.w[1]][op.w[0]] = 2; bd[op.b[1]][op.b[0]] = 1;
-        return analyze(probe2, 1, lanes[i % 3], 2, T('tagBal1'), { board: bd }).then(function (r2) {
-          var cs2 = (r2 && r2.candidates) || [];
-          if (cs2.length) {
-            var ev = evalNum(cs2[0].eval);
-            if (!isNaN(ev)) rs.push({ x: op.b[0], y: op.b[1], w: op.w, ev: ev });
+    if (empty) {
+      // Official balanced opening set: fixed 3 points (2 black + 1 white).
+      // Evaluate every RIF balanced opening with the engine and keep the two
+      // most balanced black-3 points plus their shared white-2.
+      var probeE2 = Math.max(200, Math.min(400, Math.round(turnMs * 0.2)));
+      var lanesE = ['main', 'sub', 'fwd'];
+      var rsE = [];
+      var tasksE = RIF_OPENINGS.map(function (op, i) {
+        var bdE = newBoard();
+        bdE[7][7] = 1; bdE[op.w[1]][op.w[0]] = 2; bdE[op.b[1]][op.b[0]] = 1;
+        return analyze(probeE2, 1, lanesE[i % 3], 2, T('tagBal1'), { board: bdE }).then(function (rE) {
+          var csE = (rE && rE.candidates) || [];
+          if (csE.length) {
+            var evE = evalNum(csE[0].eval);
+            if (!isNaN(evE)) rsE.push({ x: op.b[0], y: op.b[1], w: op.w, ev: evE });
           }
         }).catch(function () {});
       });
-      await Promise.all(tasks);
+      await Promise.all(tasksE);
       if (gen !== G.ana.gen) return;
-      if (!rs.length) { renderAna(T('anEmpty')); return; }
-      rs.sort(function (a, b) { return Math.abs(a.ev) - Math.abs(b.ev); });
-      
-      var top2 = rs.slice(0, 2);
-      G.ana.marks = [];
-      top2.forEach(function (t2) {
-        G.ana.marks.push({ x: t2.x, y: t2.y, badge: '3', label: fmtEval(t2.ev), tier: -1 });
+      if (!rsE.length) { renderAna(T('anEmpty')); return; }
+      rsE.sort(function (a, b) { return Math.abs(a.ev) - Math.abs(b.ev); });
+      var topE = rsE.slice(0, 2);
+      var marksE = [], namesE = [];
+      topE.forEach(function (tE) {
+        marksE.push({ x: tE.x, y: tE.y, color: 'b', ev: fmtEval(tE.ev), seq: '3' });
+        namesE.push(coordName(tE.x, tE.y));
       });
-      G.ana.marks.push({ x: top2[0].w[0], y: top2[0].w[1], badge: '2', label: '', tier: 4 });
-      G.ana.rows = top2.map(function (t2, i) {
-        return { i: i, badge: '3', coord: coordName(t2.x, t2.y),
-                 eval: fmtEval(t2.ev), pv: '', tier: -1 };
-      });
-      renderAna(T('anBal1Done').replace('{ev}', fmtEval(top2[0].ev)));
-      paint();
-      if (linkSessionOn()) {
-        var mkArr = [];
-        top2.forEach(function (t2) { mkArr.push({ x: t2.x, y: t2.y, num: '3', color: 'pur' }); });
-        mkArr.push({ x: top2[0].w[0], y: top2[0].w[1], num: '2', color: 'sky' });
-        tellHost({ type: 'linkBalanceDone', kind: 'bal1', marks: mkArr,
-                   move: coordName(top2[0].x, top2[0].y), ev: fmtEval(top2[0].ev) });
-      }
+      var w2 = topE[0].w || [8, 8];
+      marksE.push({ x: w2[0], y: w2[1], color: 'w', ev: '', seq: '2' });
+      namesE.push(coordName(w2[0], w2[1]));
+      renderBalMarks(marksE, T('anBalDone').replace('{n}', '3').replace('{list}', namesE.join(', ')));
       return;
     }
-    
-    var r = await analyze(S.turnMs, Math.min(8, N), null, curColor(), T('tagBal1'));
+    // local engine fallback: single balanced pick
+    var r = await analyze(turnMs, Math.min(8, Math.max(4, anaIp())), null, curColor(), T('tagBal1'));
     if (gen !== G.ana.gen) return;
     var cs = (r && r.candidates) || [];
     if (!cs.length) { renderAna(T('anEmpty')); return; }
@@ -8390,21 +8373,8 @@ async function anaBal1() {
       var v = evalNum(c.eval);
       if (!isNaN(v) && Math.abs(v) < bv) { bv = Math.abs(v); bi = i; }
     });
-    G.ana.marks = []; G.ana.rows = [];
-    cs.forEach(function (c, i) {
-      var isBal = (i === bi);
-      G.ana.marks.push({
-        x: c.x, y: c.y, badge: isBal ? '≡' : String(i + 1),
-        label: fmtEval(c.eval), tier: isBal ? -1 : anaTierOf(i),
-      });
-      G.ana.rows.push({
-        i: i, badge: isBal ? '≡' : String(i + 1), coord: coordName(c.x, c.y),
-        eval: fmtEval(c.eval), pv: pvText(c.line), tier: isBal ? -1 : undefined,
-      });
-    });
-    renderAna(T('anBal1Done').replace('{ev}', fmtEval(cs[bi].eval)));
-    paint();
-    if (linkSessionOn()) tellHost({ type: 'linkBalanceDone', kind: 'bal1', move: coordName(cs[bi].x, cs[bi].y), ev: fmtEval(cs[bi].eval) });
+    renderBalMarks([{ x: cs[bi].x, y: cs[bi].y, color: curColor() === 1 ? 'b' : 'w', ev: cs[bi].eval, seq: '1' }],
+                   T('anBalDone').replace('{n}', '1').replace('{list}', coordName(cs[bi].x, cs[bi].y)));
   } catch (e) {
     if (gen === G.ana.gen) renderAna(T('offline'));
   } finally {
@@ -8412,86 +8382,28 @@ async function anaBal1() {
   }
 }
 
-async function anaBal2() {
-  if (!anaGuard(1)) return;
-  evalQuietAi();                              
-  var gen = ++G.ana.gen;
-  G.ana.busy = true; G.ana.kind = 'bal2';
-  anaMark(els.btn_an_bal2);
-  renderAna(T('anRunning'));
-  var K = Math.max(3, Math.min(6, anaIp()));
-  
-  var probeMs = Math.max(700, Math.min(5000, Math.round((S.turnMs || 2000) * 0.6)));
-  try {
-    if (AI_REMOTE) {
-      var j = await apiBalance({
-        board: G.board, moveList: [], n: 1, mode: 'two', rule: engineRule(),
-        turnMs: Math.max(2000, S.turnMs || 2000), lane: 'main',
-        cid: 'calc-bal2-' + G.moves.length, side: curColor(),
-      });
-      if (gen !== G.ana.gen) return;
-      G.ana.marks = []; G.ana.rows = [];
-      if (j && j.swap) { renderAna(T('balSwapNow')); paint(); return; }
-      var pts = (j && j.moves) || [];
-      if (!pts.length) { renderAna(T('anEmpty')); return; }
-      G.ana.marks.push({ x: pts[0][0], y: pts[0][1], badge: '≡', label: '', tier: -1 });
-      if (pts.length > 1) G.ana.marks.push({ x: pts[1][0], y: pts[1][1], badge: '↩', label: '', tier: 4 });
-      G.ana.rows.push({
-        i: 0, badge: '≡', coord: coordName(pts[0][0], pts[0][1]), eval: '',
-        pv: pts.length > 1 ? (T('anAfter') + ' ' + coordName(pts[1][0], pts[1][1])) : '', tier: -1,
-      });
-      var lst = coordName(pts[0][0], pts[0][1]);
-      if (pts.length > 1) lst += ' ↩ ' + coordName(pts[1][0], pts[1][1]);
-      renderAna(T('anBal2Off').replace('{list}', lst));
-      paint();
-      return;
-    }
-    
-    var r = await analyze(probeMs, K, null, curColor(), T('tagBal2'));
-    if (gen !== G.ana.gen) return;
-    var cs = ((r && r.candidates) || []).slice(0, K);
-    if (!cs.length) { renderAna(T('anEmpty')); return; }
-    var mine = curColor();
-    var best = null;
-    G.ana.rows = [];
-    for (var i = 0; i < cs.length; i++) {
-      if (gen !== G.ana.gen) return;
-      var c = cs[i];
-      if (!G.board[c.y] || G.board[c.y][c.x]) continue;
-      
-      var b2 = G.board.map(function (row) { return row.slice(); });
-      b2[c.y][c.x] = mine;
-      var r2 = null;
-      
-      try { r2 = await analyze(probeMs, 2, 'sub', 3 - mine, T('tagBal2'), { board: b2 }); } catch (e2) {}   
-      if (gen !== G.ana.gen) return;
-      var cs2 = (r2 && r2.candidates) || [];
-      var after = cs2.length ? -evalNum(cs2[0].eval) : evalNum(c.eval);   
-      G.ana.rows.push({
-        i: i, badge: String(i + 1), coord: coordName(c.x, c.y), eval: fmtEval(after),
-        pv: cs2.length ? (T('anAfter') + ' ' + coordName(cs2[0].x, cs2[0].y)) : '',
-      });
-      if (isNaN(after)) continue;
-      if (!best || Math.abs(after) < Math.abs(best.after)) best = { c: c, opp: cs2[0] || null, after: after, i: i };
-    }
-    if (!best) { renderAna(T('anEmpty')); return; }
-    G.ana.marks = [{ x: best.c.x, y: best.c.y, badge: '≡', label: fmtEval(best.after), tier: -1 }];
-    if (best.opp) {
-      G.ana.marks.push({
-        x: best.opp.x, y: best.opp.y, badge: '↩',
-        label: fmtEval(-evalNum(best.opp.eval)), tier: 4,
-      });
-    }
-    
-    G.ana.rows.sort(function (a, b) { return (a.i === best.i ? -1 : (b.i === best.i ? 1 : a.i - b.i)); });
-    renderAna(T('anBal2Done').replace('{ev}', fmtEval(best.after)));
-    paint();
-    if (linkSessionOn()) tellHost({ type: 'linkBalanceDone', kind: 'bal2', move: coordName(best.c.x, best.c.y), ev: fmtEval(best.after) });
-  } catch (e) {
-    if (gen === G.ana.gen) renderAna(T('offline'));
-  } finally {
-    if (gen === G.ana.gen) { G.ana.busy = false; anaMark(null); }
+function renderBalMarks(arr, msg) {
+  G.ana.marks = arr.map(function (m, i) {
+    return { x: m.x, y: m.y, badge: m.seq, label: m.ev ? fmtEval(m.ev) : '', tier: -1, inline: true,
+             col: m.color === 'b' ? null : 'rgba(70,190,255,.55)' };
+  });
+  G.ana.rows = arr.map(function (m, i) {
+    return { i: i, badge: m.seq, coord: coordName(m.x, m.y), eval: m.ev ? fmtEval(m.ev) : '', pv: '', tier: -1 };
+  });
+  renderAna(msg);
+  paint();
+  if (linkSessionOn() && arr.length) {
+    var gm2 = null;
+    try { var bb = els.board.getBoundingClientRect(); gm2 = { gap: Math.round(bb.width / 14) }; } catch (e) { gm2 = { gap: 40 }; }
+    var cellsP = arr.map(function (m) { return m.x + ',' + m.y + ',' + m.seq + ',' + m.color + ',' + (m.ev || ''); });
+    tellHost({ type: 'balance', on: true, gap: gm2.gap, cells: cellsP.join(';') });
   }
+}
+
+function balPN() {
+  var n = 2;
+  try { var v = parseInt(localStorage.getItem('gb_bal_point_n') || '2', 10); if (v >= 1 && v <= 6) n = v; } catch (e) {}
+  return n;
 }
 
 function wireAnalysis() {
@@ -8522,8 +8434,13 @@ function wireAnalysis() {
     e.preventDefault();
   });
   els.btn_an_defend.onclick = function () { evalQuietAi(); anaDefend(true); };   
-  els.btn_an_bal1.onclick = function () { anaBal1(); };
-  els.btn_an_bal2.onclick = function () { anaBal2(); };
+  els.btn_an_bal.onclick = function () { anaBalPoints(); };
+  els.btn_an_baln.onclick = function () {
+    var n = balPN(); n = (n % 6) + 1;
+    try { localStorage.setItem('gb_bal_point_n', String(n)); } catch (e) {}
+    els.btn_an_baln.textContent = '×' + n;
+    toast(T('anBalnSet').replace('{n}', String(n)));
+  };
   els.num_nbest.onchange = function () {
     
     S.nbest = Math.max(2, Math.min(8, Math.round(+els.num_nbest.value || 4)));
@@ -9095,8 +9012,7 @@ function boot() {
       if (lkst) lkst.textContent = m.txt || '';
     } else if (m.type === 'linkBalance') {
       
-      if (m.kind === 'bal2') { if (els.btn_an_bal2) els.btn_an_bal2.click(); }
-      else { if (els.btn_an_bal1) els.btn_an_bal1.click(); }
+      if (m.kind === 'bal' || m.kind === 'bal1' || m.kind === 'bal2') { if (els.btn_an_bal) els.btn_an_bal.click(); }
       setStat(null, T('statLinkBal') || '连线：平衡计算已在主窗进行');
     } else if (m.type === 'historyInbox') {
       var t = m.text || '';
@@ -9886,6 +9802,7 @@ function bootLink() {
         '</div>' +
         '<div class="lk-sec lk-fn lk-btns">' +
           '<button id="lk_bal" class="btn">' + lkL('交换平衡点', 'Swap Balance') + '</button>' +
+          '<button id="lk_baln" class="btn" title="' + lkL('平衡点数（1~6，空盘固定 3）', 'Balance point count (1-6, 3 fixed on empty board)') + '">×2</button>' +
           '<button id="lk_eval" class="btn">' + lkL('交换评估', 'Swap Eval') + '</button>' +
         '</div>' +
         '<div class="lk-stats">' +
@@ -10021,7 +9938,7 @@ function bootLink() {
       '<button id="__gb_autodrop"></button><button id="__gb_adcount"></button>' +
       
       '<button id="__gb_realclick"></button>' +
-      '<button id="__gb_swbal"></button><button id="__gb_sweval"></button>' +
+      '<button id="__gb_swbal"></button><button id="__gb_balpoint"></button><button id="__gb_sweval"></button>' +
       '<span id="__gb_st_depth"></span><span id="__gb_st_eval"></span><span id="__gb_st_speed"></span>' +
       '<span id="__gb_st_nodes"></span><span id="__gb_st_line"></span>' +
       '<button data-rule="0"></button><button data-rule="1"></button><button data-rule="2"></button>';
@@ -10095,6 +10012,13 @@ function bootLink() {
           new MutationObserver(function () { dstAC.textContent = srcAC.textContent; })
             .observe(srcAC, { childList: true, characterData: true, subtree: true });
           dstAC.onclick = function () { srcAC.click(); };
+        }
+        var srcBP = document.getElementById('__gb_balpoint'), dstBP = document.getElementById('lk_baln');
+        if (srcBP && dstBP) {
+          dstBP.textContent = srcBP.textContent;
+          new MutationObserver(function () { dstBP.textContent = srcBP.textContent; })
+            .observe(srcBP, { childList: true, characterData: true, subtree: true });
+          dstBP.onclick = function () { srcBP.click(); };
         }
         
         var srcAD = document.getElementById('__gb_autodrop'), dstAD = document.getElementById('lk_auto');
