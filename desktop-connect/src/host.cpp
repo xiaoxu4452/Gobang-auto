@@ -6906,7 +6906,7 @@ static void StartLinkScanLoop() {
   if (g_linkScanRun.exchange(true)) return;         
   StartLinkFrameWatch();                            
   std::thread([] {
-    LogMsg("[link] scan loop started (watch-driven + adaptive 100/380/1000ms)");
+    LogMsg("[link] scan loop started (locked 220ms rhythm + adaptive 100/150/200/1000ms)");
     while (g_linkScanRun.load() && g_linkSession.load()) {
       ULONGLONG t0 = GetTickCount64();
       LinkScanTick();
@@ -6920,9 +6920,13 @@ static void StartLinkScanLoop() {
           
           Sleep(100);
         } else {
-          int remain = 2000 - (int)el;               
-          if (remain < 100) remain = 100;
-          WaitForSingleObject(g_linkWatchEvt, (DWORD)remain);
+          // Fixed 220ms locked rhythm instead of the frame watch event: the
+          // event is frame-driven and irregular, which makes recognition
+          // alternate fast/slow (every tick still hits the vision pipe). A
+          // steady poll keeps per-tick latency uniform and engine load flat.
+          int remain = 220 - (int)el;
+          if (remain < 60) remain = 60;
+          Sleep(remain);
         }
       } else {
         int period = 1000;
