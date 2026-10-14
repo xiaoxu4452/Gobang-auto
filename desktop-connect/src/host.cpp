@@ -1596,6 +1596,9 @@ static void EnsureVisionServer() {
       envPinned = true;
       SetEnvironmentVariableA("GB_RECOG_PORT", std::to_string(VisionRecogPort()).c_str());
       SetEnvironmentVariableA("GB_SCAN_PORT", std::to_string(VisionScanPort()).c_str());
+      // ★ 2026-10-13：识别进程去 HTTP —— 明确把它钉成 0（即使将来有人给 spawn 加了
+      //   --scan/--recognize 单角色旗标，本应用的识别进程也**永远是纯管道、零 TCP**）。
+      SetEnvironmentVariableA("GB_VISION_HTTP", "0");
       SetEnvironmentVariableA("GB_PARENT_PID", std::to_string(GetCurrentProcessId()).c_str());
     }
   }
@@ -1940,22 +1943,24 @@ static void RunVisionForVis(std::string req) {
   {
     int boardSize = JsonIntAfter(req, "\"size\":");
     if (boardSize < 9 || boardSize > 25) boardSize = 15;   
-    std::string http;
+    std::string js;
     bool ok = false;
     if (!visUseTest) {
+      // ★ 2026-10-13：识别进程已**去 HTTP**，这里走的就是纯命名管道 + 共享内存
+      //   （VisPipeCall ⇒ \\.\pipe\GomokuVision.<role>.<port>），没有任何 TCP。
       if (mode == "scan")
-        ok = VisionScanImage(bytes.data(), (int)bytes.size(), http);
+        ok = VisionScanImage(bytes.data(), (int)bytes.size(), js);
       else
-        ok = VisionRecognize(bytes.data(), (int)bytes.size(), boardSize, skipSnap, http);
+        ok = VisionRecognize(bytes.data(), (int)bytes.size(), boardSize, skipSnap, js);
       if (ok) {
-        LogMsg("[vis] recognize ok (" + std::to_string(http.size()) +
-               " bytes, mode=" + mode + ")");
+        LogMsg("[vis] recognize ok (" + std::to_string(js.size()) +
+               " bytes, mode=" + mode + ", via named pipe)");
         PostToVisPageSoon("{\"type\":\"visResult\",\"mode\":\"" + mode +
                           (seq.empty() ? "" : "\",\"seq\":" + seq) +
-                          "\",\"result\":" + http + "}");
+                          "\",\"result\":" + js + "}");
         return;
       }
-      LogMsg("[vis] http path unavailable -> spawn fallback (mode=" + mode + ")");
+      LogMsg("[vis] pipe path unavailable -> spawn fallback (mode=" + mode + ")");
     } else {
       LogMsg("[vis] test model (Vision-test) -> one-shot CLI recognizer (mode=" + mode + ")");
     }
@@ -3395,13 +3400,15 @@ class EvalHandler : public Cb<ICoreWebView2ExecuteScriptCompletedHandler> {
   }
 };
 
-#ifdef GB_SUITE_ENGINE
-static const char* kUpdateShareUrl = "https://wwbbj.lanzout.com/b016l4d3id";
-static const char* kUpdateSharePwd = "55555";
-#else
+// ★ 2026-10-13：这里的更新链接**不再**跟着 GB_SUITE_ENGINE 走。
+//   本 fork（desktop-connect）是「单训练器独立版 / 连线版」，它的构建脚本为了拿到
+//   host.cpp 里的引擎看门狗而定义了 /DGB_SUITE_ENGINE —— 于是旧写法把更新链接也一起
+//   切成了三件套的 b016l4d3id / 55555，用户点「检查更新」会被导航到**错误的安装包**。
+//   链接只认本 fork 自己的身份：连线版 = 训练器独立版 = b016l49aqj / 15
+//   （与 desktop-connect/ui/calc.js 的 UPDATE_URL / UPDATE_PWD 一致，
+//    也与 tools/build-installer.js 的 TRAINER_URL 一致）。
 static const char* kUpdateShareUrl = "https://wwbbj.lanzout.com/b016l49aqj";
 static const char* kUpdateSharePwd = "15";
-#endif
 
 static HWND g_updHwnd = nullptr;                 
 static ICoreWebView2Controller* g_updController = nullptr;   
@@ -4607,7 +4614,28 @@ class EnvHandler : public Cb<ICoreWebView2CreateCoreWebView2EnvironmentCompleted
  public:
   HRESULT STDMETHODCALLTYPE Invoke(HRESULT hr, ICoreWebView2Environment* env) override {
     if (FAILED(hr) || !env) {
-      LogMsg("[wv2] environment creation failed - is WebView2 Runtime installed?");
+      char hrbuf[24] = {0};
+      sprintf_s(hrbuf, "0x%08X", (unsigned)hr);
+      LogMsg(std::string("[wv2] environment creation failed - is WebView2 Runtime installed? hr=") + hrbuf);
+      // ★ 2026-10-13（用户：「确保在其他电脑都可以正常且顺利的运行（Windows 10 以上）」）：
+      //   旧代码只写一行日志就 return —— 在没装 WebView2 运行时的机器上（Win10 精简版 /
+      //   LTSC / 从未装过 Edge），用户只会看到一个空白死窗口，既不知道发生了什么也不知道
+      //   怎么修；安装程序里点「否」跳过运行时检测也会走到这里。这里给一个明确的中英双语
+      //   提示 + 一键打开官方下载页（与安装脚本 MeterGomokuLink.iss 用的是同一个链接）。
+      static const wchar_t* kUrl = L"https://go.microsoft.com/fwlink/p/?LinkId=2124703";
+      std::wstring msg =
+          L"本软件需要「Microsoft Edge WebView2 运行时」。\n"
+          L"Windows 11 及绝大多数 Windows 10 已随 Edge 预装，本机未检测到。\n\n"
+          L"点「是」立即打开官方下载页，装完后重新启动本软件即可。\n\n"
+          L"This app needs the Microsoft Edge WebView2 Runtime, which was not found on "
+          L"this machine.\nClick Yes to open the official download page, then restart the "
+          L"app.\n\n";
+      msg += kUrl;
+      int r = MessageBoxW(g_hwnd, msg.c_str(),
+                          L"Meter Gomoku - 缺少 WebView2 运行时 / WebView2 Runtime missing",
+                          MB_ICONERROR | MB_YESNO | MB_SETFOREGROUND);
+      if (r == IDYES)
+        ShellExecuteW(nullptr, L"open", kUrl, nullptr, nullptr, SW_SHOWNORMAL);
       return S_OK;
     }
     g_env = env;
@@ -5575,7 +5603,6 @@ static void StartLinkFrameWatch() {
 static bool g_linkDropOnce = false;          
 
 static std::vector<std::pair<int,int>> g_lkBalB, g_lkBalW;
-static std::vector<std::string> g_lkBalBEv, g_lkBalWEv;
 
 static std::vector<int> g_lkBalBSeq, g_lkBalWSeq;
 static int  g_linkBoard[15][15] = {{0}};       
@@ -6081,29 +6108,18 @@ static void LselPaint(HWND h) {
           
           auto drawBalMk = [&](const std::vector<std::pair<int,int>>& v,
                                const std::vector<int>& seqv,
-                               const std::vector<std::string>& evv,
-                               int ringR, int ringG, int ringB) {
+                               int ringR, int ringG, int ringB, int dotR, int dotG, int dotB) {
             for (size_t mi = 0; mi < v.size(); ++mi) {
               const auto& mk = v[mi];
               if (mk.first < 0 || mk.first > 14 || mk.second < 0 || mk.second > 14) continue;
               float x = (float)(lx2[mk.first] - wr2.left), y = (float)(ly2[mk.second] - wr2.top);
               if (!inFrame(x, y)) continue;
-              float br = (float)(sp2 * 0.42);
-              if (br < 4.0f) br = 4.0f;
-              // balance mark (same as the main board): hollow UPPER half carries
-              // the sequence number, translucent filled LOWER half carries the
-              // eval score; white rim, no inner arc
-              Gdiplus::GraphicsPath path;
-              path.AddPie(x - br, y - br, br * 2, br * 2, 0.0f, 180.0f);
-              Gdiplus::SolidBrush body(Gdiplus::Color(150, (BYTE)ringR, (BYTE)ringG, (BYTE)ringB));
-              g.FillPath(&body, &path);
-              Gdiplus::Pen band(Gdiplus::Color(235, (BYTE)ringR, (BYTE)ringG, (BYTE)ringB), 3.2f);
-              g.DrawArc(&band, x - br, y - br, br * 2, br * 2, 180.0f, 180.0f);
-              Gdiplus::Pen rim(Gdiplus::Color(255, 255, 255, 255), 1.4f);
-              g.DrawEllipse(&rim, x - br, y - br, br * 2, br * 2);
+              float br = (float)(sp2 * 0.4);
+              Gdiplus::Pen bp(Gdiplus::Color(235, (BYTE)ringR, (BYTE)ringG, (BYTE)ringB), 3.0f);
+              g.DrawEllipse(&bp, x - br, y - br, br * 2, br * 2);
               int seq = (mi < seqv.size()) ? seqv[mi] : 0;
-              if (seq > 0 && br >= 8.0f) {
-                float fsz = sp2 * 0.38f; if (fsz < 9.0f) fsz = 9.0f; if (fsz > 18.0f) fsz = 18.0f;
+              if (seq > 0 && br >= 9.0f) {
+                float fsz = sp2 * 0.42f; if (fsz < 10.0f) fsz = 10.0f; if (fsz > 20.0f) fsz = 20.0f;
                 Gdiplus::FontFamily ff3(L"Segoe UI");
                 Gdiplus::Font f3(&ff3, fsz, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
                 if (f3.GetLastStatus() == Gdiplus::Ok) {
@@ -6111,33 +6127,17 @@ static void LselPaint(HWND h) {
                   Gdiplus::StringFormat sf3(Gdiplus::StringFormatFlagsNoWrap);
                   sf3.SetAlignment(Gdiplus::StringAlignmentCenter);
                   sf3.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+                  Gdiplus::SolidBrush halo3(Gdiplus::Color(215, 0, 0, 0));
                   Gdiplus::SolidBrush fg3(Gdiplus::Color(255, 255, 255, 255));
-                  Gdiplus::RectF rcU(x - br, y - br * 0.55f, br * 2, br * 1.0f);
-                  g.DrawString(num, -1, &f3, rcU, &sf3, &fg3);
-                }
-              }
-              // eval text in the lower half (ASCII-only eval strings)
-              std::string evUse = (mi < evv.size()) ? evv[mi] : std::string();
-              if (!evUse.empty() && br >= 8.0f) {
-                wchar_t evW[24]; int ewl = 0;
-                for (; ewl < 22 && ewl < (int)evUse.size(); ++ewl) evW[ewl] = (wchar_t)(unsigned char)evUse[ewl];
-                evW[ewl] = 0;
-                float fszE = sp2 * 0.28f; if (fszE < 8.0f) fszE = 8.0f; if (fszE > 13.0f) fszE = 13.0f;
-                Gdiplus::FontFamily ffE(L"Segoe UI");
-                Gdiplus::Font fE(&ffE, fszE, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-                if (fE.GetLastStatus() == Gdiplus::Ok) {
-                  Gdiplus::StringFormat sfE(Gdiplus::StringFormatFlagsNoWrap);
-                  sfE.SetAlignment(Gdiplus::StringAlignmentCenter);
-                  sfE.SetLineAlignment(Gdiplus::StringAlignmentCenter);
-                  Gdiplus::SolidBrush fgE(Gdiplus::Color(255, 255, 255, 255));
-                  Gdiplus::RectF rcL(x - br, y + br * 0.1f, br * 2, br * 0.9f);
-                  g.DrawString(evW, -1, &fE, rcL, &sfE, &fgE);
+                  Gdiplus::RectF rc3(x - br, y - br, br * 2, br * 2);
+                  g.DrawString(num, -1, &f3, Gdiplus::RectF(rc3.X - 1, rc3.Y, rc3.Width, rc3.Height), &sf3, &halo3);
+                  g.DrawString(num, -1, &f3, rc3, &sf3, &fg3);
                 }
               }
             }
           };
-          drawBalMk(g_lkBalB, g_lkBalBSeq, g_lkBalBEv, 148, 108, 238);   
-          drawBalMk(g_lkBalW, g_lkBalWSeq, g_lkBalWEv, 70, 180, 235);   
+          drawBalMk(g_lkBalB, g_lkBalBSeq, 148, 108, 238, 70, 30, 90);   
+          drawBalMk(g_lkBalW, g_lkBalWSeq, 70, 190, 175, 20, 60, 130);   
         }
       }
     }
@@ -6202,9 +6202,10 @@ static void LselApplyRegion(HWND h) {
   GetWindowRect(h, &wr);
   int top = wr.top + LSEL_TITLE_H;
   if (wr.right - wr.left < 120 || wr.bottom - top < 120) return;
-  // A frame smaller than ~1/3 of the screen almost certainly missed the whole
-  // board: switch to auto board-search so the region grows onto the full grid
-  // and auto-tightens to +/-0.6 cell (Auto stays on for later re-opens).
+  // ★ 2026-10-13 回退（用户：「寻棋盘算法，自动功能跟随昨天 23 点左右的那一版」）：
+  //   小框（< 屏幕 1/3）几乎肯定没框住整个棋盘 —— 切到「自动寻盘」，让扫描区扩到整屏
+  //   再自动收紧到 ±0.6 格（自动保持开启，以后再开框也走同一条路）。这段是 10-12 22:09
+  //   加的，属于 23:00 那一版的行为；本轮的改动把它删掉了，是退步，现在照原样补回来。
   {
     int sw = GetSystemMetrics(SM_CXSCREEN), sh = GetSystemMetrics(SM_CYSCREEN);
     if ((wr.right - wr.left) < sw / 3 || (wr.bottom - top) < sh / 3) {
@@ -6472,9 +6473,9 @@ static void StartLinkFrame() {
     y = wa.top + (wa.bottom - wa.top - h) / 2;
   }
   LselOpenAt(x, y, w, h);
+  // ★ 2026-10-13 回退：开着「自动」重新开框时，先跑一遍全屏寻盘，让框自己收紧到棋盘上，
+  //   而不是拿上一次的旧区域去扫。同属 23:00 那一版的行为（10-12 22:09 加的）。
   if (g_lselAuto) {
-    // Re-opening with Auto on: run fullscreen board-search so the frame
-    // auto-tightens onto the board instead of scanning a stale region.
     LselSetAutoScanRegion();
     StartLinkScanLoop();
     LogMsg("[link] frame reopened with auto on -> fullscreen board-search");
@@ -7312,7 +7313,6 @@ class LinkMsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
           if (t.find("\"type\":\"balance\"") != std::string::npos) {
             std::vector<std::pair<int,int>> nb, nw;
             std::vector<int> nsb, nsw;
-            std::vector<std::string> nbev, nwev;
             if (t.find("\"on\":true") != std::string::npos) {
               size_t cp = t.find("\"cells\":\"");
               if (cp != std::string::npos) {
@@ -7328,17 +7328,16 @@ class LinkMsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
                     v[got++] = val * sign;
                     if (i < t.size() && t[i] == ',') ++i;
                   }
-                  char color = 0; std::string evTxt;
+                  char color = 0;
                   while (i < t.size() && t[i] != ';' && t[i] != '"') {
                     if (t[i] == 'b' || t[i] == 'w') color = t[i];
-                    else if (color) evTxt.push_back(t[i]);
                     ++i;
                   }
                   if (got == 3 && v[2] >= 0 && color) {
                     int gx = -1, gy = -1;
                     if (LinkScreenToGrid(v[0], v[1], gx, gy)) {
-                      if (color == 'b') { nb.push_back({ gx, gy }); nsb.push_back(v[2]); nbev.push_back(evTxt); }
-                      else              { nw.push_back({ gx, gy }); nsw.push_back(v[2]); nwev.push_back(evTxt); }
+                      if (color == 'b') { nb.push_back({ gx, gy }); nsb.push_back(v[2]); }
+                      else              { nw.push_back({ gx, gy }); nsw.push_back(v[2]); }
                     }
                   }
                   if (i < t.size() && t[i] == ';') ++i;
@@ -7348,7 +7347,6 @@ class LinkMsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
             }
             g_lkBalB = nb; g_lkBalW = nw;
             g_lkBalBSeq = nsb; g_lkBalWSeq = nsw;
-            g_lkBalBEv = nbev; g_lkBalWEv = nwev;
             LogMsg("[link-bridge] balance marks: B" + std::to_string((int)nb.size()) +
                    " W" + std::to_string((int)nw.size()) + " (immune layer, seq labels)");
             if (g_lselWnd && IsWindow(g_lselWnd)) PostMessageW(g_lselWnd, kMsgLinkFramePaint, 0, 0);
@@ -7417,8 +7415,6 @@ class LinkMsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
       ParseBalPairs(s, "\"white\"", g_lkBalW);
       g_lkBalBSeq.assign(g_lkBalB.size(), 0);   
       g_lkBalWSeq.assign(g_lkBalW.size(), 0);
-      g_lkBalBEv.assign(g_lkBalB.size(), "");
-      g_lkBalWEv.assign(g_lkBalW.size(), "");
       LogMsg("[link] balance marks: B" + std::to_string((int)g_lkBalB.size()) +
              " W" + std::to_string((int)g_lkBalW.size()) + " (immune layer)");
       if (g_lselWnd && IsWindow(g_lselWnd)) {

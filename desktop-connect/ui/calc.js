@@ -115,7 +115,7 @@ var I18N = {
       ]},
       { t: '三、计算评估', ps: [
         '「计算」= 单路深搜当前局面并把最佳点标在棋盘上（再点一次 = 停止计算）；「多点分析」按「分析点数」一次给出 2~8 个候选，圆圈里是名次与评估分。',
-        '「平衡点」= 官方平衡搜索（YXBALANCE）按你选的「点数」一次给出黑白双方都没有明显优势的候选点；「点数」可在 1~6 之间切换（空盘固定 3 个，两黑一白官方定式）；「扫描防守」= 在 9×9 邻域逐个空点打分，给出该防的点（W = 距赢几步，L = 距输几步），徽标颜色按危险度连续渐变 —— 越危险越红、安全的一头是青；点过一次后随落子**自动重扫**（Yixin 式动态刷新），「清除标记」或重开才停。',
+        '「平衡点」= 官方平衡搜索（引擎原生 **YXBALANCETWO 成对**，**不是**对弈引擎的搜索）按你选的「点数」给出黑白双方都没有明显优势的候选点，并把引擎给的评估分一并报出来（|评估| ≤ 50 才是官方平衡窗口内的「平」；评估刻度 ScalingFactor=200 ⇒ 胜率 = sigmoid(评估/200)）；「点数」可在 1~6 之间切换（空盘固定 3 个：黑 1 固定天元，白 2 / 黑 3 由一次**成对**平衡搜索联合给出 —— 成对搜索才是官方口径的「平」，单点搜索在近乎空盘上评估会到 −350~−470，那是「一眼看出谁占优」的根源）；点数为奇数时**收尾那手也走成对搜索、只取这一对的第 1 手**，所以报出的评估分同样在 0 附近；「扫描防守」= 在 9×9 邻域逐个空点打分，给出该防的点（W = 距赢几步，L = 距输几步），徽标颜色按危险度连续渐变 —— 越危险越红、安全的一头是青；点过一次后随落子**自动重扫**（Yixin 式动态刷新），「清除标记」或重开才停。',
         '「AI 视图」= AI 思考期间在棋盘上铺它的候选点（圆形、格内是评估分），AI 一落子就撤掉；「指导视图」= 轮到你时用方形四色提示最佳落点，你一落子就消失。',
         '「分析计算」= 棋盘下方的开关型功能键：开启后在**主车道**持续深算当前局面，铺出引擎当前榜单（最佳点+候选，最多 8 个）；随搜索加深自然微变并收敛，用户落子 / 悔棋自动重开会话，仪表盘用时跨轮累加；再点一次 = 停止。摆盘 / 残局 / 双人手动对弈同样可用。',
         '「清除标记」与「计算」并排：一键擦掉**本卡里任意项目**留在棋盘上的标记 —— 计算 / 多点分析 / 平衡点的徽标与评估分、扫描防守的百分比与 W/L 徽标，以及前瞻 · VCF · VCT 的序号、虚线与代码链；只清标记，不动局面本身。',
@@ -147,7 +147,7 @@ var I18N = {
         '分工：连线窗负责识别与 AI；主窗大棋盘只同步显示识别到的局面与执子设置，不参与评估、不落子 —— 所以不会出现两侧互相抢着算的情况。',
         'AI 执子与思考时间：连线窗的「AI 执黑」/「AI 执白」二者互斥，选中会无条件同步到主窗「对局设置」里的执子；「思考时间」同样同步（两边一个口径）。',
         '自动落子：打开后识别到对方落子即自动思考，并用三级模拟点击替你落子（先 PostMessage 直达目标窗口，无效升 SendInput，再不行用真实点击兜底），物理鼠标全程不受干扰；一局结束（五子连珠）自动关闭，下一局需重新打开。',
-        '交换平衡点：点它的同时会自动取消已选的 AI 执黑 / 执白（避免相互干扰）。空盘固定给出三个平衡点（两黑一白官方定式）；棋盘上已有棋子时，按你选的「点数」（1~6）评估出相应数量的最平衡候选，黑紫白天蓝，可反复点击重新评估。评估完成引擎随即释放；你把相应子数下完（不管下哪），标记自动消失，也可点「清除标记」关闭。',
+        '交换平衡点：点它的同时会自动取消已选的 AI 执黑 / 执白（避免相互干扰）。空盘时走**官方定式**：先让引擎按当前规则吐官方开局（禁手用禁手公式、无禁手用无禁手公式，**绝不混用**），引擎不可用时退到本地公式表（无禁手 = 官方 Swap2 三手 9 组，禁手 = RIF 26 组，两张表都经引擎实测只留平衡定式、必胜定式一条都不加）；再不行才在中心区逐手取点。所以开局这三手是「官方平衡开局」，不是对弈引擎算出来的最强手。棋盘上已有棋子时（第 2 次交换，一黑一白），走原生 YXBALANCETWO 成对搜索给出这两手并报出评估分（|评估| ≤ 50 才算平）。黑紫白天蓝，可反复点击重新评估。评估完成引擎随即释放；你把相应子数下完（不管下哪），标记自动消失，也可点「清除标记」关闭。',
         '交换平衡点 + 自动落子的顺序逻辑：先点交换平衡点、后打开自动落子 → 评估完成时若自动落子已开，就按顺序自动把这几个平衡点落下（与单机版五子棋助手完全一致）；若是评估完才打开自动落子，则打开的那一刻按序补摆。',
         '交换评估：与交换平衡点相互独立的另一项功能，用于评估当前交换局面的优劣，判断是否值得交换。',
         '盘中标记：推荐落点为天蓝圈；平衡标记为圆形 —— 上半中空显示落子序号、下半半透明填充显示评估分，黑子紫、白子天蓝；全部直接画在识别框内的对应交点，位于截图识别不到的最上层（绝不会被误读成棋子）。 —— 全部直接画在识别框内的对应交点，且不会被截图识别（绝不会被误读成棋子）。',
@@ -407,6 +407,22 @@ tagDefend: '扫描防守', tagCalc: '计算评估', tagNbest: '多点分析',
     anBest: '最佳', anBalance: '平衡',
     anBalBusy: '官方平衡搜索中…',
     anBalDone: '已给出 {n} 个平衡点：{list}',
+    anBalEval: '（引擎判定这一手最平：|评估| ≈ {v}，≤ 50 才是官方平衡窗口内）',
+    // ★ 2026-10-13（用户）：「如果用户想在开局的时候定平衡点的话，应该要评估几个才合理」。
+    //   依据 = 中国五子棋竞赛规则(2025) 第 11 条 / RIF 指定开局：官方开局**只有三手**
+    //   （黑1 天元 · 白2 在以天元为中心的 3×3 内 · 黑3 在 5×5 内），所以开局评估 3 个点最合理；
+    //   第 4 手起进入白4(7×7)/黑5(9×9) 阶段（塔拉山口-10 走满 5 手），再多评估评估分就失真。
+    //   ★ 2026-10-13（用户：「这个提示文案是多条的，是灵活多变的，不应该只是一个大段话」）：
+    //     原来的单条长句拆成**短句池**，每次评估随机抽 1~2 条、分行显示（见 balOpenHintTxt）。
+    anBalOpenHints: [
+      '官方指定开局只有 3 手（黑1 天元 · 白2 在 3×3 内 · 黑3 在 5×5 内），开局评估 3 个点最合理。',
+      '天元是固定的第 1 手，不必评估；真正要搜的只有白 2 与黑 3 这两手。',
+      '评估 4 个以上就已经走出开局阶段，评估分会明显不可靠。',
+      '判「平」的口径是 |评估| ≤ 50（官方平衡窗口）；越大越偏，接近 200 就明显一边倒了。',
+      '平衡点与规则绑定：有禁手（连珠）和无禁手算出的点不一样，结果只对当前所选规则有效。',
+      '按塔拉山口-10 走满 5 手开局，才可以评估到 5 个平衡点。',
+    ],
+    anBalNoEngine: '平衡子不可用（原生平衡引擎没应答）—— 已按「绝不用对弈引擎顶替平衡点」的口径空手返回，请稍后重试',
     anBalFail: '平衡搜索失败：',
     anBalnSet: '平衡点数已设为 {n}（空盘固定 3）',
     anBalnHint: '平衡点数（1~6，空盘固定 3）',
@@ -802,6 +818,16 @@ tagDefend: 'Defence scan', tagCalc: 'Evaluate', tagNbest: 'N-best',
     anBest: 'Best', anBalance: 'Balance',
     anBalBusy: 'Official balance search…',
     anBalDone: '{n} balanced points: {list}',
+    anBalEval: ' (engine verdict for this pick: |eval| ≈ {v}; ≤ 50 is inside the official balance window)',
+    anBalOpenHints: [
+      'The official opening is only 3 moves (B1 tengen · W2 inside 3x3 · B3 inside 5x5); 3 points is the sensible number to evaluate.',
+      'Tengen is the fixed first move and needs no evaluation; only White 2 and Black 3 are actually searched.',
+      'Evaluating 4 or more leaves the opening stage, and the eval stops being reliable.',
+      '"Even" means |eval| <= 50 (the official balance window); larger is more lopsided - near 200 is clearly one-sided.',
+      'Balance points are rule-bound: Renju (forbidden moves) and freestyle give different points; the result only holds for the rule currently selected.',
+      'Under Taraguchi-10 (a 5-move opening) you may evaluate up to 5 points.',
+    ],
+    anBalNoEngine: 'Balance sub-engine unavailable (native balance search did not answer) — returned empty rather than substituting the playing engine for balance points; retry shortly',
     anBalFail: 'Balance search failed: ',
     anBalnSet: 'Balance point count set to {n} (3 fixed on empty board)',
     anBalnHint: 'Balance point count (1-6, 3 fixed on empty board)',
@@ -1498,7 +1524,12 @@ function paint() {
   
   var balHide = false;
   if (G.ana.kind === 'bal' && G.ana.marks.length) {
-    if (G.moves.length >= G.ana.marks.length) balHide = true;
+    // Hide only after the user has played as many stones as there are marks
+    // SINCE they were computed. The old rule compared the ABSOLUTE move count
+    // against the mark count, so every pick on a board that already had stones
+    // (e.g. 5 stones + 2 picks) was erased the moment it was drawn.
+    var balBaseM = (G.ana.balBase != null) ? G.ana.balBase : 0;
+    if (G.moves.length >= balBaseM + G.ana.marks.length) balHide = true;
   } else if (G.ana.kind === 'bal1' && G.ana.marks.length) {
     var isStage2 = G.ana.marks.some(function (mk) { return String(mk.badge) === '4'; });
     if (G.moves.length >= (isStage2 ? 5 : 3)) balHide = true;
@@ -1508,10 +1539,15 @@ function paint() {
     var mr = Math.max(6, gap * 0.40);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
     var taken = [];
+    // A balance pick that has already been played is covered by its stone, so
+    // drop exactly those marks while the rest keep counting down.
+    var balDraw = (G.ana.kind === 'bal')
+      ? G.ana.marks.filter(function (m) { return !G.board[m.y][m.x]; })
+      : G.ana.marks;
     function hits(a, b) {
       return !(a.x2 < b.x1 || b.x2 < a.x1 || a.y2 < b.y1 || b.y2 < a.y1);
     }
-    G.ana.marks.forEach(function (mk) {
+    balDraw.forEach(function (mk) {
       if (mk.plain) return;                       
       var px = pad + mk.x * gap, py = pad + mk.y * gap;
       
@@ -1528,38 +1564,18 @@ function paint() {
         ph = mr * 1.6;
       }
       ctx.beginPath();
-      if (mk.inline && mk.label) {
-        // Balance mark: hollow UPPER half carries the sequence number,
-        // translucent filled LOWER half carries the eval score
-        ctx.beginPath(); ctx.arc(px, py, mr, Math.PI, Math.PI * 2);   // upper arc
-        ctx.strokeStyle = pal.badge;
-        ctx.lineWidth = Math.max(2.2, gap * 0.09);
-        ctx.stroke();
-        ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI);             // lower half
-        ctx.closePath();
-        ctx.globalAlpha = 0.55;
-        ctx.fillStyle = pal.badge;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI * 2);         // white rim
-        ctx.strokeStyle = 'rgba(255,255,255,.92)';
-        ctx.lineWidth = Math.max(1.2, gap * 0.05);
-        ctx.stroke();
-      } else if (multi) {
+      if (multi) {
         if (ctx.roundRect) ctx.roundRect(px - pw / 2, py - ph / 2, pw, ph, ph / 2);
         else ctx.rect(px - pw / 2, py - ph / 2, pw, ph);
-        ctx.fillStyle = pal.badge; ctx.fill();
-        ctx.lineWidth = Math.max(1.6, gap * 0.07);
-        ctx.strokeStyle = pal.ring; ctx.stroke();
       } else {
         ctx.arc(px, py, mr, 0, Math.PI * 2);
-        ctx.fillStyle = pal.badge; ctx.fill();
-        ctx.lineWidth = Math.max(1.6, gap * 0.07);
-        ctx.strokeStyle = pal.ring; ctx.stroke();
       }
+      ctx.fillStyle = pal.badge; ctx.fill();
+      ctx.lineWidth = Math.max(1.6, gap * 0.07);
+      ctx.strokeStyle = pal.ring; ctx.stroke();
       taken.push({ x1: px - pw / 2 - 1, y1: py - ph / 2 - 1, x2: px + pw / 2 + 1, y2: py + ph / 2 + 1 });
     });
-    G.ana.marks.forEach(function (mk) {
+    balDraw.forEach(function (mk) {
       var px = pad + mk.x * gap, py = pad + mk.y * gap;
       if (mk.plain) {
         
@@ -1576,10 +1592,17 @@ function paint() {
       }
       
       if (mk.inline) {
+        var mt = anaInlineMetrics(ctx, mk, mr);
         ctx.fillStyle = '#ffffff';
-        // Sequence number only, in the hollow upper half (no eval score)
-        ctx.font = '700 ' + Math.max(9, mr * 0.6) + 'px "Segoe UI",system-ui,sans-serif';
-        ctx.fillText(mk.badge, px, py - mr * 0.48);
+        if (mk.label) {
+          ctx.font = '700 ' + mt.rf + 'px "Segoe UI",system-ui,sans-serif';
+          ctx.fillText(mk.badge, px, py - mt.ph * 0.19);
+          ctx.font = '600 ' + mt.ef + 'px "Segoe UI",system-ui,sans-serif';
+          ctx.fillText(mk.label, px, py + mt.ph * 0.24);
+        } else {
+          ctx.font = '700 ' + Math.max(9, mr * 0.9) + 'px "Segoe UI",system-ui,sans-serif';
+          ctx.fillText(mk.badge, px, py + 0.5);
+        }
         return;
       }
       
@@ -1943,11 +1966,8 @@ function crossCheckPick(main, mainDepth, cc, ccDepth) {
   return ((ccDepth || 0) > (mainDepth || 0)) ? [+cc[0], +cc[1]] : null; 
 }
 
-var AI_REMOTE = (typeof GB_AI_REMOTE !== 'undefined') && !!GB_AI_REMOTE;
-var AI_REMOTE_URL = 'http://127.0.0.1:8964/api/analyze';
-
-var AI_BALANCE_URL = 'http://127.0.0.1:8964/api/balance';
-
+// 引擎通信已统一为「纯 C++ 硬链接」：页面通过 WebView2 进程内拦截访问 /engine/*，
+// 扫描结果由宿主 postMessage 推送。旧的 :8964 / :8975 HTTP 直连（AI_REMOTE）已整体移除。
 var LocalAI = (function () {
   var wk = null, booted = false, lastFail = 0, seq = 0;
   var pend = {};                       
@@ -1998,39 +2018,13 @@ var LocalAI = (function () {
     return true;
   }
   
-  function remoteAnalyze(body, ms) {
-    return new Promise(function (res, rej) {
-      if (window.__GB_TEST__) { rej(new Error('stub: no engine in test')); return; }
-      var done = false, ctl = null;
-      try { ctl = new AbortController(); } catch (e) { ctl = null; }
-      var t = setTimeout(function () {
-        if (done) return; done = true;
-        try { if (ctl) ctl.abort(); } catch (e) {}
-        rej(new Error('timeout'));
-      }, ms || 20000);
-      fetch(AI_REMOTE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: ctl ? ctl.signal : undefined,
-      }).then(function (r) {
-        if (!r.ok) throw new Error('engine http ' + r.status);
-        return r.json();
-      }).then(function (j) {
-        if (done) return; done = true; clearTimeout(t); res(j);
-      }).catch(function (e) {
-        if (done) return; done = true; clearTimeout(t); rej(e);
-      });
-    });
-  }
   var liveSeq = 0;
   return {
-    boot: AI_REMOTE ? function () {} : ensure,          
-    isReady: function () { return AI_REMOTE ? true : !!wk; },
+    boot: ensure,          
+    isReady: function () { return !!wk; },
     
     nextLiveId: function () { return ++liveSeq; },
     analyze: function (body, ms) {
-      if (AI_REMOTE) return remoteAnalyze(body, ms);
       return new Promise(function (res, rej) {
         if (window.__GB_TEST__) { rej(new Error('stub: no engine in test')); return; }
         if (!ensure()) { rej(new Error('engine unavailable')); return; }
@@ -2044,8 +2038,22 @@ var LocalAI = (function () {
       });
     },
     
+    // 平衡点通道：同一个 worker 走原生 YXBALANCEONE/TWO（纯 C++ 硬链接）
+    balance: function (body, ms) {
+      return new Promise(function (res, rej) {
+        if (window.__GB_TEST__) { rej(new Error('stub: no engine in test')); return; }
+        if (!ensure()) { rej(new Error('engine unavailable')); return; }
+        var id = ++seq;
+        var t = setTimeout(function () {
+          if (pend[id]) { delete pend[id]; rej(new Error('timeout')); }
+        }, ms || 120000);
+        pend[id] = { res: res, rej: rej, timer: t };
+        try { wk.postMessage({ type: 'balance', id: id, body: body }); }
+        catch (e) { clearTimeout(t); delete pend[id]; rej(e); }
+      });
+    },
+    
     config: function (threads, hashMB) {
-      if (AI_REMOTE) return;   
       var tChanged = (threads || 0) !== cfgT;
       cfgT = threads || 0; cfgKB = (hashMB || 0) * 1024;
       if (!wk) return;
@@ -2061,7 +2069,6 @@ var LocalAI = (function () {
     },
     
     restart: function () {
-      if (AI_REMOTE) { failAll(new Error('engine reconnecting')); return; }  
       if (HOST) {
         var rLanes = ['main', 'sub', 'fwd'];
         for (var li = 0; li < rLanes.length; li++) {
@@ -2080,37 +2087,12 @@ var LocalAI = (function () {
   };
 })();
 
+// 平衡通道：走页面内 worker 的原生 YXBALANCEONE/TWO（纯 C++ 硬链接），
+// 不再有 :8964 HTTP。返回 { mode, n, bias, swap, moves, elapsed, rule }。
 function apiBalance(body, ms) {
-  if (!AI_REMOTE) return Promise.reject(new Error('balance: local engine has no YXBALANCE channel'));
-  return new Promise(function (res, rej) {
-    if (window.__GB_TEST__) { rej(new Error('stub: no engine in test')); return; }
-    var done = false, ctl = null;
-    try { ctl = new AbortController(); } catch (e) { ctl = null; }
-    var t = setTimeout(function () {
-      if (done) return; done = true;
-      try { if (ctl) ctl.abort(); } catch (e) {}
-      rej(new Error('timeout'));
-    }, ms || 120000);
-    fetch(AI_BALANCE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: ctl ? ctl.signal : undefined,
-    }).then(function (r) {
-      if (!r.ok) {
-        return r.json().catch(function () { return null; }).then(function (j) {
-          throw new Error((j && j.error) ? String(j.error) : ('balance http ' + r.status));
-        });
-      }
-      return r.json();
-    }).then(function (j) {
-      if (done) return; done = true; clearTimeout(t); res(j);
-    }).catch(function (e) {
-      if (done) return; done = true; clearTimeout(t); rej(e);
-    });
-  });
+  if (window.__GB_TEST__) return Promise.reject(new Error('stub: no engine in test'));
+  return LocalAI.balance(body, ms);
 }
-
 var RAPFI_MATE = 30000;          
 var RAPFI_MATE_MAX_PLY = 500;    
 var RAPFI_EVAL_MAX = 6000;       
@@ -2737,7 +2719,7 @@ function openHint() {
   if (els.taraSwap) els.taraSwap.hidden = !swapOn;
   
   var cp = openCallPhase();
-  var balOk = !!(AI_REMOTE && cp && cp.mode === 'call' && cp.cap - cp.set.called.length > 0);
+  var balOk = !!(cp && cp.mode === 'call' && cp.cap - cp.set.called.length > 0);
   if (els.btn_balcall) els.btn_balcall.hidden = !balOk;
   if (cp && cp.set.balBusy) t = T('balCallBusy');
   els.openHint.textContent = t;
@@ -2934,7 +2916,7 @@ function doTaraSwap(byAi) {
 }
 
 async function balCallTen() {
-  if (!openActive() || !AI_REMOTE) return;     
+  if (!openActive()) return;     
   var cp = openCallPhase();
   if (!cp || cp.mode !== 'call' || cp.set.balBusy) return;
   var need = cp.cap - cp.set.called.length;
@@ -2943,9 +2925,23 @@ async function balCallTen() {
   t.balBusy = true;
   openHint(); paint();
   try {
+    // ★ 绝不让引擎在**空盘**上叫平衡点：Rapfi 在 ply=0 时把候选区限死在
+    //   expandCandidateHalfBoard()（棋盘左下 9×9），返回的是角上的点。开局第一手
+    //   （黑 1）固定天元；空盘时先在假设盘上落好天元，轮次顺延给白方。
+    var balBoard = G.board.map(function (r) { return r.slice(); });
+    var balSide = curColor();
+    if (!G.moves.length) {
+      var c0 = (N - 1) >> 1;
+      if (!balBoard[c0][c0]) { balBoard[c0][c0] = 1; balSide = 2; }
+    }
+    // 不锁中心区（禁手 / 无禁手的区别交给 rule 参数，引擎自己剔禁手点）。
+    // 成对取点：need ≥ 2 用 YXBALANCETWO（一次给 2 手，两手联合平衡），否则单点 ONE。
     var j = await apiBalance({
-      board: G.board, moveList: [], n: need, mode: 'one', rule: engineRule(),
-      turnMs: turnMs, lane: 'main', cid: 'calc-baltar-' + G.moves.length, side: curColor(),
+      board: balBoard, moveList: [], n: Math.max(1, Math.ceil(need / 2)),
+      // ★ 2026-10-13：一律 'two'。单点 ONE 在近乎空盘上评估 −350~−470（实测），
+      //   报出来就是「差距过大」；成对搜索才是官方口径的「平」。
+      mode: 'two', rule: engineRule(),
+      turnMs: turnMs, lane: 'main', cid: 'calc-baltar-' + G.moves.length, side: balSide,
     }, need * turnMs + 30000);
     if (!openActive() || openCallPhase() === null || openCallPhase().set !== t) return;
     if (j && j.swap) { toast(T('balSwapNow')); return; }
@@ -3258,6 +3254,38 @@ function drawCurve() {
     ctx.fillText(T('curve'), x0 + 8, (y0 + y1) / 2);
     return;
   }
+
+  // ★ 2026-10-13（用户：「在引擎仪表盘上面的评估曲线上带上子数的横坐标小数字」）：
+  //   横轴一直是**按手数线性铺**的（plot 里 x = x0 + (x1-x0) * p.i/maxPly），但轴上没有任何
+  //   刻度数字 —— 只能靠最右端那条「第 N 手」，看不出中间每个点是第几手。
+  //   这里补「子数刻度」：短刻度线 + 小号数字（9px，与纵轴字号一致）。
+  //   · 步长按可用宽度自动选（1/2/5/10/20/25/50 手），保证相邻标签至少隔 22px，不糊成一片；
+  //   · 首尾两个标签会按文字宽度夹回画布内，避免被裁半个字；
+  //   · 画在**滚动画布 #curve 上**（不是在左侧纵轴条上）⇒ 跟数据一起横向滚动、坐标永远对齐。
+  (function drawPlyAxis() {
+    if (maxPly <= 0 || x1 <= x0) return;
+    var pxPerPly = (x1 - x0) / maxPly;
+    var plyStep = 1;
+    [1, 2, 5, 10, 20, 25, 50].some(function (s) { plyStep = s; return pxPerPly * s >= 22; });
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    function plyTick(p) {
+      var tx = x0 + (x1 - x0) * (p / maxPly);
+      ctx.strokeStyle = css('--border');
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(tx, y1); ctx.lineTo(tx, y1 + 3); ctx.stroke();
+      var s = String(p);
+      var tw = ctx.measureText(s).width;
+      var cx = Math.max(tw / 2 + 1, Math.min(w - tw / 2 - 1, tx));
+      ctx.fillStyle = css('--sub');
+      ctx.fillText(s, cx, y1 + 4);
+    }
+    var lastP = 0;
+    for (var pp = 1; pp <= maxPly; pp += plyStep) { plyTick(pp); lastP = pp; }
+    // 末手若不是刻度点、且离上一个标签够远，就补一条 —— 让总手数一眼可见
+    if (maxPly !== lastP && (maxPly - lastP) * pxPerPly >= 12) plyTick(maxPly);
+  })();
 
   function plot(key, color) {
     var pts = [];
@@ -3744,10 +3772,10 @@ function toast(msg) {
   setStat(null, msg);
 }
 
-var APP_VERSION = '4.39';
+var APP_VERSION = '4.40';
 
-var UPDATE_URL = AI_REMOTE ? 'https://wwbbj.lanzout.com/b016l4d3id' : 'https://wwbbj.lanzout.com/b016l49aqj';
-var UPDATE_PWD = AI_REMOTE ? '55555' : '15';
+var UPDATE_URL = 'https://wwbbj.lanzout.com/b016l49aqj';
+var UPDATE_PWD = '15';
 
 function checkUpdate() {
   if (HOST) { tellHost({ type: 'checkUpdate' }); return; }
@@ -6577,7 +6605,12 @@ function cellScore(board, x, y, c) {
   return total;
 }
 function renderAna(msg) {
-  if (els.anStatus) els.anStatus.textContent = msg || '';
+  if (els.anStatus) {
+    els.anStatus.textContent = msg || '';
+    // ★ 2026-10-13：文案栏支持**多行**（开局提示是多条短句、用 \n 分行）。
+    //   只在真的含换行时才切 pre-line，其它单行提示的排版一字不变。
+    els.anStatus.style.whiteSpace = (typeof msg === 'string' && msg.indexOf('\n') >= 0) ? 'pre-line' : '';
+  }
   if (!els.anList) return;
   els.anList.innerHTML = G.ana.rows.map(function (r) {
     var pal = (r.tier < 0) ? ANA_BAL : ANA_PAL[anaTierOf(r.i)];
@@ -8317,28 +8350,213 @@ async function anaNbest() {
   }
 }
 
-// Official balanced openings only (no winning lines): renju (forbidden
-// moves) 6 sets, freestyle / long-no-win 9 sets. Mirrors the rapfi official
-// logic used by gomocalc and the Link window's opening book.
-var BAL_RJ = [
-  [[7, 7], [8, 8], [9, 9]],   // Chosei  long star
-  [[7, 7], [8, 8], [9, 5]],   // Ryusei  meteor
-  [[7, 7], [8, 8], [8, 7]],   // Ungetsu  cloud moon
-  [[7, 7], [7, 8], [7, 9]],   // Kansai  cold star
-  [[7, 7], [7, 8], [9, 9]],   // Sosei  sparse star
-  [[7, 7], [7, 8], [7, 5]],   // Zuisei  lucky star
+// 平衡定式表（**黑 1 固定天元型**）—— 同时充当「无禁手公式」与「有禁手公式」：
+//   两张公式在「黑 1 天元」这个走法下收敛到同一批三手（白 2 走斜 I9(8,8) 或直 H9(7,8)，
+//   黑 3 按官方表取点）。逐条引擎实测（RapfiEngine-avx512vnni，YXBALANCETWO 取
+//   「白这一手＋黑应手」这一对最接近 0 的分，≤ 50 = 官方 balanceWindow 内的「平」）：
+//     · 无禁手（rule 0）：|评估| 1~44 → 26/26 平衡
+//     · 有禁手（rule 2）：|评估| 1~17 → 26/26 平衡
+//   ⇒ 只保留平衡定式，**必胜定式一条都不加**（用户：「无禁手公式+有禁手公式，
+//     只利用里面的平衡定式，必胜定式不可添加」）。
+//   注：连线版（bridge.js）那边不走「黑 1 天元」固定式，而是整组三手直接用，所以它
+//   用的是**分开的两张表**：无禁手 = 官方 Swap2 三手 9 组（实测 9/9 平衡）、
+//   禁手 = 下面这张 RIF 26。两条线路各按各的走法取表，不混用。
+var BAL_OPEN_TJ = [
+  [[7, 7], [8, 8], [9, 9]],
+  [[7, 7], [8, 8], [9, 8]],
+  [[7, 7], [8, 8], [9, 7]],
+  [[7, 7], [8, 8], [9, 6]],
+  [[7, 7], [8, 8], [9, 5]],
+  [[7, 7], [8, 8], [8, 7]],
+  [[7, 7], [8, 8], [8, 6]],
+  [[7, 7], [8, 8], [8, 5]],
+  [[7, 7], [8, 8], [7, 6]],
+  [[7, 7], [8, 8], [7, 5]],
+  [[7, 7], [8, 8], [6, 6]],
+  [[7, 7], [8, 8], [6, 5]],
+  [[7, 7], [8, 8], [5, 5]],
+  [[7, 7], [7, 8], [7, 9]],
+  [[7, 7], [7, 8], [9, 9]],
+  [[7, 7], [7, 8], [8, 8]],
+  [[7, 7], [7, 8], [9, 8]],
+  [[7, 7], [7, 8], [9, 7]],
+  [[7, 7], [7, 8], [7, 6]],
+  [[7, 7], [7, 8], [9, 6]],
+  [[7, 7], [7, 8], [7, 5]],
+  [[7, 7], [7, 8], [8, 5]],
+  [[7, 7], [7, 8], [8, 9]],
+  [[7, 7], [7, 8], [8, 7]],
+  [[7, 7], [7, 8], [8, 6]],
+  [[7, 7], [7, 8], [9, 5]],
 ];
-var BAL_FR = [
-  [[6, 7], [6, 4], [4, 2]],
-  [[3, 3], [5, 5], [6, 6]],
-  [[3, 2], [5, 4], [4, 5]],
-  [[5, 2], [1, 5], [1, 6]],
-  [[8, 5], [5, 8], [6, 7]],
-  [[5, 5], [8, 8], [7, 7]],
-  [[13, 12], [13, 9], [10, 12]],
-  [[11, 7], [10, 6], [13, 5]],
-  [[3, 7], [1, 8], [0, 4]],
-];
+// ★ 2026-10-13 已**停用**（保留仅为对照，勿再调用）：这是「从对弈引擎的候选里挑
+//   |评估| 最小的一个」的老口径。它的问题是把**对弈引擎的分**当平衡点的分用 ——
+//   实测禁手盘面 YXNBEST 8 给 +546（无禁手同盘才 +12），挂到「平衡点」名下就是
+//   用户报的「接近 1000 分的误差」。现在的口径：平衡点只认平衡引擎（YXBALANCETWO），
+//   拿不到就如实报 anBalNoEngine，绝不用对弈引擎顶替。
+function balClosestToZero(cands, nearC, nearR) {
+  if (!cands || !cands.length) return null;
+  var scope = cands;
+  if (nearR > 0 && nearC >= 0) {
+    var near = cands.filter(function (c) {
+      return Math.max(Math.abs(c.x - nearC), Math.abs(c.y - nearC)) <= nearR;
+    });
+    if (near.length) scope = near;
+  }
+  var best = null, bv = Infinity;
+  scope.forEach(function (c) {
+    var v = evalNum(c.eval);
+    if (!isNaN(v) && Math.abs(v) < bv) { bv = Math.abs(v); best = c; }
+  });
+  return best || scope[0];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 开局三平衡点 = 黑 1 固定天元 + 引擎原生平衡搜索**成对**给出的（白 2, 黑 3）。
+//   「哪一点最平」**完全交给引擎**：Rapfi 的 balance 模式内部按
+//   balancedValue(v,bias) = -|v-bias|+bias 排序（bias = 0 ⇒ 取 |评估| 最小，即最接近
+//   和棋的那一手），并用 balanceWindow(50) 判定够不够平。页面只做「合法性复核 +
+//   把引擎给的评估分如实报出来」，不自造打分、不碰平衡算法本身。
+// ★★ 2026-10-13 **撤掉中心区间锁**（上一轮锁 3×3 / 5×5 是错的）。用户：
+//   「一定要分清有禁手和无禁手，有时候这三个平衡点不仅仅只在中心那几个位置，光靠中心
+//     那几个位置很难做出真正的平衡点，一直使用的是有禁手模式的平衡点」。
+//   实测（黑 1 天元后一次 YXBALANCETWO，1.5s/手）：
+//     不锁（本轮）        无禁手 |评估| 14~44 / 禁手 25~43   ← 平衡对的第 2 点常在 d=3
+//     锁中心 3×3 / 5×5    禁手 |评估| = M4（锁完直接算出杀棋！）← 锁死 = 把平衡点挤没了
+//     逐手单点 ONE（更早） 无禁手 486 / 禁手 297               ← 那才是「一眼看出谁占优」
+//   禁手 / 无禁手的区别不再靠「锁区间」体现，而是靠**传给引擎的 rule**：禁手规则下
+//   引擎的着法生成会自动剔掉黑方禁手点，无禁手不会 —— 那才是规则真正该管的事。
+function balLegalAt(board, x, y, side) {
+  if (!board[y] || board[y][x]) return false;
+  if (side === 1 && renjuRule() && vcxForbidden(board, x, y)) return false;
+  return true;
+}
+
+var _balCidSeq = 0;
+// 开局平衡点的**退化通道**：一次 YXBALANCETWO 拿不到成对答案时才走这里。
+//   (1) 原生 **YXBALANCETWO**（成对）—— 只取这一对的第 1 手（联合平衡的那一手）。
+//       不再用单点 YXBALANCEONE：实测它在近乎空盘上评估 −350~−470，报出来就是
+//       「评估差距过大」；成对搜索才把分差压回 0 附近。
+//   (2) 再来一轮 n=2（引擎内部逐轮 YXBLOCK 掉上一手 ⇒ 依次给出次优平衡点），
+//       只为兜住偶发超时 / 禁手点 / 已被占用的点。
+//   ★ 绝不退回 analyze()（= 对弈引擎 YXNBEST）：那样开局点就变成「对弈引擎算出来的
+//     最好一手」而不是「平衡搜索给出的最平一手」，正是用户报的
+//     「开局还是调用的原对弈引擎而不是平衡引擎」。拿不到就交回 null，
+//     由 openBalChain → anaBalPoints 走**官方定式**兜底（仍是黑 1 天元开局）。
+async function balBalancedPick(board, side, rule, turnMs, gen, lane) {
+  var qMs = Math.max(600, Math.min(1500, Math.round((turnMs || 2000) * 0.6)));
+  var cid = 'calc-openbal-' + side + '-' + (++_balCidSeq);
+  var scanNative = async function (n) {
+    var j = await apiBalance({
+      board: board, moveList: [], n: n, mode: 'two', rule: rule,
+      turnMs: qMs, lane: lane || 'sub', cid: cid, side: side,
+    }, n * qMs + 25000);
+    if (gen !== G.ana.gen) return null;
+    if (!j || j.swap) return null;
+    return j.moves || [];
+  };
+  var rounds = [1, 2];
+  for (var ri = 0; ri < rounds.length; ri++) {
+    var mv = null;
+    try { mv = await scanNative(rounds[ri]); } catch (e) { mv = null; }
+    if (gen !== G.ana.gen) return null;
+    if (mv && mv.length) {
+      for (var k = 0; k < mv.length; k++) {
+        if (balLegalAt(board, mv[k][0], mv[k][1], side)) return { x: mv[k][0], y: mv[k][1] };
+      }
+    }
+  }
+  if (gen !== G.ana.gen) return null;
+  return null;
+}
+
+// 开局三手：黑 1 = 天元（固定），白 2 / 黑 3 用**一次 YXBALANCETWO 成对取出**。
+//   Rapfi 的 BALANCE_TWO 会在根节点枚举「白 2 + 黑 3」这两手的所有组合，按
+//   balancedValue(v,bias) = -|v-bias|+bias（bias=0 ⇒ |评估| 最小）取最接近和棋的一对。
+//   ★★ **成对才平**：单点 YXBALANCEONE 是按「白 2 自己最小 |分|」挑的，抵消不了
+//     「黑 2 子 vs 白 1 子」的先天优势。实测（黑 1 天元后，1.5s/手）：
+//       ONE → -486（无禁手）/ -297（禁手）       ← 就是用户看到的「一眼看出谁占优」
+//       TWO →  +14（无禁手）/ +25~43（禁手）     ← 官方 balanceWindow(50) 内才算「平」
+//     （ScalingFactor = 200 ⇒ 胜率 = sigmoid(V/200)：50 ⇒ 56%，120 ⇒ 65%）
+//   ★★ **不加中心区间锁**：实测把白 2 锁进天元 3×3 之后，禁手侧直接算出杀棋
+//     （|评估| = M4）—— 锁死等于把平衡点挤没了。禁手 / 无禁手的区别靠 rule 参数
+//     （引擎的着法生成会自己剔掉黑方禁手点），不靠锁区间。
+// 返回 [{x,y,color,seq}]，长度 1~3（引擎不可用时会短于 3，上层退官方定式）。
+async function openBalChain(rule, turnMs, gen) {
+  var c = (N - 1) >> 1;
+  var board = G.board.map(function (r) { return r.slice(); });
+  var out = [], stones = 0;
+  for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) if (board[y][x]) stones++;
+  if (!stones) { board[c][c] = 1; stones = 1; out.push({ x: c, y: c, color: 'b', seq: '1' }); }
+  if (out.length !== 1) return out;                 // 盘上已有子 ⇒ 不属于「开局三手」
+  var qMs = Math.max(600, Math.min(2000, Math.round((turnMs || 2000) * 0.8)));
+  G.ana.balEval = null; G.ana.balMode = null;
+  // (1) 首选：一次 YXBALANCETWO ——（白 2, 黑 3）成对平衡
+  var j2 = null;
+  try {
+    j2 = await apiBalance({
+      board: board, moveList: [], n: 1, mode: 'two', rule: rule,
+      turnMs: qMs, lane: 'main', cid: 'calc-openbal2-' + (++_balCidSeq),
+      side: 2,
+    }, qMs + 25000);
+  } catch (e2) { j2 = null; }
+  if (gen !== G.ana.gen) return out;
+  var pair = (j2 && !j2.swap && j2.moves) ? j2.moves.slice(0, 2) : [];
+  if (pair.length === 2 && balLegalAt(board, pair[0][0], pair[0][1], 2)) {
+    board[pair[0][1]][pair[0][0]] = 2;
+    if (balLegalAt(board, pair[1][0], pair[1][1], 1)) {
+      out.push({ x: pair[0][0], y: pair[0][1], color: 'w', seq: '2' });
+      out.push({ x: pair[1][0], y: pair[1][1], color: 'b', seq: '3' });
+      G.ana.balEval = (j2 && j2.eval != null) ? j2.eval : null;
+      G.ana.balMode = 'two';
+      return out;
+    }
+    board[pair[0][1]][pair[0][0]] = 0;
+  }
+  // (2) 退化：成对拿不到 / 落点非法 ⇒ 单点 ONE 逐手取（同样不锁中心区）
+  var sides = [2, 1], lanes = ['sub', 'sub'];
+  for (var i = 0; i < sides.length && out.length < 3; i++) {
+    var p = null;
+    try { p = await balBalancedPick(board, sides[i], rule, turnMs, gen, lanes[i]); }
+    catch (e) { p = null; }
+    if (gen !== G.ana.gen) return out;
+    if (!p) break;
+    board[p.y][p.x] = sides[i];
+    out.push({ x: p.x, y: p.y, color: (sides[i] === 1) ? 'b' : 'w', seq: String(out.length + 1) });
+  }
+  G.ana.balMode = 'one';
+  return out;
+}
+
+// 平衡点完成提示：把引擎给的**评估分**一并报出来 —— 用户要的判据就是
+// 「分差应该在 0 附近才可以」，光给坐标看不出平不平。|ev| ≤ 50（官方 balanceWindow）
+// 是「平」，越大越不平（ScalingFactor=200 ⇒ 50→56% 胜率，486→91%）。
+function balDoneMsg(n, names, ev) {
+  var base = T('anBalDone').replace('{n}', String(n)).replace('{list}', names.join(', '));
+  if (ev == null || isNaN(+ev)) return base;
+  return base + T('anBalEval').replace('{v}', String(Math.abs(Math.round(+ev))));
+}
+
+// ★ 2026-10-13（用户）：「如果用户想在开局的时候定平衡点的话，应该要评估几个才合理」。
+//   开局 = 官方指定开局那三手之内（黑1 天元 / 白2 / 黑3，即盘上 ≤ 3 子）。此时补一句
+//   「开局评估几个才合理」的提示；出了开局阶段就不显示（那时点数由用户按中盘需要自选）。
+//   依据：中国五子棋竞赛规则(2025) 第 11 条「指定开局」/ RIF —— 官方开局只有三手。
+//   ★ 2026-10-13（用户）：「这个提示文案是多条的，是灵活多变的，不应该只是一个大段话」：
+//     改为从 anBalOpenHints 短句池里**随机抽 1~2 条**（不重复），每条单独一行（用 \n 分行，
+//     renderAna 见到 \n 会切 white-space:pre-line）—— 同一个局面多点几次看到的角度不同。
+function balOpenHintTxt() {
+  if (G.moves.length > 3) return '';
+  var pool = T('anBalOpenHints');
+  if (!pool || !pool.length || typeof pool === 'string') return '';
+  var left = pool.slice();
+  var n = Math.min(left.length, 1 + Math.floor(Math.random() * 2));   // 每次 1~2 条
+  var out = [];
+  for (var i = 0; i < n && left.length; i++) {
+    out.push(left.splice(Math.floor(Math.random() * left.length), 1)[0]);
+  }
+  return '\n　※ ' + out.join('\n　※ ');
+}
+
 async function anaBalPoints() {
   if (!anaGuard(0)) return;
   evalQuietAi();
@@ -8350,48 +8568,61 @@ async function anaBalPoints() {
   var empty = !G.moves.length;
   var need = empty ? 3 : Math.max(1, Math.min(6, balPN()));
   try {
-    if (AI_REMOTE && !empty) {
-      // Any stone count: evaluate the user-chosen number of balanced
-      // candidate points (1..6, default 2) through the official balance
-      // search (YXBALANCEONE); each point is really placed before the next
-      // one is searched, so colors alternate exactly like real moves.
+    if (!empty) {
+      // (1) 官方平衡搜索（原生硬链接）：**成对**取点 —— 每次 YXBALANCETWO 给出 2 手，
+      //     这两手是引擎按 balancedValue(v,bias) = -|v-bias|+bias 联合挑出来的
+      //     「连着下都不吃亏」的组合。逐手单点（ONE）是各取自己最小的 |分|，实测会漂：
+      //     同一个中盘（无禁手）ONE 收在 |评估| 132，成对只有 9。
+      //     非空局面没有官方开局区间，不传 zoneR（中心锁只属于禁手开局前 3 手）。
       var bmB = G.board.map(function (r) { return r.slice(); });
       var plyB = G.moves.length;
-      var marksArr = [], namesB = [];
-      var qMs = Math.max(600, Math.min(1200, turnMs));
-      for (var qi = 0; qi < need; qi++) {
+      var marksArr = [], namesB = [], evB = null;
+      var qMs = Math.max(600, Math.min(1800, turnMs));
+      while (marksArr.length < need) {
+        // ★ 2026-10-13 二次修正（用户：「当前有禁手模式，平衡点评估经常差距过大」
+        //   「分数差应该在 0 附近才可以」）：**收尾那手也一律走成对 YXBALANCETWO**。
+        //   原来剩 1 手时用单点 YXBALANCEONE，引擎实测（白方待走）：
+        //     空盘+黑1天元  ONE 无禁手 −468 / 标准 −463 / 禁手 −352   ← 差得离谱
+        //     同一局面 TWO 无禁手 +12 / 标准 +21 / 禁手 +17            ← 都在 balanceWindow(50) 内
+        //   原因：ONE 是「单点取最接近 0」，白只下一手时根本抵消不掉黑天元那一子的固有优势；
+        //   TWO 搜的是「白这一手 + 黑应手」的**对**，两手联合才能把分差压回 0。
+        //   成对里只取第 1 手即可（它就是「下完仍保持平衡」的那一手，第 2 手是对方的最优应手），
+        //   报出的评估分也用这一对的分 —— 不再出现单点那种 −350 的假「不平衡」。
+        var modeB = 'two';
+        var qi = marksArr.length;
         var curB = ((plyB + qi) % 2 === 0);
-        var colQ = curB ? 'b' : 'w';
         var jQ = null;
         try {
           jQ = await apiBalance({
-            board: bmB, moveList: [], n: 1, mode: 'one', rule: engineRule(),
+            board: bmB, moveList: [], n: 1, mode: modeB, rule: engineRule(),
             turnMs: qMs, lane: 'main', cid: 'calc-balpts-' + G.moves.length + '-' + qi,
             side: curB ? 1 : 2,
           }, qMs + 20000);
         } catch (eQ) { jQ = null; }
         if (gen !== G.ana.gen) return;
         if (jQ && jQ.swap) { renderAna(T('balSwapNow')); paint(); return; }
-        var pQ = (jQ && jQ.moves && jQ.moves[0]) || null;
-        if (!pQ) break;
-        bmB[pQ[1]][pQ[0]] = colQ === 'b' ? 1 : 2;
-        var evQ = '';
-        try {
-          var rEv = await analyze(280, 1, qi % 2 ? 'sub' : 'main', curB ? 1 : 2, T('tagBal1'), { board: bmB });
-          if (gen !== G.ana.gen) return;
-          if (rEv && rEv.candidates && rEv.candidates[0] && rEv.candidates[0].eval != null)
-            evQ = rEv.candidates[0].eval;
-        } catch (eEv) { evQ = ''; }
-        marksArr.push({ x: pQ[0], y: pQ[1], color: colQ, ev: evQ, seq: String(qi + 1) });
-        namesB.push(coordName(pQ[0], pQ[1]));
+        if (jQ && jQ.eval != null) evB = jQ.eval;
+        var ptsQ = (jQ && jQ.moves) || [];
+        if (!ptsQ.length) break;
+        var addedQ = 0;
+        for (var pk = 0; pk < ptsQ.length && marksArr.length < need; pk++) {
+          if (bmB[ptsQ[pk][1]][ptsQ[pk][0]]) continue;
+          var sideQ = ((plyB + marksArr.length) % 2 === 0) ? 1 : 2;
+          bmB[ptsQ[pk][1]][ptsQ[pk][0]] = sideQ;
+          marksArr.push({ x: ptsQ[pk][0], y: ptsQ[pk][1],
+                          color: sideQ === 1 ? 'b' : 'w', seq: String(marksArr.length + 1) });
+          namesB.push(coordName(ptsQ[pk][0], ptsQ[pk][1]));
+          addedQ++;
+        }
+        if (!addedQ) break;                 // 防「全是已占点」时空转
       }
-      if (!marksArr.length) { renderAna(T('anEmpty')); return; }
-      renderBalMarks(marksArr, T('anBalDone').replace('{n}', String(marksArr.length)).replace('{list}', namesB.join(', ')));
-      return;
-    }
-    if (!empty) {
+      if (marksArr.length) {
+        renderBalMarks(marksArr, balDoneMsg(marksArr.length, namesB, evB) + balOpenHintTxt());
+        return;
+      }
+      // (2) 连线版页内面板桥（bridge.js 打开时）：同一条原生平衡通道
       if (typeof window.GB_BAL_POINTS === 'function') {
-        var marksArr = [], namesB = [];
+        marksArr = []; namesB = [];
         try {
           await window.GB_BAL_POINTS({
             board: G.board, moves: G.moves.length, need: need, rule: engineRule(),
@@ -8406,94 +8637,79 @@ async function anaBalPoints() {
           return;
         }
       }
-      // Fallback: local engine (hard bridge), one balanced pick per side, alternating
-      // colours; each point is really placed on a working copy so the search
-      // sees a genuine position. The engine returns the near-zero-advantage
-      // candidate for the side to move, which is exactly a balance point.
-      var bmB = G.board.map(function (r) { return r.slice(); });
-      var plyB = G.moves.length;
-      var marksArr = [], namesB = [];
-      var qMs = Math.max(600, Math.min(1200, turnMs));
-      var lanesB = ['main', 'sub', 'sub'];
-      for (var qi = 0; qi < need; qi++) {
-        var curB = ((plyB + qi) % 2 === 0);
-        var rQ = null;
-        try {
-          rQ = await analyze(qMs, 8, lanesB[qi % 3], curB ? 1 : 2, T('tagBal1'), { board: bmB });
-        } catch (eQ) { rQ = null; }
-        if (gen !== G.ana.gen) return;
-        var csQ = (rQ && rQ.candidates) || [];
-        if (!csQ.length) break;
-        var biQ = 0, bvQ = Infinity;
-        csQ.forEach(function (c, i) {
-          var v = evalNum(c.eval);
-          if (!isNaN(v) && Math.abs(v) < bvQ) { bvQ = Math.abs(v); biQ = i; }
-        });
-        var pQ = csQ[biQ];
-        bmB[pQ.y][pQ.x] = curB ? 1 : 2;
-        marksArr.push({ x: pQ.x, y: pQ.y, color: curB ? 'b' : 'w', ev: (pQ.eval != null ? pQ.eval : ''), seq: String(qi + 1) });
-        namesB.push(coordName(pQ.x, pQ.y));
+      // (3) ★★ 2026-10-13 **删掉「用对弈引擎顶替平衡点」的兜底**。
+      //   用户：「当前有禁手的模式，连线器以及主界面的平衡点评估仍然有巨大误差，
+      //   接近 1000 分的误差」。实测（用户实际盘面 b(9,10)(7,7)/w(6,7)，1.5s/手）：
+      //     · 对弈引擎 YXNBEST 8（analyze） rule 2 → **+546**（同盘 rule 0 只 +12）
+      //     · 平衡引擎 YXBALANCETWO          rule 2 → **+21**  ← 这才是平衡口径
+      //     · 平衡引擎 YXBALANCEONE（单点）  rule 2 → +165
+      //   原来这里退到 `analyze()` + balClosestToZero：「离 0 最近的对弈引擎候选」在禁手
+      //   局面里仍然是几百上千分。那既不是平衡点、又把 ~1000 分的对弈评估挂在「平衡点」
+      //   名下 → 正是用户报的「巨大误差」。现在改为：**再给平衡引擎一次机会**（换 sub 车道、
+      //   加时间），拿不到就如实报「平衡子不可用」，绝不拿对弈引擎的数冒充平衡分。
+      var retry = null;
+      try {
+        retry = await apiBalance({
+          board: bmB, moveList: [], n: 1, mode: 'two', rule: engineRule(),
+          turnMs: Math.max(1200, qMs), lane: 'sub',
+          cid: 'calc-balpts-retry-' + G.moves.length, side: ((plyB % 2 === 0) ? 1 : 2),
+        }, Math.max(1200, qMs) + 20000);
+      } catch (eR) { retry = null; }
+      if (gen !== G.ana.gen) return;
+      if (retry && retry.swap) { renderAna(T('balSwapNow')); paint(); return; }
+      if (retry && retry.moves && retry.moves.length) {
+        var addR = 0;
+        for (var rk = 0; rk < retry.moves.length && marksArr.length < need; rk++) {
+          if (bmB[retry.moves[rk][1]][retry.moves[rk][0]]) continue;
+          var sideR = ((plyB + marksArr.length) % 2 === 0) ? 1 : 2;
+          bmB[retry.moves[rk][1]][retry.moves[rk][0]] = sideR;
+          marksArr.push({ x: retry.moves[rk][0], y: retry.moves[rk][1],
+                          color: sideR === 1 ? 'b' : 'w', seq: String(marksArr.length + 1) });
+          namesB.push(coordName(retry.moves[rk][0], retry.moves[rk][1]));
+          addR++;
+        }
+        if (retry.eval != null) evB = retry.eval;
+        if (addR && marksArr.length) {
+          renderBalMarks(marksArr, balDoneMsg(marksArr.length, namesB, evB));
+          return;
+        }
       }
-      if (!marksArr.length) { renderAna(T('anEmpty')); return; }
-      renderBalMarks(marksArr, T('anBalDone').replace('{n}', String(marksArr.length)).replace('{list}', namesB.join(', ')));
+      renderAna(T('anBalNoEngine'));
       return;
     }
     if (empty) {
-      // Official opening balance (gomocalc logic): black 1 is FIXED at the
-      // tengen, then the engine evaluates exactly two balance points -
-      // white 2 and black 3 (one white, one black), each really placed, so
-      // the three marks are black-tengen / white / black and never a
-      // forced-win opening. Rule-bound (renju / freestyle).
-      if (typeof window.GB_BAL_POINTS === 'function') {
-        var tgB = G.board.map(function (r) { return r.slice(); });
+      // ★ 开局三平衡点 —— 2026-10-13 二次重写。用户：「评定得仍不好，一定要分清有禁手和
+      //   无禁手，有时候这三个平衡点不仅仅只在中心那几个位置，光靠中心那几个位置很难
+      //   做出真正的平衡点，一直使用的是有禁手模式的平衡点，到后面两手评判得不太好，
+      //   分数相差得非常巨大了」「分数差应该在 0 附近才可以」：
+      //   · 黑 1 = 天元（固定）
+      //   · 白 2 / 黑 3 由 **一次 YXBALANCETWO** 成对取出（理由见 openBalChain 注释）
+      //   · **不加中心区间锁** —— 上一轮锁 3×3 / 5×5 之后禁手侧直接算出杀棋（|评估| = M4），
+      //     无禁手真正的平衡手也常在中心区之外。禁手 / 无禁手的区别靠 rule 传给引擎。
+      //   实测（黑 1 天元后，引擎 1.5s/手，|评估| ≤ 50 为官方 balanceWindow 内的「平」）：
+      //     无禁手：ONE 486 ✗ → TWO 14~44 ✓（平衡对第 2 点常在 d=3）
+      //     禁手  ：ONE 297 ✗ → TWO 25~43 ✓
+      var ruleE = engineRule();
+      var marksE = await openBalChain(ruleE, Math.max(2000, S.turnMs || 2000), gen);
+      if (gen !== G.ana.gen) return;
+      // 引擎完全不可用（三点没凑齐）：退到官方平衡定式（全部以天元作黑 1、无必胜线）
+      if (marksE.length < 3) {
         var cyB = (N - 1) >> 1;
-        if (!tgB[cyB][cyB]) {
-          tgB[cyB][cyB] = 1;
-          var marksE0 = [], namesE0 = [];
-          try {
-            await window.GB_BAL_POINTS({
-              board: tgB, moves: 1, need: 2, rule: engineRule(),
-              turnMs: Math.max(2000, S.turnMs || 2000),
-              onMarks: function (ms) { marksE0 = ms || []; },
-            });
-          } catch (eE0) { marksE0 = []; }
-          if (gen !== G.ana.gen) return;
-          if (marksE0 && marksE0.length) {
-            var fullE = [{ x: cyB, y: cyB, color: 'b', ev: '', seq: '1' }];
-            marksE0.forEach(function (m) {
-              fullE.push({ x: m.x, y: m.y, color: m.color, ev: '', seq: String(fullE.length + 1) });
-            });
-            fullE.forEach(function (m) { namesE0.push(coordName(m.x, m.y)); });
-            renderBalMarks(fullE, T('anBalDone').replace('{n}', String(fullE.length)).replace('{list}', namesE0.join(', ')));
-            return;
-          }
-        }
+        marksE = [{ x: cyB, y: cyB, color: 'b', seq: '1' }];
+        var fbk = BAL_OPEN_TJ[Math.floor(Math.random() * BAL_OPEN_TJ.length)];
+        marksE.push({ x: fbk[1][0], y: fbk[1][1], color: 'w', seq: '2' });
+        marksE.push({ x: fbk[2][0], y: fbk[2][1], color: 'b', seq: '3' });
+        G.ana.balEval = null;
       }
-      // Fallback (engine unavailable): tengen black + the official balanced
-      // opening's white-2 and black-3, winning lines excluded.
-      var BOOKS = (engineRule() === 2) ? BAL_RJ : BAL_FR;
-      var fb = BOOKS[Math.floor(Math.random() * BOOKS.length)];
-      var cyB2 = (N - 1) >> 1;
-      var fbMarks = [
-        { x: cyB2, y: cyB2, color: 'b', ev: '', seq: '1' },
-        { x: fb[1][0], y: fb[1][1], color: 'w', ev: '', seq: '2' },
-        { x: fb[2][0], y: fb[2][1], color: 'b', ev: '', seq: '3' },
-      ];
-      renderBalMarks(fbMarks, T('anBalDone').replace('{n}', '3').replace('{list}', fbMarks.map(function (m) { return coordName(m.x, m.y); }).join(', ')));
+      var namesE = marksE.map(function (m) { return coordName(m.x, m.y); });
+      renderBalMarks(marksE, balDoneMsg(marksE.length, namesE, G.ana.balEval) + balOpenHintTxt());
       return;
     }
-    // local engine fallback: single balanced pick
-    var r = await analyze(turnMs, Math.min(8, Math.max(4, anaIp())), null, curColor(), T('tagBal1'));
-    if (gen !== G.ana.gen) return;
-    var cs = (r && r.candidates) || [];
-    if (!cs.length) { renderAna(T('anEmpty')); return; }
-    var bi = 0, bv = Infinity;
-    cs.forEach(function (c, i) {
-      var v = evalNum(c.eval);
-      if (!isNaN(v) && Math.abs(v) < bv) { bv = Math.abs(v); bi = i; }
-    });
-    renderBalMarks([{ x: cs[bi].x, y: cs[bi].y, color: curColor() === 1 ? 'b' : 'w', ev: cs[bi].eval, seq: '1' }],
-                   T('anBalDone').replace('{n}', '1').replace('{list}', coordName(cs[bi].x, cs[bi].y)));
+    // ★ 2026-10-13：这里原本还有一段 `analyze()` + 「取 |评估| 最小的候选」的死兜底
+    //   （对弈引擎 YXNBEST）。它在禁手局面里报出来的就是 +546 那种「对弈分」，
+    //   挂在「平衡点」名下正是用户说的「接近 1000 分的误差」。已整体删除：
+    //   平衡点的评估**只能**来自平衡引擎，拿不到就如实说拿不到（见上面的 anBalNoEngine）。
+    renderAna(T('anBalNoEngine'));
   } catch (e) {
     if (gen === G.ana.gen) renderAna(T('offline'));
   } finally {
@@ -8503,13 +8719,16 @@ async function anaBalPoints() {
 
 function renderBalMarks(arr, msg) {
   G.ana.balLeft = arr.length;
+  G.ana.balBase = G.moves.length;   // these marks belong to THIS board state
+  var WHITE_DISC = 'rgba(70,190,255,.95)';
   G.ana.marks = arr.map(function (m, i) {
-    // Sequence number only - no eval score on balance marks
+    // Sequence number only - no eval score on the balance marks
     return { x: m.x, y: m.y, badge: m.seq, label: '', tier: -1, inline: true,
-             col: m.color === 'b' ? null : 'rgba(70,190,255,.55)' };
+             col: m.color === 'b' ? null : WHITE_DISC };
   });
   G.ana.rows = arr.map(function (m, i) {
-    return { i: i, badge: m.seq, coord: coordName(m.x, m.y), eval: '', pv: '', tier: -1 };
+    return { i: i, badge: m.seq, coord: coordName(m.x, m.y), eval: '', pv: '', tier: -1,
+             col: m.color === 'b' ? null : WHITE_DISC };
   });
   renderAna(msg + T('anBalColor'));
   paint();
@@ -8722,6 +8941,10 @@ function boot() {
   try {
     var st = JSON.parse(localStorage.getItem('gbcalc.settings.v1') || '{}');
     for (var k in st) if (S.hasOwnProperty(k)) S[k] = st[k];
+    // ★ 2026-10-13（用户：「在用户选择规则的时候，一定要正确链接」）：规则以专属键为准 ——
+    //   这样「上次在连线窗里选的规则」在下次开主界面时同样生效，反之亦然。
+    var rgBoot = loadRuleGlobal();
+    if (rgBoot != null) S.rule = rgBoot;
     
     if (S.mode !== 'pve' && S.mode !== 'place' && S.mode !== 'endgame') S.mode = 'place';   
     
@@ -9006,6 +9229,14 @@ function boot() {
   els.sel_rule.onchange = function () {
     var prev = +S.rule;
     S.rule = +els.sel_rule.value; save(); applyRuleHint();
+    // ★ 2026-10-13（用户：「有禁手和无禁手的平衡点它都是不一样的，在用户选择规则的时候，
+    //   一定要正确链接」）：**写全局规则键 + 每次改规则都推给连线窗**。
+    //   原来这行 tellHost 写在本 handler 的**外面**（只在本页启动时执行一次），
+    //   所以主界面把规则从「无禁手」改成「有禁手」时，连线窗完全不知道 ——
+    //   连线器的「交换平衡点 / 交换评估 / 自动落子」照旧按旧规则（无禁手）算，
+    //   于是禁手局面拿到的是无禁手的平衡点。放在 onchange 里之后，两边永远同步。
+    saveRuleGlobal(S.rule);
+    if (linkSessionOn()) tellHost({ type: 'linkCfgSync', rule: +S.rule });
     if (+S.rule === prev) { refreshUI(); return; }
     
     if (G.moves.length) {
@@ -9023,6 +9254,8 @@ function boot() {
     resetGame(false); openStart(); refreshUI();   
   };
   
+  // 启动时若连线会话已开（比如本页是重开的），先把当前规则推一次；之后每次改规则由
+  // sel_rule.onchange 里的同名语句负责（见上）。
   if (linkSessionOn()) tellHost({ type: 'linkCfgSync', rule: +S.rule });
   els.sel_cores.onchange = function () { S.cores = +els.sel_cores.value; save(); applyEngineConfig(); };
   els.sel_hash.onchange = function () {
@@ -9483,6 +9716,23 @@ function fitFont() {
 function linkSessionOn() { return !!(G && G.linkOn); }
 function settingsKey() { return linkSessionOn() ? 'gbcalc.settings.link.v1' : 'gbcalc.settings.v1'; }
 
+// ★ 2026-10-13（用户：「有禁手和无禁手的平衡点它都是不一样的，在用户选择规则的时候，
+//   一定要正确链接」）：规则改用**一个专属键**做全局单一来源。
+//   主界面与连线窗来自同一个源（calc.html，只是连线窗多带 ?link=1），同源 ⇒ localStorage 共用，
+//   所以任意一方改了规则、写进这个键，另一方下次启动必然读到新值。
+//   为什么不用 gbcalc.settings.v1 / .link.v1：那两个键随「连线中 / 非连线」交替写入
+//   （见 save() 的 settingsKey()），没有先后信息、没法判断谁更新 —— 读错的那一次就会
+//   把「有禁手」的局面按「无禁手」算平衡点，正是用户说的「一定要正确链接」要避免的。
+function saveRuleGlobal(r) {
+  try { localStorage.setItem('gbcalc.rule.v1', String(+r)); } catch (e) {}
+}
+function loadRuleGlobal() {
+  try {
+    var v = parseInt(localStorage.getItem('gbcalc.rule.v1'), 10);
+    return (v === 0 || v === 1 || v === 2) ? v : null;
+  } catch (e) { return null; }
+}
+
 function GLOBAL_LOOK_KEYS() { return ['lang', 'theme', 'cssVars', 'customBase']; }
 function save() {
   try {
@@ -9540,6 +9790,10 @@ function setLinkMode(on) {
     S.mode = 'pve';
     G.heat = []; G.nums = [];
     ++gAiGen; G.busy = false; G.think = [];
+    // ★ 2026-10-13：连线会话一开，就把主界面的规则推给连线窗（用户：「在用户选择规则的时候，
+    //   一定要正确链接」）。上面那段只处理「连线窗先发过 cfg」的情况；连线窗还没发过 cfg 时
+    //   LINK_CFG_LAST 为空、S.rule 保持主界面的值，这里补推一次，保证两边开局就一致。
+    tellHost({ type: 'linkCfgSync', rule: +S.rule });
   } else {
     ++gAiGen; G.busy = false; G.think = [];     
   }
@@ -9550,7 +9804,13 @@ function setLinkMode(on) {
   if (els.seg_mode) [].forEach.call(els.seg_mode.querySelectorAll('button'), function (x) {
     x.classList.toggle('on', x.getAttribute('data-mode') === S.mode);
   });
-  if (els.num_turn) els.num_turn.value = turnSecs();
+  // ★ 2026-10-13 修（HEAD 既有缺陷）：这里原来调 turnSecs()，但它只是 **boot() 内部的
+  //   局部函数** —— setLinkMode() 在另一个作用域，于是每次一进连线就抛
+  //   `ReferenceError: turnSecs is not defined`，把这行**之后**的
+  //   「规则下拉回填 els.sel_rule.value / applyLayout / applyLang / buildSelects / refreshUI / paint」
+  //   整段都跳过了 —— 正好卡在用户关心的「规则」那一步上（进连线后主界面规则下拉不刷新）。
+  //   （连线的真机测试就是靠这条红出来的。）改成等价的就地计算，不再依赖 boot() 的局部函数。
+  if (els.num_turn) els.num_turn.value = ((+S.turnMs || 2000) / 1000).toFixed(3);
   if (els.sel_rule) els.sel_rule.value = String(S.rule);
   applyLayout();                       
   
@@ -9875,6 +10135,12 @@ function bootLink() {
     else if (st1 && st1.lang) S.lang = (st1.lang === 'en') ? 'en' : 'zh';
     if (st && st.cssVars) { S.cssVars = st.cssVars; applyColorVars(st.cssVars); }
     else if (st1 && st1.cssVars) { S.cssVars = st1.cssVars; applyColorVars(st1.cssVars); }
+    // ★ 2026-10-13（用户：「有禁手和无禁手的平衡点它都是不一样的，在用户选择规则的时候，
+    //   一定要正确链接」）：连线窗启动时先认**全局规则键**（主界面选的那份），
+    //   让下面 `c.rule` 初始化时以它为准 —— 否则连线窗会拿自己上次那份 gbcalc.link.cfg
+    //   覆盖掉主界面刚选的规则，开局第一个平衡点就按错规则算。
+    var rgLk = loadRuleGlobal();
+    if (rgLk != null) S.rule = rgLk;
   } catch (e) {}
   document.body.setAttribute('data-theme', S.theme);
   document.body.classList.add('link');
@@ -9961,7 +10227,12 @@ function bootLink() {
       b.classList.toggle('on', +b.getAttribute('data-rule') === (c.rule >= 0 && c.rule <= 2 ? c.rule : 0));
     });
   }
-  c.rule = (c.rule >= 0 && c.rule <= 2) ? c.rule : (+S.rule === 1 || +S.rule === 2 ? +S.rule : 0);
+  // ★ 2026-10-13（用户：「在用户选择规则的时候，一定要正确链接」）：**全局规则键优先**。
+  //   S.rule 上面刚从全局键载入过 ⇒ 主界面选了什么规则，连线窗开局就用什么规则；
+  //   全局键还没有（首次运行）才退到连线面板自己那份 gbcalc.link.cfg。
+  c.rule = (+S.rule === 0 || +S.rule === 1 || +S.rule === 2) ? +S.rule
+         : ((c.rule >= 0 && c.rule <= 2) ? +c.rule : 0);
+  lkSaveCfg(c);                        // 让 gbcalc.link.cfg 也跟着一致（只作为兜底来源）
   ruleSync();
   q('lk_auto').classList.toggle('on', !!c.auto);
   
@@ -10015,6 +10286,7 @@ function bootLink() {
     b.onclick = function () {
       c.rule = +b.getAttribute('data-rule'); lkSaveCfg(c); ruleSync(); lkSendCfg();
       lkBridgeRule(c.rule);                    
+      saveRuleGlobal(c.rule);                  // ★ 写全局规则键：主界面下次启动也认这个规则
       if (!lkFramedNow()) lkRemindFrame();     
     };
   });
@@ -10085,6 +10357,11 @@ function bootLink() {
             if (!BS.hasOwnProperty(k)) continue;
             
             if (k === 'lang' || k === 'dark') continue;
+            // ★ 2026-10-13（用户：「在用户选择规则的时候，一定要正确链接」）：
+            //   **规则不由这份「助手状态」恢复** —— 它是另一个键（gbcalc.assist.s），
+            //   内容可能落后于全局规则键，恢复回来就会把刚同步好的规则又改错。
+            //   规则的唯一来源 = 全局规则键 → c.rule → BS.rule（见 bootLink / lkBridgeRule）。
+            if (k === 'rule') continue;
             BS[k] = sv[k];
           }
         } catch (e) {}
@@ -10254,8 +10531,14 @@ function bootLink() {
       return;
     }
     if (m.type === 'linkCfgSync') {
-      
-      if (m.rule >= 0 && m.rule <= 2) { c.rule = m.rule; ruleSync(); }
+      // ★ 2026-10-13（用户：「有禁手和无禁手的平衡点它都是不一样的，在用户选择规则的时候，
+      //   一定要正确链接」）：主界面改了规则推过来时，**必须同时改 bridge 的 BS.rule**。
+      //   原来这里只更新面板高亮（c.rule + ruleSync），而 bridge.js 的引擎调用读的是
+      //   window.GB_S.rule —— 高亮变了、实际喂给引擎的规则没变，等于没同步。
+      if (m.rule >= 0 && m.rule <= 2) {
+        c.rule = m.rule; ruleSync(); lkBridgeRule(m.rule);
+        saveRuleGlobal(m.rule);              // 全局规则键也跟上（本次会话内一直有效）
+      }
       return;
     }
     if (m.type === 'linkBalanceDone') {

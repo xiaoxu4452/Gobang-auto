@@ -1,2 +1,0 @@
-﻿RUNNING=Desktop GomokuTrainer,GomokuVision,RapfiEngine-avx512vnni,RapfiEngine-avx512vnni
-LEFTOVER=

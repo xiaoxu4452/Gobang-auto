@@ -1,5 +1,0 @@
-﻿
-[perf] scan stab=adopted-new(board moved or first)
-[perf] scan size=15 found=1 prep=15ms find=963ms refine=184ms read=96ms total=1258ms
-
-

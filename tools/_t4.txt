@@ -1,4 +1,0 @@
-﻿_redword_test.png      --scan-image       1033.8 ms ok=True adaptive
-_redword_test.png      --recognize-image   365.7 ms ok=True adaptive
-_zhizi_test_board.png  --scan-image        163.1 ms ok=True adaptive
-_zhizi_test_board.png  --recognize-image  1426.6 ms ok=True adaptive

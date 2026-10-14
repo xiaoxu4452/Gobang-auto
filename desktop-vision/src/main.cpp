@@ -1,5 +1,19 @@
 /* Vision - main. */
 
+// ★ 2026-10-13：**识别进程默认零 TCP**（用户：「识别进程去掉http」）。
+//   本进程首选的、也是我们这一版（连线版 / 独立版）唯一使用的通道是
+//   **命名管道 + 共享内存**（gbpipe.cpp）：
+//     \\.\pipe\GomokuVision.recognize.<port>   ← 识别
+//     \\.\pipe\GomokuVision.scan.<port>        ← 扫描/寻盘
+//   宿主（desktop-connect/src/host.cpp）本来就只走 VisPipeCall。
+//
+//   ★ 为什么不把 gbhttp.cpp 整个删掉：还有两个**老产品**把识别服务当 HTTP 用 ——
+//     · `desktop-overlay`（桌面版助手）宿主用 WinHTTP POST :8971；
+//     · `engine-server`（书签版）的**网页**从浏览器直接 POST :8970（所以当年才要
+//       Access-Control-Allow-Private-Network）。
+//     用户明确说过「发布的新鲜度只针对我们这个版本的软件，其他的软件不要动」，
+//     所以 HTTP 保留为**显式 opt-in**：只有 spawn 时置 `GB_VISION_HTTP=1` 才监听 TCP。
+//     我们这一版**从不设置**这个变量 ⇒ 我们的识别进程运行时**一个 TCP 端口都不开**。
 
 #include "gb.h"
 #include "gbhttp.h"
@@ -34,12 +48,31 @@ constexpr int DEFAULT_SCAN_PORT = 8971;
 HANDLE gMutex = nullptr;
 std::atomic<bool> gStopping{false};
 
+// ★ 默认 false ⇒ 本进程不 bind 任何 TCP。
+//   判定顺序（可解释、可覆盖）：
+//     ① 显式 GB_VISION_HTTP 环境变量说了算（0/false/no ⇒ 关；1/true/yes ⇒ 开）；
+//     ② 没设环境变量时，**带显式单角色旗标（--scan / --recognize）视为老产品契约**
+//        —— 桌面版助手的宿主用 WinHTTP 打 :8971、书签版网页直接打 :8970，
+//        它们就是这么起的，所以要保留 HTTP；
+//     ③ 不带角色（= --both / 无参数，**连线版与独立版就是这么起的**）⇒ 纯管道、零 TCP。
+//   这样「识别进程去掉 http」和「其他的软件不要动」同时成立：我们这一版运行时
+//   一个 TCP 端口都不开，两个老产品一行都不用改。
+bool HttpEnabledByEnv(bool explicitSingleRole) {
+    char v[16] = {0};
+    if (GetEnvironmentVariableA("GB_VISION_HTTP", v, sizeof(v)) && v[0]) {
+        if (v[0] == '0') return false;                   // "0" / "0xxx"
+        if (v[0] == 'f' || v[0] == 'F') return false;    // false / FALSE
+        if (v[0] == 'n' || v[0] == 'N') return false;    // no / none
+        return true;                                     // "1" / "true" / "yes" ...
+    }
+    return explicitSingleRole;
+}
+
 std::vector<std::pair<std::string, std::string>> corsHeaders(bool privateNetwork) {
     std::vector<std::pair<std::string, std::string>> h;
     h.emplace_back("Access-Control-Allow-Origin", "*");
     h.emplace_back("Access-Control-Allow-Headers", "Content-Type");
     h.emplace_back("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    
     if (privateNetwork) h.emplace_back("Access-Control-Allow-Private-Network", "true");
     return h;
 }
@@ -76,15 +109,17 @@ HttpResponse modelUnavailable() {
     return jsonResponse(j);
 }
 
+// 端口号用于管道名（\\.\pipe\GomokuVision.<role>.<port>）；仅在 opt-in 时才 bind TCP。
 int recognizePort() {
     const char* e = getenv("GB_RECOG_PORT");
     if (e && *e) return atoi(e);
     return DEFAULT_RECOGNIZE_PORT;
 }
 
+// ★ 下面两个 handler **只在 GB_VISION_HTTP=1 时才被挂到 TCP 上**（老产品专用）。
 HttpResponse handleRecognize(const HttpRequest& req) {
-    gb::TouchTraffic();   
-    
+    gb::TouchTraffic();
+
     if (req.method == "OPTIONS") return noContent(true);
     if (req.method == "GET" && req.path == "/health") {
         bool ready = ModelDllReady();
@@ -95,14 +130,13 @@ HttpResponse handleRecognize(const HttpRequest& req) {
         return r;
     }
     if (req.method == "POST" && req.path == "/recognize") {
-        
         std::string resp;
         if (!ModelRecognizeJson(req.body, resp)) return modelUnavailable();
         HttpResponse r;
         r.status = 200;
         r.contentType = "application/json";
         r.body = resp;
-        r.extraHeaders = corsHeaders(true);   
+        r.extraHeaders = corsHeaders(true);
         return r;
     }
     return notFound("not found");
@@ -115,7 +149,7 @@ int scanPort() {
 }
 
 HttpResponse handleScan(const HttpRequest& req) {
-    gb::TouchTraffic();   
+    gb::TouchTraffic();
     if (req.method == "OPTIONS") return noContent(true);
     if (req.method == "GET" && req.path == "/health") {
         bool ready = ModelDllReady();
@@ -140,7 +174,6 @@ HttpResponse handleScan(const HttpRequest& req) {
         return r;
     }
     if (req.method == "POST" && req.path == "/scan-image") {
-        
         std::string resp;
         if (!ModelScanImage((const unsigned char*)req.body.data(),
                             (int)req.body.size(), false, resp)) return modelUnavailable();
@@ -193,9 +226,12 @@ int main(int argc, char** argv) {
         else if (a == "--recognize-image" && i + 1 < argc) recognizeImage = argv[++i];
         else if (a == "--help" || a == "-h") {
             printf("GomokuVision —— 五子棋棋盘识别服务（识图服务壳 + 识别模型库 DLL）\n");
-            printf("  --recognize            仅服务 :8970（POST /recognize, GET /health）\n");
-            printf("  --scan                 仅服务 :8971（POST /scan, /scan-image, /quit, GET /health）\n");
-            printf("  （不带参数 = 两个端口都服务）\n");
+            printf("  通道：**命名管道 + 共享内存**（默认；本进程一个 TCP 端口都不开）\n");
+            printf("  --recognize            只起识别管道 \\\\.\\pipe\\GomokuVision.recognize.<port>\n");
+            printf("  --scan                 只起扫描管道 \\\\.\\pipe\\GomokuVision.scan.<port>\n");
+            printf("  （不带参数 = 两条管道都起）\n");
+            printf("  env GB_VISION_HTTP=1   ★ 仅老产品需要：额外在 :8970/:8971 上开 TCP\n");
+            printf("                        （我们这一版无参数启动 ⇒ 零 TCP，纯管道）\n");
             printf("  --recognize-image 文件  离线跑一次 /recognize 并打印 JSON（开发期对拍用）\n");
             printf("  --scan-image 文件       离线跑一次 /scan-image 并打印 JSON（可配 --probe）\n");
             printf("  --nosnap                跳过自动吸附棋盘的重试（HTTP 请求体 nosnap:true 同效）\n");
@@ -298,30 +334,41 @@ int main(int argc, char** argv) {
             g_parentPid = (DWORD)atoi(v);
     }
 
+    const bool explicitSingleRole = (role == "scan" || role == "recognize");
+    const bool wantHttp = HttpEnabledByEnv(explicitSingleRole);
     bool anyOk = false;
-    for (int port : ports) {
-        std::string err;
-        bool isScan = (port == scanPort());
-        HttpHandler handler = isScan ? HttpHandler(handleScan) : HttpHandler(handleRecognize);
-        if (startHttpServer(port, handler, err)) {
-            printf("[vision] %s listening on 127.0.0.1:%d\n",
-                   isScan ? "scan service" : "recognize service", port);
-            anyOk = true;
-        } else {
-            printf("[vision] %s failed to start on :%d (%s)\n",
-                   isScan ? "scan" : "recognize", port, err.c_str());
+
+    // (1) TCP 通道：**只有老产品（显式单角色旗标）或 GB_VISION_HTTP=1 才有**。
+    //     连线版 / 独立版是**无参数**起的 ⇒ 永远走不到这里。
+    if (wantHttp) {
+        for (int port : ports) {
+            std::string err;
+            bool isScan = (port == scanPort());
+            HttpHandler handler = isScan ? HttpHandler(handleScan) : HttpHandler(handleRecognize);
+            if (startHttpServer(port, handler, err)) {
+                printf("[vision] %s listening on 127.0.0.1:%d\n",
+                       isScan ? "scan service" : "recognize service", port);
+                anyOk = true;
+            } else {
+                printf("[vision] %s failed to start on :%d (%s)\n",
+                       isScan ? "scan" : "recognize", port, err.c_str());
+            }
         }
     }
-    
+
+    // (2) 主通道：命名管道（+ 共享内存传图）。**默认唯一通道**。
     for (int port : ports) {
         std::string perr;
         const char* prole = (port == scanPort()) ? "scan" : "recognize";
-        if (startPipeServer(prole, port, perr))
+        if (startPipeServer(prole, port, perr)) {
             printf("[vision] pipe listening on \\\\.\\pipe\\GomokuVision.%s.%d\n", prole, port);
-        else
-            printf("[vision] pipe %s failed to start (%s) - hosts will fall back to HTTP\n",
-                   prole, perr.c_str());
+            anyOk = true;
+        } else {
+            printf("[vision] pipe %s failed to start (%s)\n", prole, perr.c_str());
+        }
     }
+    printf("[vision] transport = named pipe only%s\n",
+           wantHttp ? " + opt-in TCP (GB_VISION_HTTP=1)" : " (no TCP listener in this process)");
     fflush(stdout);
     if (!anyOk) {
         if (gMutex) ReleaseMutex(gMutex);

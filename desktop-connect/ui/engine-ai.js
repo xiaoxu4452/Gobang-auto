@@ -617,6 +617,140 @@ function doAnalyze(body, lane) {
   });
 }
 
+function parseBalanceLine(line) {
+  var t = String(line || '').trim();
+  if (/^SWAP$/i.test(t)) return { swap: true, pts: [] };
+  var m = t.match(/^(?:\d{1,2},\d{1,2})(?:\s+\d{1,2},\d{1,2})*$/);
+  if (!m) return null;
+  var pts = [];
+  var parts = t.split(/\s+/);
+  for (var i = 0; i < parts.length; i++) {
+    var xy = parts[i].split(',').map(Number);
+    var ex = xy[0], ey = xy[1];
+    if (!(ex >= 0 && ex < SIZE && ey >= 0 && ey < SIZE)) return null;
+    pts.push([ex, SIZE - 1 - ey]);
+  }
+  return { swap: false, pts: pts };
+}
+
+// 平衡搜索的**评估分**：引擎的 MESSAGE 行里带 "| Eval V |"（V = 平衡手落下后的局面分）。
+// 刻度：ScalingFactor = 200 ⇒ 胜率 = sigmoid(V/200)；Rapfi 官方 balanceWindow = 50，
+// 即 |V| ≤ 50 才算「平」（56% 胜率）。页面用这个值判定开局三手到底平不平 —— 之前
+// 完全没看这个数，才会出现「对方一眼就看出谁占优」而程序毫不知情。
+function parseEvalLine(line) {
+  var m = /Eval\s+([-+]?M\d+|[-+]?\d+)\s*\|/.exec(String(line || ''));
+  if (!m) return null;
+  var s = m[1];
+  if (/M\d+/i.test(s)) return (s.charAt(0) === '-' ? -1 : 1) * 90000;
+  var v = parseInt(s.replace('+', ''), 10);
+  return isNaN(v) ? null : v;
+}
+
+function fetchBalanceLine(lane, maxMs) {
+  var settled = false, sawLine = false, out = null, ev = null;
+  var poll = null, guard = null, settleTimer = null, resolveFn = null;
+  var finish = function () {
+    if (settled) return;
+    settled = true;
+    lane.captureLine = null;
+    if (poll) clearInterval(poll);
+    if (guard) clearTimeout(guard);
+    if (settleTimer) clearTimeout(settleTimer);
+    if (out) out.ev = ev;
+    if (resolveFn) resolveFn(out);
+  };
+  lane.captureLine = function (line) {
+    var e = parseEvalLine(line);
+    if (e !== null) ev = e;
+    var r = parseBalanceLine(line);
+    if (r === null) return false;
+    sawLine = true;
+    out = r;
+    return true;
+  };
+  poll = setInterval(function () {
+    if (sawLine && !settleTimer) settleTimer = setTimeout(finish, 30);
+  }, 5);
+  guard = setTimeout(finish, maxMs);
+  return { promise: new Promise(function (resolve) { resolveFn = resolve; }) };
+}
+
+function doBalance(body, lane) {
+  var board = body && body.board;
+  if (!Array.isArray(board) || board.length !== SIZE) return Promise.reject(new Error('board must be 15x15'));
+  return whenBootReady(lane).then(function () {
+    var n = Math.max(1, Math.min(10, body.n || 2));
+    var bias = Math.max(-2000, Math.min(2000, body.bias | 0));
+    var two = body.mode === 'two';
+    var turnMs = Math.max(200, Math.min(600000, body.turnMs || 5000));
+    var matchMs = Math.max(turnMs + 1000, Math.min(30000 * 1000, body.matchMs || 6000000));
+    var rule = [0, 1, 2, 5].indexOf(body.rule) >= 0 ? body.rule : 0;
+    var reqSide = (body.side === 1 || body.side === 2) ? body.side : 0;
+    var moves = toEngineMoveList(board, body.moveList, reqSide);
+    var t0 = Date.now();
+    lane.liveState = { searching: true, t0: t0, cid: body.cid || '', best: null, speed: 0, nodes: 0, pvs: [] };
+    var pre = [];
+    var wantT = (body.exclusive || body.boost || turnMs <= 1000) ? fullCoreThreads() : planLaneThreads(lane);
+    if (wantT > 0 && lane.curThreads !== wantT) {
+      lane.curThreads = wantT;
+      pre.push('INFO THREAD_NUM ' + wantT);
+    }
+    pre.push('INFO RULE ' + rule, 'INFO TIMEOUT_TURN ' + turnMs,
+             'INFO TIMEOUT_MATCH ' + matchMs, 'INFO TIME_LEFT ' + matchMs);
+    var bc = 'YXBOARD';
+    for (var i = 0; i < moves.length; i++) bc += ' ' + moves[i].join(',');
+    bc += ' DONE';
+    pre.push(bc, 'YXBLOCKRESET');
+    // ★ 官方开局区间锁（zoneR>0 时启用）：把天元 (2*zoneR+1)² 之外的点全部 YXBLOCK 掉。
+    //   ★★ 2026-10-13 二次修正：**页面默认不再传 zoneR**（=0 ⇒ 不加锁）。实测这把锁
+    //   会把平衡搜索毁掉：把白 2 锁进天元 3×3 之后，禁手侧 YXBALANCETWO 直接给出
+    //   |Eval| = M4（算出杀棋！），不锁时是 +25~43；无禁手同样，平衡对第 2 点（常在 d=3）
+    //   被挤掉后 |eval| 从 14~44 劣化到 486。禁手 / 无禁手的区别改由 rule 参数体现
+    //   （同 rule 下引擎的着法生成会自己剔掉黑方禁手点）—— 那才是规则该管的事。
+    //   能力保留：zoneR>0 时仍按官方区间锁（只对「对的第 1 手」生效 —— generateRootMoves
+    //   里 m2 不再查 blockMoves），留作日后需要严格 RIF 开局时用。
+    var zoneR = Math.max(0, Math.min(7, body.zoneR | 0));
+    if (zoneR > 0) {
+      var zc = (SIZE - 1) >> 1, zbl = [];
+      for (var zy = 0; zy < SIZE; zy++) {
+        for (var zx = 0; zx < SIZE; zx++) {
+          if (Math.max(Math.abs(zx - zc), Math.abs(zy - zc)) <= zoneR) continue;
+          zbl.push(zx + ',' + (SIZE - 1 - zy));
+        }
+      }
+      if (zbl.length) pre.push('YXBLOCK ' + zbl.join(' ') + ' DONE');
+    }
+    lane.outBuf = '';
+    sendLaneCmds(lane, pre);
+    var results = [], swap = false, lastEv = null;
+    var waitMs = turnMs + 6000;
+    var step = function (idx) {
+      if (idx >= n) return Promise.resolve();
+      var cap = fetchBalanceLine(lane, waitMs);
+      sendLaneCmds(lane, [(two ? 'YXBALANCETWO ' : 'YXBALANCEONE ') + bias]);
+      return cap.promise.then(function (r) {
+        if (!r || (!r.swap && !r.pts.length)) return;
+        if (r.ev != null) lastEv = r.ev;
+        if (r.swap) { swap = true; return; }
+        for (var k = 0; k < r.pts.length; k++) results.push(r.pts[k]);
+        if (idx < n - 1) {
+          var bcmd = 'YXBLOCK';
+          for (var k2 = 0; k2 < r.pts.length; k2++) bcmd += ' ' + r.pts[k2][0] + ',' + (SIZE - 1 - r.pts[k2][1]);
+          sendLaneCmds(lane, [bcmd + ' DONE']);
+        }
+        return step(idx + 1);
+      });
+    };
+    return step(0).then(function () {
+      sendLaneCmds(lane, ['YXBLOCKRESET']);
+      if (lane.name === 'main') armPonderWatchdog(lane);
+      lane.liveState = null;
+      return { mode: two ? 'two' : 'one', n: n, bias: bias, swap: swap,
+               moves: results, elapsed: Date.now() - t0, rule: rule, eval: lastEv };
+    });
+  });
+}
+
 var rapfiLoaded = false;
 function ensureRapfiLoaded() {
   if (rapfiLoaded) return;
@@ -727,6 +861,13 @@ self.onmessage = function (e) {
     var pre = (lane !== LANES.main && lane !== LANES.sub && !lane.ready)
       ? bootLazyLane(lane) : Promise.resolve();
     pre.then(function () { return laneSerial(lane, function () { return doAnalyze(d.body, lane); }); })
+      .then(function (result) { self.postMessage({ type: 'done', id: d.id, result: result }); },
+            function (err) { self.postMessage({ type: 'fail', id: d.id, message: String(err && err.message || err) }); });
+  } else if (d.type === 'balance') {
+    var blane = pickLane(d.body && d.body.lane);
+    var bpre = (blane !== LANES.main && blane !== LANES.sub && !blane.ready)
+      ? bootLazyLane(blane) : Promise.resolve();
+    bpre.then(function () { return laneSerial(blane, function () { return doBalance(d.body, blane); }); })
       .then(function (result) { self.postMessage({ type: 'done', id: d.id, result: result }); },
             function (err) { self.postMessage({ type: 'fail', id: d.id, message: String(err && err.message || err) }); });
   } else if (d.type === '__relay') {

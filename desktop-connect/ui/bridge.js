@@ -6,15 +6,12 @@
 
   var S = window.GB_S || (window.GB_S = {});
 
-  var GB_VER = 'v4.39';
+  var GB_VER = 'v4.40';
   var UI = window.GBUI || {};
   var N = 15;
 
-  var SCAN_URL = 'http://127.0.0.1:8975/scan';
-  var ANALYZE_URL = 'http://127.0.0.1:8964/api/analyze';
-  var HASH_URL = 'http://127.0.0.1:8964/api/hash';
-  
-  var BALANCE_URL = 'http://127.0.0.1:8964/api/balance';
+  // 引擎/识别通信已统一为「纯 C++ 硬链接」：引擎走宿主 /engine/* 进程内拦截（零 TCP），
+  // 识别结果由宿主 postMessage 推送。旧的 :8964 / :8975 HTTP 直连已移除。
 
   var HOST = !!(window.chrome && window.chrome.webview && window.chrome.webview.addEventListener);
 
@@ -284,7 +281,7 @@ var LBAL = {
     
     swBalNeedAd: '未开启自动落子：请先开启「自动落子」自动摆完平衡点，或对照圆圈在棋盘上手动落子',
     adBusyQueue: '平衡点摆点中，请稍候…',
-    engineUnreachable: '连不上本地引擎（:8964）—— 桌面助手正在自动重启它，通常几秒内恢复；反复出现请检查安全软件是否拦截',
+    engineUnreachable: '连不上本地引擎（硬链接）—— 桌面助手正在自动重启它，通常几秒内恢复；反复出现请检查安全软件是否拦截',
     
     swBalFilled: '（其中 %1 点为估算补位，引擎未在 4.5 秒内返回）',
     adCount: '落子次数：', adFired: '自动落子：', adDropped: '已自动落下',
@@ -297,14 +294,30 @@ var LBAL = {
     swBalMax: '交换平衡点仅限开局五手（3 手 + 2 手），当前盘面已超出交换阶段',
     swBalStage: '交换平衡点只在空盘（两黑一白 3 点）或已有 3 子（一黑一白 2 点）时可用；当前手数不在交换窗口',
     swBalDone: '交换平衡点已标出（浅蓝=白、浅紫=黑）：', swPlacing: '自动摆点：第 %1/%2 个（',
+    // ★ 2026-10-13：连线窗以前**从不报平衡分**，所以用户只能看面板那条「对弈引擎评估」
+    //   （禁手下实测 +546，被当成「平衡点评估」来看 →「接近 1000 分的误差」）。现在把
+    //   平衡引擎自己那一对的分报出来：|评估| ≤ 50 才是官方 balanceWindow 内的「平」。
+    swBalEval: '（平衡引擎判定：|评估| ≈ %1，≤ 50 才算平）',
+    swBalEvalNone: '（平衡引擎未回传评估分）',
+    // ★ 2026-10-13（用户）：开局定平衡点该评估几个 —— 官方指定开局只有三手（黑1 天元 ·
+    //   白2 在 3×3 · 黑3 在 5×5，中国五子棋竞赛规则 2025 / RIF），所以开局评估 3 个最合理。
+    //   ★ 2026-10-13（用户：「这个提示文案是多条的，是灵活多变的，不应该只是一个大段话，
+    //     这个文案在连线器中要精简」）：连线窗位置窄，改成**短句池 + 每次随机 1 条**。
+    swBalOpenHints: [
+      '官方开局 3 手，评估 3 个点最合理（此处固定 3 个）。',
+      '评估 4 个以上已走出开局，分数不可靠。',
+      '禁手 / 无禁手的平衡点不同，结果只对当前规则有效。',
+      '塔拉山口-10 走满 5 手才可评估到 5 个。',
+      '天元固定，不用评估。',
+    ],
     swPlaced: '交换平衡摆子完成（%1 个点已自动落完）',
     swSwapNow: '引擎判定：此际应当换手（SWAP）——不摆子，直接换',
-    swEvaling: '交换评估计算中…', swEvalBlack: '引擎评估：黑优（%1）—— 建议选黑更有优势',
-    swEvalWhite: '引擎评估：白优（%1）—— 建议选白更有优势', swEvalEven: '引擎评估：两边接近（%1）—— 选黑选白差别不大',
+    swEvaling: '交换评估计算中…', swEvalBlack: '对弈引擎（非平衡口径）：黑优（%1）—— 建议选黑更有优势',
+    swEvalWhite: '对弈引擎（非平衡口径）：白优（%1）—— 建议选白更有优势', swEvalEven: '对弈引擎（非平衡口径）：两边接近（%1）—— 选黑选白差别不大',
     
     swAdvB: '黑优', swAdvW: '白优',
     swEvalEmpty: '棋盘上还没有子 —— 等对手摆完（或先点「交换平衡点」）再评估',
-    swEvalFail: '交换评估失败：', swEvalDone: '交换评估完成：',
+    swEvalFail: '交换评估失败：', swEvalDone: '交换评估完成（数来自对弈引擎，不是平衡点评估）：',
     swEvalLate: '已过交换窗口（超过 5 手）—— 交换评估只在开局阶段有意义',
   },
   en: {
@@ -327,7 +340,7 @@ var LBAL = {
     analyzeSlow: 'Engine response timed out — evaluation retries automatically in a moment',
     swBalNeedAd: 'Auto-drop is off: turn on Auto-drop to place the balance points automatically, or place them manually on the board',
     adBusyQueue: 'Placing balance points — please wait…',
-    engineUnreachable: "Can't reach the local engine (:8964) — restarting it automatically; it usually recovers within seconds. If this keeps happening, check your antivirus",
+    engineUnreachable: "Can't reach the local engine (hard-link) — restarting it automatically; it usually recovers within seconds. If this keeps happening, check your antivirus",
     swBalFilled: ' (%1 point(s) estimated — engine did not answer within 4.5s)',
     adCount: 'Click count: ', adFired: 'Auto-drop: ', adDropped: 'dropped automatically',
     adRetry: 'PostMessage ignored — retrying with real click…',
@@ -339,13 +352,22 @@ var LBAL = {
     swBalMax: 'Swap balance applies only to the 5-move opening (3 + 2); this position is past the exchange phase',
     swBalStage: 'Swap balance only works on an empty board (2 black + 1 white, 3 points) or after 3 stones (a black-white pair, 2 points); the current move count is outside the swap window',
     swBalDone: 'Swap balance points marked (light blue=white, light purple=black): ', swPlacing: 'Auto-placing point %1/%2 (',
+    swBalEval: ' (balance engine verdict: |eval| ≈ %1; only ≤ 50 counts as balanced)',
+    swBalEvalNone: ' (balance engine returned no eval)',
+    swBalOpenHints: [
+      'Opening is 3 moves - evaluating 3 points is sensible (3 fixed here).',
+      '4+ points leaves the opening; the eval stops being reliable.',
+      'Renju / freestyle balance points differ - result holds only for the current rule.',
+      'Taraguchi-10 (5-move opening) allows up to 5.',
+      'Tengen is fixed and needs no evaluation.',
+    ],
     swPlaced: 'Swap placement finished (%1 points dropped)',
     swSwapNow: 'Engine says: SWAP now — skip placing, take the swap',
-    swEvaling: 'Evaluating swap…', swEvalBlack: 'Engine: Black is better (%1) — taking Black is advised',
-    swEvalWhite: 'Engine: White is better (%1) — taking White is advised', swEvalEven: 'Engine: nearly even (%1) — either side is fine',
+    swEvaling: 'Evaluating swap…', swEvalBlack: 'Playing engine (NOT the balance verdict): Black is better (%1) — taking Black is advised',
+    swEvalWhite: 'Playing engine (NOT the balance verdict): White is better (%1) — taking White is advised', swEvalEven: 'Playing engine (NOT the balance verdict): nearly even (%1) — either side is fine',
     swAdvB: 'Black is better', swAdvW: 'White is better',
     swEvalEmpty: 'Board is empty — place stones (or run Swap Balance) first',
-    swEvalFail: 'Swap evaluation failed: ', swEvalDone: 'Swap evaluation: ',
+    swEvalFail: 'Swap evaluation failed: ', swEvalDone: 'Swap evaluation (number comes from the playing engine, not the balance verdict): ',
     swEvalLate: 'Swap window has passed (over 5 moves) — swap evaluation only matters in the opening',
   }
 };
@@ -374,20 +396,8 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     return out;
   }
 
-  function fetchJSON(url, body, timeoutMs) {
-    var ctl = new AbortController();
-    var t = setTimeout(function () { ctl.abort(); }, timeoutMs || 6000);
-    var opt = { cache: 'no-store', signal: ctl.signal };
-    if (body) {
-      opt.method = 'POST';
-      opt.headers = { 'Content-Type': 'application/json' };
-      opt.body = JSON.stringify(body);
-    }
-    return fetch(url, opt).then(function (r) { return r.json(); })
-      .finally(function () { clearTimeout(t); });
-  }
-
-  var mainChain = Promise.resolve();
+  // （已移除）fetchJSON：页面侧不再直连 HTTP。
+    var mainChain = Promise.resolve();
   function onMainLane(fn) {
     var run = mainChain.then(fn, fn);              
     mainChain = run.then(function () {}, function () {});
@@ -420,77 +430,8 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     return /abort|ws timeout/i.test(m);
   }
 
-  var WS_URL = 'ws://127.0.0.1:8964/ws';
-  var wsSock = null, wsSeq = 0, wsPending = {};
-  var wsWant = false, wsRetryTimer = null, wsRetryDelay = 800;
-  var wsToldDown = false, wsHealthFail = 0, wsHeartTimer = null;
-
-  function wsConnect() {
-    if (STANDALONE) return;   
-    if (!window.WebSocket) return;
-    wsWant = true;
-    if (wsSock) { try { wsSock.onclose = null; wsSock.close(); } catch (eOld) {} wsSock = null; }
-    var s;
-    try { s = new WebSocket(WS_URL); } catch (eNew) { wsScheduleRetry(); return; }
-    wsSock = s;
-    s.onopen = function () {
-      wsRetryDelay = 800; wsHealthFail = 0;
-      if (wsToldDown) {                       
-        wsToldDown = false;
-        ui('setStatus', '<span style="color:#1e8e3e">' +
-          (S.lang === 'en' ? 'Engine hard-link restored ✓' : '引擎硬连接已恢复 ✓') + '</span>');
-      }
-      wsStartHeart();
-    };
-    s.onmessage = function (ev) {
-      var m; try { m = JSON.parse(ev.data); } catch (eParse) { return; }
-      if (m.seq != null && wsPending[m.seq]) {
-        var p = wsPending[m.seq]; delete wsPending[m.seq];
-        clearTimeout(p.t);
-        if (m.error != null) p.reject(new Error(m.error));
-        else p.resolve(m.result);
-      }
-    };
-    s.onclose = function () {
-      if (wsSock !== s) return;               
-      wsSock = null;
-      wsFailAllPending(new Error('engine connection lost'));
-      if (!wsWant) return;
-      if (!wsToldDown) { wsToldDown = true; pingEnsureDeps(); }
-      wsScheduleRetry();
-    };
-    s.onerror = function () { try { s.close(); } catch (eErr) {} };
-  }
-  function wsScheduleRetry() {
-    if (!wsWant || wsRetryTimer) return;
-    wsRetryTimer = setTimeout(function () { wsRetryTimer = null; wsConnect(); }, wsRetryDelay);
-    wsRetryDelay = Math.min(5000, wsRetryDelay * 2);
-  }
-  function wsFailAllPending(err) {
-    for (var k in wsPending) {
-      clearTimeout(wsPending[k].t);
-      wsPending[k].reject(err);
-      delete wsPending[k];
-    }
-  }
-  function wsStartHeart() {
-    if (wsHeartTimer) return;
-    wsHeartTimer = setInterval(function () {
-      if (!wsReady()) return;
-      wsCall('health', {}, 4000).then(function (r) {
-        if (!r) { wsHealthFail++; if (wsHealthFail >= 2) { wsHealthFail = 0; try { wsSock.close(); } catch (eH) {} } }
-        else wsHealthFail = 0;
-      }).catch(function () {
-        
-        wsHealthFail++;
-        if (wsHealthFail >= 2) { wsHealthFail = 0; try { wsSock && wsSock.close(); } catch (eH2) {} }
-      });
-    }, 3000);
-  }
-  function wsReady() { return !!(wsSock && wsSock.readyState === 1); }
-  
-  var STANDALONE = (typeof GB_STANDALONE !== 'undefined') && !!GB_STANDALONE;
-  var NATENG = null;
+  // 引擎通道：纯进程内硬链接（natEng → /engine/*），已无 WebSocket 桥。
+    var NATENG = null;
   function natEng() {
     if (NATENG) return NATENG;
     NATENG = (function () {
@@ -701,6 +642,16 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         });
         if (pts.some(function (p) { return p === null; })) return null;
         return { swap: false, pts: pts };
+      }
+      // 平衡搜索的评估分（MESSAGE 行里的 "| Eval V |"）。刻度 ScalingFactor=200，
+      // Rapfi 官方 balanceWindow=50 ⇒ |V| ≤ 50 才算「平」。两条平衡通道口径必须一致。
+      function parseEvalLine(line) {
+        var m = /Eval\s+([-+]?M\d+|[-+]?\d+)\s*\|/.exec(String(line || ''));
+        if (!m) return null;
+        var s = m[1];
+        if (/M\d+/i.test(s)) return (s.charAt(0) === '-' ? -1 : 1) * 90000;
+        var v = parseInt(s.replace('+', ''), 10);
+        return isNaN(v) ? null : v;
       }
       
       var OUTBUF_CAP = 262144;
@@ -1222,7 +1173,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       function fetchBalanceMove(lane, maxMs) {
         return new Promise(function (resolve) {
           var settled = false, sawLine = false;
-          var poll = null, guard = null, settleTimer = null, out = null;
+          var poll = null, guard = null, settleTimer = null, out = null, ev = null;
           var finish = function () {
             if (settled) return;
             settled = true;
@@ -1230,9 +1181,12 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             if (poll) clearInterval(poll);
             if (guard) clearTimeout(guard);
             if (settleTimer) clearTimeout(settleTimer);
+            if (out) out.ev = ev;
             resolve(out);
           };
           lane.captureLine = function (line) {
+            var e = parseEvalLine(line);
+            if (e !== null) ev = e;
             var r = parseBalanceLine(line);
             if (r === null) return false;
             sawLine = true;
@@ -1276,8 +1230,24 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             engCmd(lane.name, cmd);
             lane.outBuf = '';
             engCmd(lane.name, 'YXBLOCKRESET');
+            // ★ 官方开局区间锁（zoneR>0）：YXBLOCK 掉天元 (2R+1)² 之外的全部点。
+            //   ★★ 2026-10-13 二次修正：**页面默认不再传 zoneR**（=0 ⇒ 不加锁）——
+            //   实测锁中心区会把平衡搜索毁掉（禁手侧直接算出 |Eval| = M4）。能力保留，
+            //   留作日后需要严格 RIF 开局时用。与 engine-ai.js 的 doBalance 同一口径。
+            var zoneR = Math.max(0, Math.min(7, body.zoneR | 0));
+            if (zoneR > 0) {
+              var zcz = (SIZE - 1) >> 1, zblz = [];
+              for (var zyz = 0; zyz < SIZE; zyz++) {
+                for (var zxz = 0; zxz < SIZE; zxz++) {
+                  if (Math.max(Math.abs(zxz - zcz), Math.abs(zyz - zcz)) <= zoneR) continue;
+                  zblz.push(zxz + ',' + (SIZE - 1 - zyz));
+                }
+              }
+              if (zblz.length) engCmd(lane.name, 'YXBLOCK ' + zblz.join(' ') + ' DONE');
+            }
             var results = [];
             var swap = false;
+            var lastEv = null;
             var waitMs = turnMs + 6000;
             var round = Promise.resolve();
             var loop = function (i) {
@@ -1287,6 +1257,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
                 engCmd(lane.name, (two ? 'YXBALANCETWO ' : 'YXBALANCEONE ') + bias);
                 return rp.then(function (r) {
                   if (!r || (!r.swap && !r.pts.length)) return;
+                  if (r.ev != null) lastEv = r.ev;
                   if (r.swap) { swap = true; return; }
                   for (var pi = 0; pi < r.pts.length; pi++) results.push(r.pts[pi]);
                   if (i < n - 1) {
@@ -1303,7 +1274,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
               
               if (lane.name === 'main') { lane.mayPonder = true; armPonderPark(lane); }
               return { mode: two ? 'two' : 'one', n: n, bias: bias, swap: swap,
-                       moves: results, elapsed: Date.now() - t0, rule: rule };
+                       moves: results, elapsed: Date.now() - t0, rule: rule, eval: lastEv };
             });
           });
           return q.then(function (r) {
@@ -1394,18 +1365,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     return NATENG;
   }
   function wsCall(api, body, timeoutMs) {
-    if (STANDALONE) return natEng().call(api, body, timeoutMs);
-    return new Promise(function (resolve, reject) {
-      if (!wsReady()) { reject(new Error('engine connection lost')); return; }
-      var seq = ++wsSeq;
-      var timer = setTimeout(function () {
-        delete wsPending[seq];
-        reject(new Error('ws timeout'));
-      }, timeoutMs || 8000);
-      wsPending[seq] = { resolve: resolve, reject: reject, t: timer };
-      try { wsSock.send(JSON.stringify({ seq: seq, api: api, body: body || {} })); }
-      catch (eSend) { clearTimeout(timer); delete wsPending[seq]; reject(new Error('engine connection lost')); }
-    });
+    return natEng().call(api, body, timeoutMs);
   }
 
   function suspectTip(res) {
@@ -1479,6 +1439,18 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     if (rule === 1) return true;
     if (rule === 2 || rule === 6 || rule === 7 || rule === 8) return moverColor === 1;
     return false;
+  }
+
+  // ★ 2026-10-13：**和主界面 calc.js 的 engineRule() 同口径**。
+  //   原生引擎只认 rule = 0/1/2/5；本面板历史上用 6/7/8 表示禁手族。以前这里把
+  //   S.rule **原样**传下去，engine-ai.js 的 doBalance/doAnalyze 会做
+  //   `[0,1,2,5].indexOf(rule)>=0 ? rule : 0` —— 6/7/8 被静默降级成 0（无禁手），
+  //   于是「有禁手」的局面拿到的是无禁手的平衡点/评估。统一在这里映射，
+  //   保证「有禁手就是有禁手」（用户：「一定要分清有禁手和无禁手」）。
+  function engRuleOf(r) {
+    var v = +r;
+    if (v === 6 || v === 7 || v === 8) return 2;
+    return (v === 0 || v === 1 || v === 2 || v === 5) ? v : 0;
   }
 
   function hasFiveOnBoard(m) {
@@ -1623,7 +1595,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         return wsCall('analyze', {
           board: boardMatrix(bl, wh), moveList: [],
           matchMs: S.matchMs || 600000, turnMs: turnMsNow,
-          timeUsedMs: 0, topN: 1, rule: S.rule, cid: 'desktop-' + ply,
+          timeUsedMs: 0, topN: 1, rule: engRuleOf(S.rule), cid: 'desktop-' + ply,
           
           exclusive: true,
         }, Math.max(12000, turnMsNow + 12000) + laneSlack);
@@ -1775,7 +1747,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         return wsCall('analyze', {
           board: boardMatrix(bl, wh), moveList: [],
           matchMs: S.matchMs || 600000, turnMs: ms, timeUsedMs: 0,
-          topN: 8, rule: S.rule, cid: 'desktop-heat', lane: 'sub',
+          topN: 8, rule: engRuleOf(S.rule), cid: 'desktop-heat', lane: 'sub',
         }, ms + 6000);
       };
       var res = await ask(refreshMs);
@@ -2055,6 +2027,11 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     
     if (!boardGeo) { ui('setStatus', '<span style="color:#e67e22;">' + T('no_board') + '</span>'); return; }
     
+    var swPly = lastBl.length + lastWh.length;
+    if (swPly !== 0 && swPly !== 3) {
+      ui('setStatus', swTipCol(LT('swBalStage'), '#e67e22'));
+      return;
+    }
     swBusy = true;
     
     swQuietSide = true;
@@ -2066,7 +2043,8 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     var budget = Math.max(1500, Math.min(SWBAL_BUDGET_MS, Math.round((S.turnMs || 5000) * 1.5)));
     
     var turnMs = Math.max(2000, Math.min(S.turnMs || 5000, 4500));
-    var rule = (S.rule === 0 || S.rule === 1 || S.rule === 2 || S.rule === 5) ? S.rule : 0;
+    // ★ 2026-10-13：走 engRuleOf（禁手族 6/7/8 → 2）；原来 6/7/8 会被降级成 0。
+    var rule = engRuleOf(S.rule);
     
     var t0 = Date.now();
     var leftMs = function () { return budget - (Date.now() - t0); };
@@ -2074,9 +2052,27 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       ui('setStatus', '<span style="color:#0e7490">' + LT(empty ? 'swBalEmpty' : 'swBalPair') + '</span>');
       var marks = [];
       var balFromEngine = 0;      
+      // ★ 2026-10-13：连线窗也要把**平衡引擎自己的**评估分报出来（以前只有坐标，
+      //   用户只能去看面板那条对弈引擎的评估 —— 禁手下那是几百上千分的「对弈分」，
+      //   被误当成「平衡点评估」就是「接近 1000 分的误差」的来源）。
+      var balEv = null;
       if (empty) {
         
-        var OFFICIAL_SWAP2 = [
+        // ★★ 2026-10-13 回退 + 分规则（用户：「连线功能里面的交换平衡点运用之前的逻辑（用定式，
+        //   和中途第二手计算）（昨天 4.39 16点30 的那一版）」＋「无禁手公式+有禁手公式，
+        //   只利用里面的平衡定式，必胜定式不可添加」）：
+        //   空盘开局重新走**官方定式**，不再用原生成对搜索：
+        //     ① 引擎按当前规则给官方开局（SWAP2BOARD，禁手/无禁手各有一套公式库）；
+        //     ② 引擎不可用 ⇒ 退到下面这两张本地公式表（已按引擎实测逐条筛过）；
+        //     ③ 再不行才退回中心区逐手。
+        //   两张表必须分开：禁手(rule 2) 用 RIF 三手，无禁手用 Swap2 三手 —— 混用就是
+        //   「一直用的是有禁手模式的平衡点」那个毛病。
+        //   筛选依据（RapfiEngine-avx512vnni，跑 YXBALANCETWO 取「白这一手＋黑应手」这一对
+        //   最接近 0 的分；|评估| ≤ 50 = 官方 balanceWindow 内的「平」）：
+        //     无禁手公式 9 组  → |评估| 5~19，9/9 平衡，无必胜
+        //     有禁手公式 26 组 → |评估| 1~17，26/26 平衡（RIF 这一族本身就是筛掉必胜后的开局）
+        //   所以两张表都只保留平衡定式，必胜定式一条都不加。
+        var BAL_FREE = [
           [[6, 7], [6, 4], [4, 2]],
           [[3, 3], [5, 5], [6, 6]],
           [[3, 2], [5, 4], [4, 5]],
@@ -2087,22 +2083,20 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           [[11, 7], [10, 6], [13, 5]],
           [[3, 7], [1, 8], [0, 4]],
         ];
-        // Official Renju (RIF) balanced openings only, rule 2 (forbidden moves).
-        // 18 of the 26 RIF openings are black-forced wins and 2 (Yusei/Suisei)
-        // are white wins, so they must never be offered as exchange points.
-        // The 6 balanced openings (black1 tengen (7,7); white2 I9 (8,8) diagonal
-        // or H9 (7,8) direct; black3 per the official table) give near-zero
-        // advantage to both sides and are safe for the three-move exchange.
-        var RENJU_OPENINGS = [
-          // diagonal (indirect): white2 = I9 (8,8)
-          [[7, 7], [8, 8], [9, 9]],   // 1. Chosei  long star  (J10, balanced)
-          [[7, 7], [8, 8], [9, 5]],   // 2. Ryusei  meteor  (J6, balanced)
-          [[7, 7], [8, 8], [8, 7]],   // 3. Ungetsu  cloud moon  (I8, balanced)
-          // direct: white2 = H9 (7,8)
-          [[7, 7], [7, 8], [7, 9]],   // 4. Kansai  cold star  (H10, balanced)
-          [[7, 7], [7, 8], [9, 9]],   // 5. Sosei  sparse star  (J10, balanced)
-          [[7, 7], [7, 8], [7, 5]],   // 6. Zuisei  lucky star  (H6, balanced)
+        // RIF 26：白 2 落在 I9(8,8) 为斜（间接）、H9(7,8) 为直（直接），黑 1 恒在天元。
+        var BAL_RENJU = [
+          [[7, 7], [8, 8], [9, 9]], [[7, 7], [8, 8], [9, 8]], [[7, 7], [8, 8], [9, 7]],
+          [[7, 7], [8, 8], [9, 6]], [[7, 7], [8, 8], [9, 5]], [[7, 7], [8, 8], [8, 7]],
+          [[7, 7], [8, 8], [8, 6]], [[7, 7], [8, 8], [8, 5]], [[7, 7], [8, 8], [7, 6]],
+          [[7, 7], [8, 8], [7, 5]], [[7, 7], [8, 8], [6, 6]], [[7, 7], [8, 8], [6, 5]],
+          [[7, 7], [8, 8], [5, 5]],
+          [[7, 7], [7, 8], [7, 9]], [[7, 7], [7, 8], [9, 9]], [[7, 7], [7, 8], [8, 8]],
+          [[7, 7], [7, 8], [9, 8]], [[7, 7], [7, 8], [9, 7]], [[7, 7], [7, 8], [7, 6]],
+          [[7, 7], [7, 8], [9, 6]], [[7, 7], [7, 8], [7, 5]], [[7, 7], [7, 8], [8, 5]],
+          [[7, 7], [7, 8], [8, 9]], [[7, 7], [7, 8], [8, 7]], [[7, 7], [7, 8], [8, 6]],
+          [[7, 7], [7, 8], [9, 5]],
         ];
+        var BAL_OPEN = (rule === 2) ? BAL_RENJU : BAL_FREE;
         
         var SWAP2_SYM = [
           function (x, y) { return [x, y]; },                      
@@ -2114,14 +2108,13 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           function (x, y) { return [y, N - 1 - x]; },              
           function (x, y) { return [N - 1 - y, N - 1 - x]; },      
         ];
-        var OPENINGS = (rule === 2) ? RENJU_OPENINGS : OFFICIAL_SWAP2;
         var SYM_EXPAND = (function () {
           var out = [], seen = {};
-          for (var oi = 0; oi < OPENINGS.length; oi++) {
+          for (var oi = 0; oi < BAL_OPEN.length; oi++) {
             for (var tt = 0; tt < SWAP2_SYM.length; tt++) {
               var q = [], key = [], ok = true;
               for (var pi = 0; pi < 3; pi++) {
-                var p = SWAP2_SYM[tt](OPENINGS[oi][pi][0], OPENINGS[oi][pi][1]);
+                var p = SWAP2_SYM[tt](BAL_OPEN[oi][pi][0], BAL_OPEN[oi][pi][1]);
                 if (p[0] < 0 || p[0] >= N || p[1] < 0 || p[1] >= N) { ok = false; break; }
                 q.push([p[0], p[1]]); key.push(p[0] + ',' + p[1]);
               }
@@ -2133,7 +2126,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           }
           return out;
         })();
-        if (N === 15 && SYM_EXPAND.length > OPENINGS.length) OPENINGS = SYM_EXPAND;
+        if (N === 15 && SYM_EXPAND.length > BAL_OPEN.length) BAL_OPEN = SYM_EXPAND;
         var LIB_FALLBACK = [[0, 0], [2, 1], [2, 4]];   
         var isLibFallback = function (pts) {
           for (var i = 0; i < 3; i++)
@@ -2151,10 +2144,13 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           return true;
         };
         var libSource = 'none';
+        // ★★ 2026-10-13：**去掉本轮的「原生成对搜索」**，空盘恢复成 4.39(10-12 16:30) 的
+        //   「官方定式」逻辑 —— 先让引擎按规则吐官方开局，再退本地公式表，最后才中心区逐手。
+        //   实测原生成对搜索虽然分很平（|评估| ≤ 44），但那不是用户要的「定式」口径，
+        //   而且它挡在定式前面，等于 16:30 那版的好开局一次都用不上。
+        //   同步 INFO RULE 不能省：SWAP2BOARD 的开局库是按规则分的，不同步就会把**无禁手**
+        //   的公式喂给禁手局面（10-12 21:59 修过的老问题）。
         try {
-          // The opening book follows the ACTIVE rule: the engine's SWAP2BOARD
-          // must run under INFO RULE <rule> (renju 2 = forbidden moves) or it
-          // falls back to the freestyle book and the opening becomes wrong.
           await onMainLane(function () {
             return engCmd('main', 'INFO RULE ' + rule).then(function () {
               return engCmd('main', 'INFO THREAD_NUM ' + (S.threads || 4));
@@ -2165,8 +2161,8 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             libSource = 'engine';
         } catch (eS2) {  }
         if (libSource === 'none' && N === 15) {
-          
-          if (takeLib(OPENINGS[Math.floor(Math.random() * OPENINGS.length)]))
+          // 本地公式表兜底：按规则取表（禁手 RIF 26 / 无禁手 Swap2 9），两张都只含平衡定式。
+          if (takeLib(BAL_OPEN[Math.floor(Math.random() * BAL_OPEN.length)]))
             libSource = 'local';
         }
         if (libSource === 'none') {
@@ -2195,7 +2191,11 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             if (ms < 400) break;
             
             var reqBody = {
-              board: b2, moveList: [], n: 1, mode: 'one', bias: (tries === 0 ? 0 : 15),
+              // ★ 2026-10-13：**一律成对 TWO**（原来这个深退路是 mode:'one' 单点，
+              //   实测禁手 +165 / 无禁手 +132，正是「评估差距过大」的另一个来源）。
+              //   bias 恒 0：TWO 模式下引擎内部会取反，传 15 等于让平衡搜索去追 −15，
+              //   对「求最平」没有好处。
+              board: b2, moveList: [], n: 1, mode: 'two', bias: 0,
               rule: rule, turnMs: ms, lane: 'main',
               cid: 'desktop-swbal1-' + (lastBl.length + lastWh.length) + '-' + step + '-' + tries,
               side: sides[step],
@@ -2208,8 +2208,11 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
               });
             } catch (eShot) { jw = null; }          
             if (!jw || jw.error || jw.swap || !jw.moves || !jw.moves.length) { pt2 = null; break; }
+            if (jw.eval != null) balEv = jw.eval;
             pt2 = jw.moves[0];
-            if (inZone(pt2, R2)) break;                      
+            // 成对 TWO 给出的就是权威的「最平一对」；不再用「必须落在天元 5×5」去挑
+            // —— 用户：「有时候这三个平衡点不仅仅只在中心那几个位置」。
+            break;
           }
           if (!pt2) break;                                   
           marks.push({ p: pt2, color: colors[step] });
@@ -2244,66 +2247,61 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         }   
       } else {
         
-        // Second exchange: the swap rule allows at most 5 moves (3 opening
-        // stones + 2 second-exchange points, one black + one white). Points
-        // are offered only while the position is exactly at 3 stones; any
-        // other count is past the exchange phase.
-        var bmN = boardMatrix(lastBl, lastWh);
-        var plyBase = lastBl.length + lastWh.length;
-        if (plyBase !== 3) {
-          ui('setStatus', '<span style="color:#e67e22;">' + LT('swBalMax') + '</span>');
+        var pairMs = Math.max(400, Math.min(turnMs, leftMs() - 300));
+        var pairBody = {
+          board: boardMatrix(lastBl, lastWh), moveList: [], n: 1, mode: 'two', bias: 0,
+          rule: rule, turnMs: pairMs, lane: 'main',
+          cid: 'desktop-swbal2-' + (lastBl.length + lastWh.length),
+          side: toBlack ? 1 : 2,
+        };
+        var j1 = null;
+        try {
+          
+          j1 = await onMainLane(function () {
+            return wsCall('balance', pairBody, pairMs + 6000);
+          });
+        } catch (ePair) { j1 = null; }
+        if (!j1 || j1.error) {
+          ui('setStatus', '<span style="color:#c0392b">' + LT('balFail') + ((j1 && j1.error) || 'no response') + '</span>');
           return;
         }
-        var need = 2;
-        for (var qi = 0; qi < need && leftMs() > 500; qi++) {
-          var curB = ((plyBase + qi) % 2 === 0);
-          var colQ = curB ? 'b' : 'w';
-          var qMs = Math.max(300, Math.min(1500, leftMs() * 0.5));
-          var qBody = {
-            board: bmN, moveList: [], n: 1, mode: 'one', bias: 0,
-            rule: rule, turnMs: qMs, lane: 'main',
-            cid: 'desktop-swbal-n-' + plyBase + '-' + qi,
-            side: curB ? 1 : 2,
-          };
-          var jq = null;
-          try {
-            jq = await onMainLane(function () { return wsCall('balance', qBody, qMs + 6000); });
-          } catch (eQ) { jq = null; }
-          if (!jq || jq.error || jq.swap || !jq.moves || !jq.moves.length) break;
-          var ptn = jq.moves[0];
-          marks.push({ p: ptn, color: colQ });
-          bmN[ptn[1]][ptn[0]] = colQ === 'b' ? 1 : 2;
-          balFromEngine++;
-        }
-        if (!marks.length) { ui('setStatus', '<span style="color:#c0392b">' + LT('balNone') + '</span>'); return; }
+        if (j1.swap) { ui('setStatus', '<b style="color:#7c3aed">' + LT('swSwapNow') + '</b>'); return; }
+        if (j1.eval != null) balEv = j1.eval;
+        var pts1 = (j1.moves || []).slice(0, 2);
+        if (pts1.length < 2) { ui('setStatus', '<span style="color:#c0392b">' + LT('balNone') + '</span>'); return; }
+        marks.push({ p: pts1[0], color: toBlack ? 'b' : 'w' });
+        marks.push({ p: pts1[1], color: toBlack ? 'w' : 'b' });
+        balFromEngine = 2;
       }
       
-      // Score every balanced point with a short parallel analysis across
-      // main/sub/fwd lanes; the eval appears in the lower half of each mark.
-      var evs = [];
-      if (marks.length) {
-        var lanes3 = ['main', 'sub', 'fwd'];
-        var evMs = Math.max(250, Math.min(400, Math.floor(leftMs() / Math.max(1, marks.length))));
-        var evTasks = marks.map(function (m, mi) {
-          var scB = boardMatrix(lastBl, lastWh);
-          for (var si = 0; si <= mi; si++) scB[marks[si].p[1]][marks[si].p[0]] = marks[si].color === 'b' ? 1 : 2;
-          var ln = lanes3[mi % 3];
-          return wsCall('analyze', {
-            board: scB, moveList: [], matchMs: 600000, turnMs: evMs,
-            timeUsedMs: 0, topN: 1, rule: rule, lane: ln,
-            cid: 'desktop-swbal-ev-' + (lastBl.length + lastWh.length) + '-' + mi,
-          }, evMs + 6000).then(function (jv) {
-            if (jv && !jv.error && jv.candidates && jv.candidates.length) return jv.candidates[0].eval || '';
-            return '';
-          }).catch(function () { return ''; });
-        });
-        evs = await Promise.all(evTasks);
+      // ★ 2026-10-13：空盘走的是「官方定式」通道（不经过平衡搜索），所以 balEv 还是空的。
+      //   用户要的判据是「分差应该在 0 附近」，光给坐标看不出来 —— 这里把公式给的这 3 手
+      //   摆进盘面，**让平衡引擎给这一对打分**，报出来的才是真正可核对的 |评估|
+      //   （实测 RIF 26 组 1~17、Swap2 9 组 5~19，全在官方 balanceWindow(50) 内）。
+      if (balEv == null && marks.length === 3 && leftMs() >= 900) {
+        try {
+          var b3 = boardMatrix(lastBl, lastWh);
+          for (var mi = 0; mi < marks.length; mi++) {
+            var mc = (marks[mi].color === 'b') ? 1 : 2;
+            if (b3[marks[mi].p[1]] && b3[marks[mi].p[1]][marks[mi].p[0]] === 0)
+              b3[marks[mi].p[1]][marks[mi].p[0]] = mc;
+          }
+          var msE = Math.max(700, Math.min(1500, leftMs() - 300));
+          var jE = await onMainLane(function () {
+            return wsCall('balance', {
+              board: b3, moveList: [], n: 1, mode: 'two', bias: 0, rule: rule,
+              turnMs: msE, lane: 'main',
+              cid: 'swbal-eval-' + (lastBl.length + lastWh.length), side: 2,
+            }, msE + 6000);
+          });
+          if (jE && !jE.swap && jE.eval != null) balEv = jE.eval;
+        } catch (eE) {  }
       }
-      
+
       var parts = [], names = [];
       for (var i = 0; i < marks.length; i++) {
         var p = boardToScreen(marks[i].p[0], marks[i].p[1]);
-        if (p) parts.push(p.x + ',' + p.y + ',' + (i + 1) + ',' + marks[i].color + ',' + (evs[i] || ''));
+        if (p) parts.push(p.x + ',' + p.y + ',' + (i + 1) + ',' + marks[i].color);
         names.push(coordOf(marks[i].p[0], marks[i].p[1]));
       }
       
@@ -2321,8 +2319,14 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
              marks.map(function (m) { return m.color; }));
       
       var filledN = marks.length - balFromEngine;
+      var evTxt = (balEv == null || isNaN(+balEv))
+        ? '<span style="color:#667">' + LT('swBalEvalNone') + '</span>'
+        : '<span style="color:' + (Math.abs(+balEv) <= 50 ? '#0e7490' : '#e67e22') + '">' +
+          LT('swBalEval').replace('%1', String(Math.abs(Math.round(+balEv)))) + '</span>';
       ui('setStatus', '<b style="color:#0e7490">' + LT('swBalDone') + names.join('  ') + '</b>' +
-        (filledN > 0 ? '<span style="color:#e67e22">' + LT('swBalFilled').replace('%1', filledN) + '</span>' : ''));
+        evTxt +
+        (filledN > 0 ? '<span style="color:#e67e22">' + LT('swBalFilled').replace('%1', filledN) + '</span>' : '') +
+        (empty ? '<span style="color:#0e7490">　※ ' + swBalOpenHintTxt() + '</span>' : ''));
       
       var balPts = marks.map(function (m) { return [m.p[0], m.p[1]]; });
       if (adOn && parts.length === marks.length) {
@@ -2337,6 +2341,13 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       ui('setStatus', '<span style="color:#c0392b">' + LT('balFail') +
         errText(e) + '</span>');
     } finally { swBusy = false; }
+  }
+
+  // ★ 2026-10-13：连线器的开局提示 —— 从短句池随机抽**一条**（用户：「在连线器中要精简」）。
+  function swBalOpenHintTxt() {
+    var pool = LT('swBalOpenHints');
+    if (!pool || !pool.length || typeof pool === 'string') return '';
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   function swTip(h) {
@@ -2386,7 +2397,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       var j = await wsCall('analyze', {
         board: boardMatrix(lastBl, lastWh), moveList: [],
         matchMs: 600000, turnMs: 2000, timeUsedMs: 0, topN: 1,
-        rule: S.rule, lane: 'sub',
+        rule: engRuleOf(S.rule), lane: 'sub',
         cid: 'desktop-sweval-' + ply,
       }, 2000 + 15000);
       if (j && j.superseded) return;                 
@@ -2600,8 +2611,8 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     
     ui('setStatus', '<span style="color:#c0392b">' +
       (S.lang === 'en'
-        ? 'Not connected to the recognition service (localhost 8974/8975). This app restarts it automatically; if it stays down, check whether your security software is blocking it.'
-        : '未连接到识别服务（本机 8974/8975）。本程序会自动重启它；若长时间不恢复，请检查是否被安全软件拦截。') +
+        ? 'Recognition link lost — the host stopped pushing board frames. This app restarts the recognition pipeline automatically; if it stays down, check whether your security software is blocking it.'
+        : '识别链路已断开（宿主未再推送棋盘帧）。本程序会自动重启识别管线；若长时间不恢复，请检查是否被安全软件拦截。') +
       '</span>');
   }
 
@@ -2675,32 +2686,10 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     });
   }
 
+  // 识别统一由 C++ 宿主经 postMessage {"type":"scan"} 推送（零 TCP）；
+  // 页面侧已无 HTTP 识别通道，非宿主环境无识别来源。
   async function tick() {
     if (busy || HOST) return;
-    busy = true;
-    try {
-      var body = { size: N };
-      // Locked-read fast path: once the board has been located, do not keep
-      // re-searching the board on every frame. Reuse the locked geometry so
-      // the vision service reads stones directly (~100ms). Only pressing the
-      // recognize button (forceScan) clears the lock and re-locates the board.
-      if (!forceScan && boardGeo && boardGeo.x_lines && boardGeo.y_lines &&
-          boardGeo.x_lines.length === N && boardGeo.y_lines.length === N) {
-        var xs = boardGeo.x_lines, ys = boardGeo.y_lines;
-        var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys);
-        var x1 = Math.max.apply(null, xs), y1 = Math.max.apply(null, ys);
-        var sp = boardGeo.spacing > 0 ? boardGeo.spacing : 12;
-        body.geometry = { x_lines: xs, y_lines: ys, spacing: sp };
-        // Keep at least a full cell of margin around the outer lines so the
-        // vision service never clips edge stones/grid lines: 1.0 cell pad on
-        // each side (2.0 on w/h).
-        body.region = [Math.round(x0 - sp), Math.round(y0 - sp),
-                       Math.round(x1 - x0 + 2 * sp), Math.round(y1 - y0 + 2 * sp)];
-      }
-      await handleScan(await fetchJSON(SCAN_URL, body, 9000));
-    } catch (e) {
-      offline();
-    } finally { busy = false; }
   }
 
   function on(id, ev, fn) { var el = document.getElementById(id); if (el) el.addEventListener(ev, fn); }
@@ -3118,7 +3107,6 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     bootStep('10 drawChart 完成');
     ui('setStatus', T('connecting') || '连接引擎…');
     bootStep('11 setStatus 完成');
-    wsConnect();                              
 
     reportPanelRect();
     bootStep('12 已上报位置');

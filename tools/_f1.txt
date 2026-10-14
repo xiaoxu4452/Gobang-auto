@@ -1,3 +1,0 @@
-﻿call 1: 304.2 ms  B10 W10
-call 2: 126.7 ms  B10 W10
-call 3: 256.1 ms  B10 W10

@@ -1,4 +1,0 @@
-[22:47:31.486] [cpu] æ ¸éé¢å¯ç¨ï¼ç©çæ ¸ 8 â å¼æ 5 æ ¸/10 é»è¾(0x3FF) | è¯å« 3 æ ¸/6 é»è¾(0xFC00)
-[22:47:31.534] [vis] starting vision service GomokuVision.exe (both :8974/:8975)
-[22:47:31.864] [vis] prewarmed (vision service ready before first recognize)
-[22:47:36.577] [cpu] å®¿ä¸»ï¼æªå±/è¯å«é©±å¨/æ¶æ¯æ³µï¼å·²å½å¥è¯å«æ ¸ç» 6 é»è¾æ ¸

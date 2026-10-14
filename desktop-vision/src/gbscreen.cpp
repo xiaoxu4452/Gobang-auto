@@ -1156,7 +1156,10 @@ ScanResult finishWithGeometry(const cv::Mat& masked, int size,
         chk.x_lines = g.x_lines;
         chk.y_lines = g.y_lines;
         double live = gridLiveness(crop, chk);
-        if (live < 0.18) {
+        // ★★ 2026-10-13：闸门恢复桌面版助手（10-09）的 0.25 —— 10-12 那次优化把它放宽到
+        //   0.18，等于允许「几何已经不太对」的缓存几何继续产出落子坐标（错位棋子会漏读/误读）。
+        //   0.25 是旧口径：只要缓存网格在当前帧里活得不够好，就判 false → 上层全屏重定位。
+        if (live < 0.25) {
             ScanResult r = notFound(offX, offY, 0, "locked-grid-dead");
             r.diag.set("liveness", Json::makeNum(live));
             return r;
@@ -1253,34 +1256,77 @@ ScanResult scanSub(const cv::Mat& rgbIn, int size, const ScanHint& hint,
   cv::Mat masked = rgbIn.clone();
   maskExcluded(masked, exclude, (int)offX, (int)offY);
 
-    if (locked && locked->has && !probe &&
-        (int)locked->xLines.size() == size && (int)locked->yLines.size() == size &&
-        locked->spacing > 0) {
-        long long readMs = 0;
-        ScanResult r = finishWithGeometry(masked, size, locked->xLines, locked->yLines,
-                                          locked->spacing, 0, offX, offY, &readMs,
-                                          true);
-        if (perf)
-            fprintf(stderr, "[perf] locked scan size=%d read=%lldms suspect=%d\n",
-                    size, readMs, (int)r.suspect);
-        if (r.found && !r.suspect) return r;
-    }
+  // ★ 2026-10-14（用户：「识别棋子前期非常快，随着游戏时间变长就变慢了，是不是管道堆积？」）
+  //   实测定位（真实运行日志 %TEMP%\GomokuTrainer.log + 管道基准 tools/_bench_pipe.cpp）：
+  //   不是管道堆积 —— 管道/shm/outbox 全部有界且平稳（300 连发中位 30~54ms 无增长）。
+  //   真凶是 **suspect 帧的重复全搜**：几何锁定/缓存命中时读子本只要 ~50-150ms，但读出
+  //   suspect（棋子越多越容易：贴边/遮挡/低置信）就会 ①2x 裁剪重读 ②stab 缓存重读
+  //   ③再跌落到 findBoardRects+refineGrid+第三次读 —— 同样的像素一遍遍搜，单 tick 从
+  //   ~0.3s 涨到 0.5-1s（p90 4.7s，叠加 auto 全屏重搜窗口最长 10.7s），正好是
+  //   「越往后越慢」。修法：几何还活着时，suspect 帧的**全区域重搜限流 1.2s 一次**，
+  //   窗口内直接把 suspect 结果交还宿主（页面本就有 suspectTip 处理，行为不变、只去掉
+  //   无谓的重复搜索）；liveness 判死（几何失效）不受限流，照常重定位。
+  //   （2026-10-14 11:19 曾按用户方案试过「锁定态 suspect 一律早退、不自动全搜」，
+  //    真机反馈反而更慢 —— 锁定几何一旦失真，suspect 垃圾局面每帧刷新导致页面/引擎
+  //    反复重算；已整体回退到本限流版，回退见 git-less 项目日志。）
+  ScanResult suspectHold;
+  bool haveSuspectHold = false;
 
-    static StabGeo stab;
-    if (!probe && stab.has && (int)stab.xl.size() == size && (int)stab.yl.size() == size &&
-        stab.sp > 0) {
-        long long readMs = 0;
-        ScanResult r = finishWithGeometry(masked, size, stab.xl, stab.yl, stab.sp,
-                                          0, offX, offY, &readMs, true);
-        if (perf)
-            fprintf(stderr, "[perf] scan reuse cached geo read=%lldms suspect=%d (no find/refine)\n",
-                    readMs, (int)r.suspect);
-        if (r.found && !r.suspect) return r;
-        if (perf) fprintf(stderr, "[perf] scan reuse fell back (found=%d suspect=%d)\n",
-                          (int)r.found, (int)r.suspect);
-    }
+  if (locked && locked->has && !probe &&
+      (int)locked->xLines.size() == size && (int)locked->yLines.size() == size &&
+      locked->spacing > 0) {
+      long long readMs = 0;
+      ScanResult r = finishWithGeometry(masked, size, locked->xLines, locked->yLines,
+                                        locked->spacing, 0, offX, offY, &readMs,
+                                        true);
+      if (perf)
+          fprintf(stderr, "[perf] locked scan size=%d read=%lldms suspect=%d\n",
+                  size, readMs, (int)r.suspect);
+      if (r.found && !r.suspect) return r;
+      if (r.found) { suspectHold = r; haveSuspectHold = true; }
+  }
 
-    cv::Mat gray;
+  static StabGeo stab;
+  // ★★ 2026-10-13（用户：「当前棋盘识别的准度较低」＋「自动框选棋盘的逻辑，学习桌面版本
+  //   助手的参数和算法」）：
+  //   10-12 21:10 那次「帧差复用」性能优化（280ms → 118ms）把**棋盘是否移动的判定整个
+  //   删掉了** —— 只剩 `stab.sp > 0` 就直接用上一帧的几何去读子，并且把 liveness 闸门
+  //   从 0.25 放宽到 0.18。后果：棋盘被拖动 / 窗口被缩放 / 页面滚动 / 换平台切换边框时，
+  //   仍然拿**过期的线位置**去读子 ⇒ 整盘错位，这就是「准度较低」。
+  //   桌面版助手（Desktop version/，10-09 那份）用的就是**带 boardWindowChanged 判定**的
+  //   老参数，所以这里按它的口径恢复：几何指纹变了（平均灰度差 > 2.2）⇒ 老老实实全屏重定位。
+  //   （一颗棋子只占窗口 ~0.2% 面积，指纹差约 0.3 ≪ 2.2，所以正常落子**不会**触发重扫，
+  //    复用的加速仍然保留；只有棋盘真的动了才重扫。）
+  if (!probe && stab.has && (int)stab.xl.size() == size && (int)stab.yl.size() == size &&
+      stab.sp > 0 && !boardWindowChanged(masked, stab.xl, stab.yl, stab.sp)) {
+      long long readMs = 0;
+      ScanResult r = finishWithGeometry(masked, size, stab.xl, stab.yl, stab.sp,
+                                        0, offX, offY, &readMs, true);
+      if (perf)
+          fprintf(stderr, "[perf] scan reuse cached geo read=%lldms suspect=%d (no find/refine)\n",
+                  readMs, (int)r.suspect);
+      if (r.found && !r.suspect) return r;
+      if (r.found) { suspectHold = r; haveSuspectHold = true; }
+      if (perf) fprintf(stderr, "[perf] scan reuse fell back (found=%d suspect=%d)\n",
+                        (int)r.found, (int)r.suspect);
+  }
+
+  if (haveSuspectHold) {
+      // ★ 窗口取 2500ms —— 必须**大于宿主扫描循环的 2s 稳态周期**（watch 事件触发 +
+      //   2000ms 兜底），否则稳态 suspect 风暴下每个 tick 都重新放行全搜，限流形同虚设。
+      //   代价：真正的网格漂移恢复最多延迟一个窗口（几何彻底失效仍由 liveness 闸门兜底，
+      //   不受本限流约束，立即全屏重定位）。
+      static DWORD s_lastGeoFullRetry = 0;
+      DWORD nowMs = GetTickCount();
+      bool geoAlive = (locked && locked->has && (int)locked->xLines.size() == size &&
+                       (int)locked->yLines.size() == size && locked->spacing > 0) ||
+                      (stab.has && (int)stab.xl.size() == size && stab.sp > 0);
+      if (geoAlive && nowMs - s_lastGeoFullRetry < 2500)
+          return suspectHold;            // ★ 限流窗口内：直接报 suspect，不做全区域重搜
+      s_lastGeoFullRetry = nowMs;        // 窗口外：放行一次全搜并刷新时钟
+  }
+
+  cv::Mat gray;
     cv::cvtColor(masked, gray, cv::COLOR_RGB2GRAY);
     if (perf) {
         tPrepMs = (long long)(cv::getTickCount() * 1000 / cv::getTickFrequency()) - _t0;

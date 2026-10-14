@@ -124,7 +124,10 @@ input, textarea, select, [contenteditable="true"] {
    · 顶栏按键 0.6×（34→20px）：显式 20px + font 11px + line-height:1，inline-flex 居中。
    · 品牌字 1.2rem(19.2px)→12px、版本 .72rem(11.5px)→8px；间距全部改**固定 px**
      （rem 会随根字号漂移）⇒ 不同电脑/屏幕/窗口大小渲染同一条栏：高度恒 32px，只有长度随窗口变。
-   · 全文件没有任何按窗口尺寸缩放 #hdr 高度的规则（已核实）；只动 #hdr 这一条，其余界面零改动。 */
+   · 全文件没有任何按窗口尺寸缩放 #hdr 高度的规则（已核实）；只动 #hdr 这一条，其余界面零改动。
+   ★ 2026-10-13：以上注释写的 0.6×（32px）是当时的目标值，**实际发布的一直是 0.75×（40px）**：
+     #hdr 40px / 按键 24px·13px / 品牌 15px / 版本 9px。当天下午工作区被单独改成 32px 并把
+     #stage 缝隙 .42→.85rem（用户：「比较怪的逻辑」），已按用户要求回退到本条口径（= 今天的原样）。 */
 #hdr{
   flex:0 0 auto; display:flex; align-items:center; gap:7px;
   height:40px; padding:0 10px; border-bottom:1px solid var(--border); background:var(--card);
@@ -1017,7 +1020,13 @@ body.link{overflow:hidden}
   box-sizing:border-box; min-height:7em;
   padding:.3rem .55rem;                        
   border:2px dashed var(--border); border-radius:6px;
-  display:flex; align-items:flex-start;
+  /* ★ 2026-10-13（用户：「连线里面的文案提醒由原来的左右两个板块，变为上下，因为看起来较为
+     错乱，像是同一段一样」，指的就是平衡点那几段文案）：
+       原来是 flex 的默认 row ⇒ 平衡结果 / 评估分 / 补点说明 / 开局提示 四段被排成**同一行**
+       的四个 flex item（实测四段 top 全相等、left 各不相同），互相挤压着读，像一大段话。
+       改成 column ⇒ 每段各占一行、段间留 .3rem，一眼能分清楚是几条不同的信息。
+       单段文案（等待对方落子 / 还没锁定棋盘 / 引擎推荐落点）只有一个子元素，不受影响。 */
+  display:flex; flex-direction:column; align-items:flex-start; gap:.3rem;
 }
 
 .btn.dim{opacity:.42; filter:grayscale(.55)}
