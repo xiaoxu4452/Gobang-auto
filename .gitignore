@@ -85,3 +85,6 @@ engine-server/.venv/
 engine-server/python/**/__pycache__/
 engine-server/rapfi-native/
 engine-server/*.blob
+
+installer/
+
