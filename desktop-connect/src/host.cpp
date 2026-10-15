@@ -6513,6 +6513,119 @@ static std::vector<double> LnkNumArr(const std::string& s, const char* key) {
   return out;
 }
 
+
+// ---- Cross-marker immunity (Link scan) ----
+// Grabs a screen rect as raw 32bpp BGRA into out (w,h in pixels).
+static bool GrabRectBgra(RECT rc, std::vector<uint8_t>& out, int& w, int& h) {
+  w = rc.right - rc.left; h = rc.bottom - rc.top;
+  if (w <= 0 || h <= 0) return false;
+  HDC sdc = GetDC(nullptr);
+  if (!sdc) return false;
+  HDC mdc = CreateCompatibleDC(sdc);
+  HBITMAP hb = CreateCompatibleBitmap(sdc, w, h);
+  if (!mdc || !hb) {
+    if (hb) DeleteObject(hb);
+    if (mdc) DeleteDC(mdc);
+    ReleaseDC(nullptr, sdc);
+    return false;
+  }
+  HGDIOBJ old = SelectObject(mdc, hb);
+  BitBlt(mdc, 0, 0, w, h, sdc, rc.left, rc.top, SRCCOPY | CAPTUREBLT);
+  BITMAPINFO bi; ZeroMemory(&bi, sizeof(bi));
+  bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  bi.bmiHeader.biWidth = w;
+  bi.bmiHeader.biHeight = -h;            // top-down
+  bi.bmiHeader.biPlanes = 1;
+  bi.bmiHeader.biBitCount = 32;
+  bi.bmiHeader.biCompression = BI_RGB;
+  out.resize((size_t)w * (size_t)h * 4);
+  bool ok = GetDIBits(mdc, hb, 0, (UINT)h, out.data(), &bi, DIB_RGB_COLORS) != 0;
+  SelectObject(mdc, old); DeleteObject(hb); DeleteDC(mdc);
+  ReleaseDC(nullptr, sdc);
+  return ok;
+}
+
+// True if the (2R+1)x(2R+1) BGRA patch centered at px shows a colored
+// cross / ring marker instead of a plain stone.
+static bool CellCrossMarked(const uint8_t* px, int w, int R) {
+  const int c = R;
+  long colored = 0, tot = 0;
+  for (int dy = -R; dy <= R; ++dy) {
+    for (int dx = -R; dx <= R; ++dx) {
+      if (dx * dx + dy * dy > R * R) continue;
+      const uint8_t* p = px + ((size_t)(dy + c) * w + (size_t)(dx + c)) * 4;
+      int B = p[0], G = p[1], Rc = p[2];
+      int mx = Rc > G ? Rc : G; mx = mx > B ? mx : B;
+      int mn = Rc < G ? Rc : G; mn = mn < B ? mn : B;
+      ++tot;
+      if (mx - mn > 60 && mx > 90) ++colored;   // strong colored pixel
+    }
+  }
+  if (tot <= 0) return false;
+  if ((double)colored / (double)tot < 0.05) return false;  // not colored enough
+  // Cross arms: colored pixels along the two center lines.
+  long hHit = 0;
+  for (int dx = -R; dx <= R; ++dx) {
+    const uint8_t* p = px + ((size_t)c * w + (size_t)(c + dx)) * 4;
+    int B = p[0], G = p[1], Rc = p[2];
+    int mx = Rc > G ? Rc : G; mx = mx > B ? mx : B;
+    int mn = Rc < G ? Rc : G; mn = mn < B ? mn : B;
+    if (mx - mn > 60 && mx > 90) ++hHit;
+  }
+  long vHit = 0;
+  for (int dy = -R; dy <= R; ++dy) {
+    const uint8_t* p = px + ((size_t)(c + dy) * w + (size_t)c) * 4;
+    int B = p[0], G = p[1], Rc = p[2];
+    int mx = Rc > G ? Rc : G; mx = mx > B ? mx : B;
+    int mn = Rc < G ? Rc : G; mn = mn < B ? mn : B;
+    if (mx - mn > 60 && mx > 90) ++vHit;
+  }
+  const int need = (int)(R * 0.55) + 1;
+  return hHit >= need && vHit >= need;
+}
+
+// Clears stones whose cells carry a colored cross/ring marker (immune).
+static void LinkCrossImmunize(int board[15][15]) {
+  std::vector<double> gx, gy; double gsp = 0;
+  {
+    std::lock_guard<std::mutex> lk(g_linkGeoMtx);
+    gx = g_geoX; gy = g_geoY; gsp = g_geoSpacing;
+  }
+  if ((int)gx.size() != 15 || (int)gy.size() != 15 || gsp < 8) return;
+  int any = 0;
+  for (int r = 0; r < 15; ++r)
+    for (int c = 0; c < 15; ++c)
+      if (board[r][c]) ++any;
+  if (!any) return;
+  const int R = (int)(gsp * 0.50 + 0.5);
+  if (R < 4 || R > 128) return;
+  int x0 = INT_MAX, y0 = INT_MAX, x1 = INT_MIN, y1 = INT_MIN;
+  for (int r = 0; r < 15; ++r)
+    for (int c = 0; c < 15; ++c) {
+      if (!board[r][c]) continue;
+      int px = (int)(gx[c] + 0.5), py = (int)(gy[r] + 0.5);
+      if (px < x0) x0 = px; if (px > x1) x1 = px;
+      if (py < y0) y0 = py; if (py > y1) y1 = py;
+    }
+  RECT rc = { x0 - R, y0 - R, x1 + R + 1, y1 + R + 1 };
+  std::vector<uint8_t> buf; int w = 0, h = 0;
+  if (!GrabRectBgra(rc, buf, w, h)) return;
+  int removed = 0;
+  for (int r = 0; r < 15; ++r)
+    for (int c = 0; c < 15; ++c) {
+      if (!board[r][c]) continue;
+      int ox = (int)(gx[c] + 0.5) - rc.left, oy = (int)(gy[r] + 0.5) - rc.top;
+      if (ox - R < 0 || oy - R < 0 || ox + R >= w || oy + R >= h) continue;
+      if (CellCrossMarked(buf.data() + ((size_t)oy * w + (size_t)ox) * 4, w, R)) {
+        board[r][c] = 0;
+        ++removed;
+      }
+    }
+  if (removed) LogMsg("[link] cross-marker immunity cleared " + std::to_string(removed) + " cell(s)");
+}
+
+// ---- end cross-marker immunity ----
+
 static int LnkParseStones(const std::string& s, const char* key, int board[15][15], int color) {
   int n = 0;
   size_t p = s.find(key);
@@ -6672,10 +6785,13 @@ static void LinkScanTick() {
   }
   int board[15][15] = {{0}};
   int nb = 0, nw = 0;
+
   if (ok) {
     nb = LnkParseStones(resp, "\"black\"", board, 1);
     nw = LnkParseStones(resp, "\"white\"", board, 2);
+    LinkCrossImmunize(board);
   }
+
   
   if (ok && nb + nw > 0) {
     int ring = 0, inner = 0;

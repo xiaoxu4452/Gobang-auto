@@ -88,3 +88,8 @@ engine-server/*.blob
 
 installer/
 
+
+# ===== Local backups / installer build assets (not for the public repo) =====
+**/bak-1014/
+**/bak-1004/
+installer/
