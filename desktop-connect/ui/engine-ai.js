@@ -118,9 +118,10 @@ function engineCoreBudget() {
 }
 
 function fullCoreThreads() {
-  
+  // Honor the user's thread choice exactly: 4 means 4, 8 means 8.
+  // Only the 0 (auto) default falls back to all engine cores.
   var cpuAll = engineCoreBudget();
-  return CFG.threads > 0 ? Math.max(2, Math.min(CFG.threads, cpuAll))
+  return CFG.threads > 0 ? Math.max(2, CFG.threads)
                          : Math.max(2, cpuAll);
 }
 
@@ -150,7 +151,8 @@ function hashBudgetKB() {
   var want = CFG.hashKB > 0 ? Math.max(65536, Math.min(hashCapKB, Math.max(CFG.hashKB * 2, cores * 131072)))
                             : Math.max(262144, Math.min(hashCapKB, Math.floor(totalMemKB() / hashDiv)));
   
-  var ramCapKB = Math.max(262144, Math.floor(totalMemKB() / 3));
+  // Shared TT must never exceed 80% of the machine's RAM.
+  var ramCapKB = Math.max(262144, Math.floor(totalMemKB() * 0.8));
   return Math.min(want, ramCapKB);
 }
 

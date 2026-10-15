@@ -8915,15 +8915,26 @@ function buildSelects() {
   var hs = [256, 512, 768, 1024, 1536, 2048];
   if (maxH > 2048) hs = hs.concat([3072, 4096, 6144]);
   
-  var allow6 = native && (memMB <= 0 || memMB >= 8192);
-  if (S.hashMB === 6144 && !allow6) S.hashMB = 0;    
+  // RAM-aware hash cap: grey out any option the machine cannot feed.
+  // cap = min(6GB hard limit, 80% of RAM, RAM minus 2GB system reserve).
+  var capMB = maxH;
+  if (memMB > 0) {
+    var byPct = Math.floor(memMB * 0.8);
+    var byRes = Math.max(0, memMB - 2048);
+    capMB = Math.min(maxH, byPct, byRes);
+  }
+  if (S.hashMB && S.hashMB > capMB) {
+    S.hashMB = hs.filter(function (h) { return h <= capMB; }).pop() || 0;
+    if (!S.hashMB) S.hashMB = 512;
+    save();
+  }
   if (!S.hashDefMig) {                               
     S.hashDefMig = true;
     if (S.hashMB === 1024) { S.hashMB = 512; save(); }
   }
   if (!S.hashMB || hs.indexOf(S.hashMB) < 0) S.hashMB = 512;   
   els.sel_hash.innerHTML = hs.map(function (h) {
-    var off = (h === 6144 && !allow6);
+    var off = (h > capMB);
     return '<option value="' + h + '"' + (h === S.hashMB ? ' selected' : '') +
            (off ? ' disabled' : '') + '>' + h + ' MB</option>';
   }).join('');

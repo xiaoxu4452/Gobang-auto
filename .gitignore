@@ -93,3 +93,6 @@ installer/
 **/bak-1014/
 **/bak-1004/
 installer/
+
+**/bak-manual/
+**/bak-opencv5/
