@@ -6906,7 +6906,7 @@ static void StartLinkScanLoop() {
   if (g_linkScanRun.exchange(true)) return;         
   StartLinkFrameWatch();                            
   std::thread([] {
-    LogMsg("[link] scan loop started (locked 220ms rhythm + adaptive 100/150/200/1000ms)");
+    LogMsg("[link] scan loop started (locked 50ms rhythm + adaptive 100/150/200/1000ms)");
     while (g_linkScanRun.load() && g_linkSession.load()) {
       ULONGLONG t0 = GetTickCount64();
       LinkScanTick();
@@ -6920,12 +6920,12 @@ static void StartLinkScanLoop() {
           
           Sleep(100);
         } else {
-          // Fixed 220ms locked rhythm instead of the frame watch event: the
-          // event is frame-driven and irregular, which makes recognition
-          // alternate fast/slow (every tick still hits the vision pipe). A
-          // steady poll keeps per-tick latency uniform and engine load flat.
-          int remain = 220 - (int)el;
-          if (remain < 60) remain = 60;
+          // Fixed 50ms locked rhythm instead of the frame watch event: a
+          // steady poll keeps per-tick latency uniform and engine load flat
+          // (stone-change capture target ~50ms; the 10-04 vision DLL still
+          // needs its ~65ms full recognition per tick, which is the floor).
+          int remain = 50 - (int)el;
+          if (remain < 10) remain = 10;
           Sleep(remain);
         }
       } else {
