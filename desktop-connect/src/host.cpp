@@ -3077,6 +3077,7 @@ static void DirectOutput(const char *line, void * /*user*/)
     e.lines.push_back(line);
     e.seq++;
     LogMsg(std::string("[engine:direct:out]") + std::to_string(idx) + " " + line);
+    RequestEngineFlush();
 }
 
 static bool DirectEnsure()
@@ -3224,6 +3225,9 @@ static bool FlushToPage() {
   }
   out += "]}";
   if (!any) return false;
+#ifdef METER_RAPFI_DIRECT
+  LogMsg("[engine:direct:flush] " + out.substr(0, 200));
+#endif
   PostToPage(out);
   return true;
 }

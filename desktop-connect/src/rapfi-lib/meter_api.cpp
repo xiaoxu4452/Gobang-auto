@@ -268,7 +268,8 @@ void MR_BoardMove(int x, int y)
     Search::Engine.waitForIdle();
     options.multiPV     = 1;
     options.balanceMode = Search::SearchOptions::BALANCE_NONE;
-    board->move(options.rule, Pos(x, y));
+    // protocol coords -> internal (X_flipY io mode, same as gomocup YXBOARD)
+    board->move(options.rule, Pos(x, (int)board->size() - 1 - y));
 }
 
 void MR_BlockReset()
@@ -280,7 +281,8 @@ void MR_BlockReset()
 void MR_BlockAdd(int x, int y)
 {
     std::lock_guard g(g_apiMu);
-    Pos pos(x, y);
+    // protocol coords -> internal (X_flipY io mode, same as gomocup YXBLOCK)
+    Pos pos(x, (int)board->size() - 1 - y);
     if (std::count(options.blockMoves.begin(), options.blockMoves.end(), pos) == 0)
         options.blockMoves.push_back(pos);
 }
