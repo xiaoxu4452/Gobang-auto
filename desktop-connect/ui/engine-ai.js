@@ -1,4 +1,4 @@
-/* Meter Gomoku Trainer - in-page AI engine worker. Loads the native rapfi multi-thread build via importScripts and serves search/evaluation lanes to the overlay UI through a Worker message bridge. */
+﻿/* Meter Gomoku Trainer - in-page AI engine worker. Loads the native rapfi multi-thread build via importScripts and serves search/evaluation lanes to the overlay UI through a Worker message bridge. */
 
 
 'use strict';
@@ -142,9 +142,12 @@ var hashOwner = 'main';
 var HASH_CLAIM_MIN_MS = 2000;
 
 function hashBudgetKB() {
+  // Shared large partition TT: effective hash = user choice x2 (one extra silent
+  // table), floored at 128MB per engine thread so every core searches with room.
   var hashCapKB = NATIVE.ok ? 6291456 : 2097152;
   var hashDiv = NATIVE.ok ? 4 : 3;
-  var want = CFG.hashKB > 0 ? Math.max(65536, Math.min(hashCapKB, CFG.hashKB))
+  var cores = Math.max(1, (CFG.threads > 0 ? CFG.threads : engineCoreBudget()));
+  var want = CFG.hashKB > 0 ? Math.max(65536, Math.min(hashCapKB, Math.max(CFG.hashKB * 2, cores * 131072)))
                             : Math.max(262144, Math.min(hashCapKB, Math.floor(totalMemKB() / hashDiv)));
   
   var ramCapKB = Math.max(262144, Math.floor(totalMemKB() / 3));
