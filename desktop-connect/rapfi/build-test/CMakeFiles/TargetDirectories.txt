@@ -1,0 +1,15 @@
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/CMakeFiles/rapfi.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/CMakeFiles/meterrapfi.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/CMakeFiles/meter_test.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/CMakeFiles/ALL_BUILD.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/CMakeFiles/ZERO_CHECK.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/cpptoml/CMakeFiles/ALL_BUILD.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/cxxopts/CMakeFiles/ALL_BUILD.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/lz4/CMakeFiles/lz4.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/lz4/CMakeFiles/ALL_BUILD.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/simde/CMakeFiles/ALL_BUILD.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/flat.hpp/CMakeFiles/ALL_BUILD.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/zip/CMakeFiles/zip.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/zip/CMakeFiles/ALL_BUILD.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/libnpy/CMakeFiles/ALL_BUILD.dir
+C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/thread-pool/CMakeFiles/ALL_BUILD.dir

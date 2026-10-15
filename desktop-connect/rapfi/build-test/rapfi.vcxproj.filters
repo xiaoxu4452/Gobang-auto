@@ -1,0 +1,477 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\argutils.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\benchmark.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\command.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\dbcommand.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\gomocup.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\compressor.cpp">
+      <Filter>Sources\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\hash.cpp">
+      <Filter>Sources\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\iohelper.cpp">
+      <Filter>Sources\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\utils.cpp">
+      <Filter>Sources\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\platform.cpp">
+      <Filter>Sources\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\version.cpp">
+      <Filter>Sources\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\dbclient.cpp">
+      <Filter>Sources\database</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\dbconfig.cpp">
+      <Filter>Sources\database</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\dbutils.cpp">
+      <Filter>Sources\database</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\dbtypes.cpp">
+      <Filter>Sources\database</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\renlib.cpp">
+      <Filter>Sources\database</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\yxdbstorage.cpp">
+      <Filter>Sources\database</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\eval.cpp">
+      <Filter>Sources\eval</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\evalconfig.cpp">
+      <Filter>Sources\eval</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\evaluator.cpp">
+      <Filter>Sources\eval</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\mix9svqnnue.cpp">
+      <Filter>Sources\eval</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\mix10nnue.cpp">
+      <Filter>Sources\eval</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\board.cpp">
+      <Filter>Sources\game</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\movegen.cpp">
+      <Filter>Sources\game</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\pattern.cpp">
+      <Filter>Sources\game</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\hashtable.cpp">
+      <Filter>Sources\search</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\movepick.cpp">
+      <Filter>Sources\search</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\opening.cpp">
+      <Filter>Sources\search</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchcommon.cpp">
+      <Filter>Sources\search</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchconfig.cpp">
+      <Filter>Sources\search</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchengine.cpp">
+      <Filter>Sources\search</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchoutput.cpp">
+      <Filter>Sources\search</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchthread.cpp">
+      <Filter>Sources\search</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\timecontrol.cpp">
+      <Filter>Sources\search</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\ab\history.cpp">
+      <Filter>Sources\search\ab</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\ab\search.cpp">
+      <Filter>Sources\search\ab</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\mcts\node.cpp">
+      <Filter>Sources\search\mcts</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\mcts\search.cpp">
+      <Filter>Sources\search\mcts</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\config.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\internalConfig.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\main.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\database.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\dataprep.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\opengen.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\selfplay.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\tuning.cpp">
+      <Filter>Sources\command</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\dataformat.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\dataset.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\datastream.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\datawriter.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\featureencoder.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\numpywriter.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\optimizer.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\tunecorpus.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\tunedigest.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\tuneshard.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\tunestore.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\tuner.cpp">
+      <Filter>Sources\tuning</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\command.h">
+      <Filter>Headers\command</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\argutils.h">
+      <Filter>Headers\command</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\command\dbcommand.h">
+      <Filter>Headers\command</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\compressor.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\filesystem.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\hash.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\iohelper.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\math.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\platform.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\pos.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\random.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\string.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\time.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\types.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\utils.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\core\version.h">
+      <Filter>Headers\core</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\cache.h">
+      <Filter>Headers\database</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\dbclient.h">
+      <Filter>Headers\database</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\dbconfig.h">
+      <Filter>Headers\database</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\dbstorage.h">
+      <Filter>Headers\database</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\dbtypes.h">
+      <Filter>Headers\database</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\dbutils.h">
+      <Filter>Headers\database</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\parallelwalk.h">
+      <Filter>Headers\database</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\renlib.h">
+      <Filter>Headers\database</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\database\yxdbstorage.h">
+      <Filter>Headers\database</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\eval.h">
+      <Filter>Headers\eval</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\evalconfig.h">
+      <Filter>Headers\eval</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\evaluator.h">
+      <Filter>Headers\eval</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\mix9svqnnue.h">
+      <Filter>Headers\eval</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\mix10nnue.h">
+      <Filter>Headers\eval</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\mixcommon.h">
+      <Filter>Headers\eval</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\scoretables.h">
+      <Filter>Headers\eval</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\simd\activation.h">
+      <Filter>Headers\eval\simd</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\simd\isa.h">
+      <Filter>Headers\eval\simd</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\simd\linear.h">
+      <Filter>Headers\eval\simd</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\simd\vec.h">
+      <Filter>Headers\eval\simd</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\simdops.h">
+      <Filter>Headers\eval</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\eval\weightloader.h">
+      <Filter>Headers\eval</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\bitboard.h">
+      <Filter>Headers\game</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\board.h">
+      <Filter>Headers\game</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\candarea.h">
+      <Filter>Headers\game</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\movegen.h">
+      <Filter>Headers\game</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\pattern.h">
+      <Filter>Headers\game</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\scopedmove.h">
+      <Filter>Headers\game</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\game\wincheck.h">
+      <Filter>Headers\game</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\dataentry.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\dataformat.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\dataset.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\datastream.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\datawriter.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\featureencoder.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\optimizer.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\tunemap.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\tunecorpus.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\tuning\tuner.h">
+      <Filter>Headers\tuning</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\hashtable.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\history.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\movepick.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\opening.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchcommon.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchconfig.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchengine.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searcher.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchoutput.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\searchthread.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\skill.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\timecontrol.h">
+      <Filter>Headers\search</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\ab\history.h">
+      <Filter>Headers\search\ab</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\ab\parameter.h">
+      <Filter>Headers\search\ab</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\ab\searcher.h">
+      <Filter>Headers\search\ab</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\ab\searchstack.h">
+      <Filter>Headers\search\ab</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\mcts\node.h">
+      <Filter>Headers\search\mcts</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\mcts\nodetable.h">
+      <Filter>Headers\search\mcts</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\mcts\searcher.h">
+      <Filter>Headers\search\mcts</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\search\mcts\parameter.h">
+      <Filter>Headers\search\mcts</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\config.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Headers">
+      <UniqueIdentifier>{712EB7DD-E98E-3455-8CD0-D23776AA601E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\command">
+      <UniqueIdentifier>{B0BEEB7E-3F89-36CA-A5FB-001FB58A84DF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\core">
+      <UniqueIdentifier>{1758FE15-EAA8-3509-BD47-CC098DFF7F9B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\database">
+      <UniqueIdentifier>{8F6B419E-300E-3C20-8DC7-F0B572E3B2D1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\eval">
+      <UniqueIdentifier>{AF18284E-FAB6-3A0E-BEAB-497CE6C8E7FD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\eval\simd">
+      <UniqueIdentifier>{03714340-7957-3F25-95A6-5711C62CB19C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\game">
+      <UniqueIdentifier>{7BE5DCDA-B569-3F40-B08D-49564FE09007}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\search">
+      <UniqueIdentifier>{A8625EA1-5B1C-38C9-9C6E-859B24992801}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\search\ab">
+      <UniqueIdentifier>{F5D212CC-8ABD-3AF4-8F54-390534620B23}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\search\mcts">
+      <UniqueIdentifier>{BC267CFF-FCA9-3BB1-9555-91F4B3E3D0D7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\tuning">
+      <UniqueIdentifier>{DBB715E6-B57C-3229-B623-A869C5149679}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources">
+      <UniqueIdentifier>{627E9621-372C-3478-921D-4CF0A1FA820E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\command">
+      <UniqueIdentifier>{98597FD6-4C3C-39D6-B74B-2272AFA25AFD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\core">
+      <UniqueIdentifier>{E8240C19-6E38-3ABE-A846-A9D43391E80A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\database">
+      <UniqueIdentifier>{B7119E7F-6FAF-34D0-A6A9-5166A649AA5A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\eval">
+      <UniqueIdentifier>{CE1A5571-DDF6-39F7-960F-2F87695A17B4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\game">
+      <UniqueIdentifier>{23FCAA27-FB88-3D51-872D-5F020C239B8C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\search">
+      <UniqueIdentifier>{BF827CA7-8E2A-3244-B0C0-8D274FE24AEC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\search\ab">
+      <UniqueIdentifier>{DB92A410-D9A7-3070-827B-2450F0202C37}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\search\mcts">
+      <UniqueIdentifier>{A12AB7A3-53A1-378D-90FA-B337A8A55B47}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\tuning">
+      <UniqueIdentifier>{78C07DD2-F0A5-3ABC-964B-D3D6B0441644}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

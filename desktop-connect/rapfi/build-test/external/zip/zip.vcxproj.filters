@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\external\zip\src\zip.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\external\zip\src\miniz.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\external\zip\src\zip.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\external\zip\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{29C07BEA-BFCC-362F-A1A4-B947A77C487D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4E191E42-96B7-3F81-BC51-2B4C62D64340}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\build-test\CMakeFiles\96dc8387d313d8663e175964234cd569\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{6DC13575-AFB5-3EFA-A021-BB80B327F771}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

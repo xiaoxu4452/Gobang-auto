@@ -1,0 +1,15 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/cmake_install.cmake",
+		"C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/cpptoml/cmake_install.cmake",
+		"C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/cxxopts/cmake_install.cmake",
+		"C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/lz4/cmake_install.cmake",
+		"C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/simde/cmake_install.cmake",
+		"C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/flat.hpp/cmake_install.cmake",
+		"C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/zip/cmake_install.cmake",
+		"C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/libnpy/cmake_install.cmake",
+		"C:/Users/harve/Desktop/Gobang auto/desktop-connect/rapfi/build-test/external/thread-pool/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

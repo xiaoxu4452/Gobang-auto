@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\src\rapfi-lib\meter_api.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\src\rapfi-lib\meter_test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\harve\Desktop\Gobang auto\desktop-connect\rapfi\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4E191E42-96B7-3F81-BC51-2B4C62D64340}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
