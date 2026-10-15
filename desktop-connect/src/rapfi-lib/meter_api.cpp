@@ -287,13 +287,13 @@ void MR_BlockAdd(int x, int y)
 
 // ------------------------------------------------------------- search
 
-void MR_Think(int turnMs, int matchMs, int timeLeftMs)
+void MR_Think(int turnMs, int matchMs, int timeLeftMs, int multiPV)
 {
     std::lock_guard g(g_apiMu);
     options.timeLimit = true;
     options.setTimeControl(turnMs, matchMs);
     options.timeLeft = timeLeftMs > 0 ? timeLeftMs : std::numeric_limits<Time>::max();
-    Command::GomocupProtocol::think(*board, 1);
+    Command::GomocupProtocol::think(*board, (uint16_t)std::max(1, multiPV));
 }
 
 void MR_Stop()

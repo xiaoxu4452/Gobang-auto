@@ -30,6 +30,10 @@
 #include "ui_crypto.h"          
 #include "appver.h"             
 
+#ifdef METER_RAPFI_DIRECT
+#include "rapfi-lib/meter_api.h"
+#endif
+
 #include <algorithm>   
 #include <atomic>
 #include <cctype>      
@@ -170,7 +174,9 @@ static void SpawnDetached(const std::wstring& exe, const std::wstring& args, con
 
 static std::atomic<unsigned long long> g_engineSpawnedAt(0);
 static void EnsureEngine() {
-  
+#ifdef METER_RAPFI_DIRECT
+  return;  // engine is statically linked into the host, no child process
+#else
   std::wstring root = ExeDir();                 
   std::wstring exe = Join(root, L"Web GomokuEngine.exe");
   if (!FileExists(exe)) {
@@ -185,14 +191,19 @@ static void EnsureEngine() {
   }
   LogMsg("[deps] starting engine backend --as-backend (headless, no browser)");
   SpawnDetached(exe, L"--as-backend", root);
+#endif
 }
 static void EngineWatchdog() {
+#ifdef METER_RAPFI_DIRECT
+  while (g_running.load()) Sleep(15000);  // engine is in-process, nothing to respawn
+#else
   EnsureEngine();
   while (g_running.load()) {
     Sleep(15000);
     if (!g_running.load()) return;
     EnsureEngine();
   }
+#endif
 }
 #endif  
 
@@ -3044,6 +3055,142 @@ static void ClearLaneLines() {
   }
 }
 
+#ifdef METER_RAPFI_DIRECT
+// ---------------------------------------------------------------
+// Function-direct engine channel (RapFi statically linked, see rapfi-lib).
+// Page commands are translated into MR_* calls instead of being written to an
+// anonymous pipe; engine output is captured per active lane and pushed through
+// the same buffers FlushToPage drains, so bridge.js stays unchanged.
+// ---------------------------------------------------------------
+static std::atomic<int>  g_directLane{-1};
+static std::atomic<bool> g_directInited{false};
+static int g_dTurn = 500, g_dMatch = 6000000, g_dLeft = 6000000, g_dRule = 1, g_dMultiPV = 1;
+static bool g_dPonder = false;
+
+static void DirectOutput(const char *line, void * /*user*/)
+{
+    int idx = g_directLane.load();
+    if (idx < 0 || idx >= LANE_COUNT) return;
+    Engine &e = g_eng[idx];
+    std::lock_guard<std::mutex> lk(e.mu);
+    if (e.lines.size() >= 2000) e.dropped++;
+    e.lines.push_back(line);
+    e.seq++;
+    LogMsg(std::string("[engine:direct:out]") + std::to_string(idx) + " " + line);
+}
+
+static bool DirectEnsure()
+{
+    if (g_directInited.load()) return true;
+    if (MR_Init(L"") != 0) {
+        LogMsg("[engine:direct] MR_Init failed, fall back to pipe channel");
+        return false;
+    }
+    MR_SetOutput(DirectOutput, nullptr);
+    g_directInited = true;
+    LogMsg("[engine:direct] RapFi linked-in function-direct channel active");
+    return true;
+}
+
+static void DirectCmd(int idx, const std::vector<std::string> &cmds)
+{
+    if (!DirectEnsure()) return;
+    g_directLane = idx;
+    // Balance batches set the board first and then run a balance search, so a
+    // plain YXBOARD must not start a normal think inside those batches.
+    bool hasBalance = false;
+    for (const auto &c : cmds)
+        if (c.rfind("YXBALANCE", 0) == 0) { hasBalance = true; break; }
+    bool boardSet = false;
+    for (const auto &raw : cmds) {
+        std::string c = raw;
+        if (c.rfind("INFO ", 0) == 0) c = c.substr(5);
+        std::string up = c;
+        for (auto &ch : up) ch = (char)toupper((unsigned char)ch);
+        auto toInt = [](const std::string &x) { return atoi(x.c_str()); };
+        if (up.rfind("RULE ", 0) == 0) {
+            g_dRule = toInt(c.substr(5)); MR_SetRule(g_dRule);
+        } else if (up.rfind("TIMEOUT_TURN ", 0) == 0) {
+            g_dTurn = toInt(c.substr(13));
+        } else if (up.rfind("TIMEOUT_MATCH ", 0) == 0) {
+            g_dMatch = toInt(c.substr(14));
+        } else if (up.rfind("TIME_LEFT ", 0) == 0) {
+            g_dLeft = toInt(c.substr(10));
+        } else if (up.rfind("PONDERING ", 0) == 0) {
+            g_dPonder = toInt(c.substr(10)) == 1; MR_SetPondering(g_dPonder);
+        } else if (up.rfind("CAUTION_FACTOR ", 0) == 0) {
+            MR_SetCaution(toInt(c.substr(15)));
+        } else if (up.rfind("STRENGTH ", 0) == 0) {
+            MR_SetStrength(toInt(c.substr(9)));
+        } else if (up.rfind("THREAD_NUM ", 0) == 0) {
+            MR_SetThreads(toInt(c.substr(11)));
+        } else if (up.rfind("HASH_SIZE ", 0) == 0) {
+            MR_SetHashMB(toInt(c.substr(10)) / 1024);
+        } else if (up.rfind("MAX_MEMORY ", 0) == 0) {
+            MR_SetHashMB(toInt(c.substr(11)) / 1024);
+        } else if (up.rfind("YXNBEST ", 0) == 0) {
+            g_dMultiPV = std::max(1, toInt(c.substr(8)));
+        } else if (up.rfind("YXHASHCLEAR", 0) == 0) {
+            MR_ClearTT();
+        } else if (up.rfind("YXBLOCKRESET", 0) == 0) {
+            MR_BlockReset();
+        } else if (up.rfind("YXBLOCK ", 0) == 0) {
+            // "YXBLOCK x,y x,y ... DONE" in engine coordinates
+            std::string rest = c.substr(8);
+            size_t pos = 0;
+            while (pos < rest.size()) {
+                size_t sp = rest.find(' ', pos);
+                std::string tok = rest.substr(pos, sp == std::string::npos ? std::string::npos : sp - pos);
+                if (tok == "DONE") break;
+                if (!tok.empty()) {
+                    int x = atoi(tok.c_str());
+                    size_t cm = tok.find(',');
+                    if (cm != std::string::npos) {
+                        int y = atoi(tok.c_str() + cm + 1);
+                        if (x >= 0 && y >= 0) MR_BlockAdd(x, y);
+                    }
+                }
+                if (sp == std::string::npos) break;
+                pos = sp + 1;
+            }
+        } else if (up.rfind("YXBALANCETWO ", 0) == 0) {
+            MR_Balance(1, toInt(c.substr(13)));
+        } else if (up.rfind("YXBALANCEONE ", 0) == 0) {
+            MR_Balance(0, toInt(c.substr(13)));
+        } else if (up.rfind("YXBOARD", 0) == 0 || up.rfind("BOARD", 0) == 0) {
+            // "YXBOARD x,y x,y ... DONE" (one line, engine coordinates)
+            size_t sp0 = c.find(' ');
+            std::string rest = sp0 == std::string::npos ? "" : c.substr(sp0);
+            MR_BoardReset(15);
+            size_t pos = 0;
+            while (pos < rest.size()) {
+                size_t sp = rest.find(' ', pos);
+                std::string tok = rest.substr(pos, sp == std::string::npos ? std::string::npos : sp - pos);
+                if (tok == "DONE") break;
+                if (!tok.empty()) {
+                    int x = atoi(tok.c_str());
+                    size_t cm = tok.find(',');
+                    if (cm != std::string::npos) {
+                        int y = atoi(tok.c_str() + cm + 1);
+                        if (x >= 0 && y >= 0) MR_BoardMove(x, y);
+                    }
+                }
+                if (sp == std::string::npos) break;
+                pos = sp + 1;
+            }
+            boardSet = true;
+        } else if (up.rfind("STOP", 0) == 0) {
+            MR_Stop();
+        }
+        // YXSHOWFORBID / INFO no-ops / MAX_DEPTH / MAX_NODE are intentionally ignored.
+    }
+    if (boardSet && !hasBalance) {
+        MR_Think(g_dTurn, g_dMatch, g_dLeft, g_dMultiPV);
+        g_dMultiPV = 1;
+    }
+}
+#endif  // METER_RAPFI_DIRECT
+
 static bool FlushToPage() {
   std::string out = "{\"type\":\"engineOut\",\"lanes\":[";
   bool any = false, first = true;
@@ -3097,9 +3244,27 @@ static std::string HandlePageCmd(const std::string& op, int idx,
       std::lock_guard<std::mutex> lk(g_resMu);
       pre = ResPlanCmdsLocked(idx, resT, resH, busyNames);
     }
+#ifdef METER_RAPFI_DIRECT
+    (void)body;
+    std::vector<std::string> all;
+    if (!pre.empty()) {
+      std::string p = pre; size_t s2 = 0;
+      while (s2 < p.size()) {
+        size_t nl = p.find('\n', s2);
+        std::string ln = p.substr(s2, nl == std::string::npos ? std::string::npos : nl - s2);
+        if (!ln.empty()) all.push_back(ln);
+        if (nl == std::string::npos) break;
+        s2 = nl + 1;
+      }
+    }
+    all.insert(all.end(), cmds.begin(), cmds.end());
+    DirectCmd(idx, all);
+    ok = g_directInited.load();
+#else
     body += pre;
     for (size_t i = 0; i < cmds.size(); i++) { body += cmds[i]; body += "\n"; }
     ok = body.empty() || WriteEnsured(idx, body);
+#endif
   } else if (op == "ensure") ok = Ensure(idx);
   else if (op == "reset")    ok = Spawn(idx);
   else if (op == "status")   ok = true;

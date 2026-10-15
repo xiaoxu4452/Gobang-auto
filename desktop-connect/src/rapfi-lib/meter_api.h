@@ -46,8 +46,9 @@ void MR_BoardMove(int x, int y);
 void MR_BlockReset();
 void MR_BlockAdd(int x, int y);
 
-/* Start an asynchronous think. Output lines arrive via the MR_Output callback. */
-void MR_Think(int turnMs, int matchMs, int timeLeftMs);
+/* Start an asynchronous think. Output lines arrive via the MR_Output callback.
+ * multiPV > 1 asks the engine to return that many candidate moves. */
+void MR_Think(int turnMs, int matchMs, int timeLeftMs, int multiPV = 1);
 /* Stop the current search immediately. */
 void MR_Stop();
 /* 1 while a search is running. */
