@@ -1149,7 +1149,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             
             var batch = [];
             
-            if (lane.name === 'main' && newGamePending) { newGamePending = false; batch.push('YXHASHCLEAR'); }
+            if (newGamePending) { newGamePending = false; batch.push('YXHASHCLEAR'); }
             // ★ 2026-10-15：THREAD_NUM 由宿主 C++ 按意图计算（本批次 res=full|plan 前置），
             //   JS 只维护展示口径的记账。
             if (wantT > 0 && lane.curThreads !== wantT) lane.curThreads = wantT;
@@ -1262,6 +1262,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           q = q.then(function () {
             engCmd(lane.name, cmd, resQ(lane, boostB, false));
             lane.outBuf = '';
+            engCmd(lane.name, 'YXHASHCLEAR');   // clean TT before balance/swap evaluation
             engCmd(lane.name, 'YXBLOCKRESET');
             // ★ 官方开局区间锁（zoneR>0）：YXBLOCK 掉天元 (2R+1)² 之外的全部点。
             //   ★★ 2026-10-13 二次修正：**页面默认不再传 zoneR**（=0 ⇒ 不加锁）——
