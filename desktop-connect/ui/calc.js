@@ -8894,8 +8894,10 @@ function buildSelects() {
   renderSysInfo();
   var maxT = Math.max(1, host.threadsMax || 1);
   
-  if (S.coresHost !== host.cpu) { S.cores = maxT; S.coresHost = host.cpu; save(); }
-  if (!S.cores || S.cores > maxT)
+  // Persisted user choice wins; a machine/core-count change only updates the
+  // recorded host fingerprint, never resets the chosen thread count.
+  if (S.coresHost !== host.cpu) { S.coresHost = host.cpu; save(); }
+  if (!S.cores || S.cores > maxT || S.cores < 1)
     S.cores = maxT || host.threadsDefault || 1;
   var html = '';
   for (var t = 1; t <= maxT; t++) {
@@ -8939,7 +8941,7 @@ function boot() {
   LocalAI.boot();              
                                
   try {
-    var st = JSON.parse(localStorage.getItem('gbcalc.settings.v1') || '{}');
+    var st = JSON.parse(localStorage.getItem(settingsKey()) || '{}');
     for (var k in st) if (S.hasOwnProperty(k)) S[k] = st[k];
     // ★ 2026-10-13（用户：「在用户选择规则的时候，一定要正确链接」）：规则以专属键为准 ——
     //   这样「上次在连线窗里选的规则」在下次开主界面时同样生效，反之亦然。
@@ -9733,7 +9735,7 @@ function loadRuleGlobal() {
   } catch (e) { return null; }
 }
 
-function GLOBAL_LOOK_KEYS() { return ['lang', 'theme', 'cssVars', 'customBase']; }
+function GLOBAL_LOOK_KEYS() { return ['lang', 'theme', 'cssVars', 'customBase', 'cores', 'hashMB', 'rule']; }
 function save() {
   try {
     var k = settingsKey();
