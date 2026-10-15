@@ -1,4 +1,4 @@
-/* Vision - boardscreen. */
+﻿/* Vision - boardscreen. */
 
 
 #include "gbvision.h"
@@ -240,14 +240,17 @@ void CapSelect() {
     if (g_capDecided) return;
     g_capDecided = true;
     char v[8] = {0};
-    bool forceGdi = gbNoDxgi(), forceDxgi = false;
+    // CPU-only by default (matches the 10-04 assistant build: GDI BitBlt,
+    // no GPU/DXGI dependency). GB_FORCE_CAPTURE=dxgi still opts into the
+    // DXGI desktop-duplication path for testing.
+    bool forceGdi = true, forceDxgi = false;
     if (GetEnvironmentVariableA("GB_FORCE_CAPTURE", v, sizeof(v)) > 0) {
         if (_stricmp(v, "gdi") == 0) forceGdi = true;
         else if (_stricmp(v, "dxgi") == 0) forceDxgi = true;
     }
     if (forceGdi) {
         g_capMode = CapMode::GDI;
-        fprintf(stderr, "[vision] capture: 纯 CPU 抓屏（GDI BitBlt）—— 环境变量指定 / GB_NO_DXGI=1\n");
+        fprintf(stderr, "[vision] capture: 纯 CPU 抓屏（GDI BitBlt）—— 默认全 CPU（与 10-04 助手版一致）\n");
         return;
     }
     if (!forceDxgi && !DxgiCap().usable) {
