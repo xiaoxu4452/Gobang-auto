@@ -441,7 +441,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         if (body !== undefined) { opt.method = 'POST'; opt.body = body; }
         return fetch(path, opt).then(function (r) { return r.json(); });
       }
-      function engCmd(lane, text) { return engFetch('/engine/cmd?lane=' + lane, text); }
+      function engCmd(lane, text, resQ) { return engFetch('/engine/cmd?lane=' + lane + (resQ || ''), text); }
       function engEnsure(lane) { return engFetch('/engine/ensure?lane=' + lane, ''); }
       function engStatus() { return engFetch('/engine/status'); }
 
@@ -831,6 +831,21 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       function planThreads(lane) {
         return Math.max(1, engBudget() - othersBusyT(lane));
       }
+      // ★ 2026-10-15（资源调度下沉 C++）：JS 只声明意图（full=单发满核 / plan=让核 + busy 名单），
+      //   宿主按用户配置与本机核/RAM 预算计算 THREAD_NUM / HASH_SIZE 并前置 INFO 指令；
+      //   JS 不再自己发资源 INFO（busy = 事实：正在搜索的车道名单）。
+      function busyLaneNames(except) {
+        var out = [], all = [LANES.main, LANES.sub, LANES.fwd];
+        for (var i = 0; i < all.length; i++)
+          if (all[i] !== except && all[i].inSearch) out.push(all[i].name);
+        return out;
+      }
+      function resQ(lane, tFull, claim) {
+        var busy = busyLaneNames(lane).join(',');
+        return '&res=' + (tFull ? 'full' : 'plan') +
+               (claim ? '&claim=1' : '') +
+               (busy ? '&busy=' + busy : '');
+      }
       
       function yieldAuxToMain() {
         var vs = [LANES.sub, LANES.fwd], n = 0;
@@ -902,17 +917,17 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             });
           });
           p = p.then(function () {
-            return new Promise(function (res) { setTimeout(res, 1500); });   
+            return new Promise(function (res) { setTimeout(res, 1500); });
           });
           specs.forEach(function (sp) {
             p = p.then(function () {
               var lane = sp.lane;
-              var cmds = ['INFO THREAD_NUM ' + sp.threads,
-                          'INFO CAUTION_FACTOR 3',
+              // ★ 2026-10-15：THREAD_NUM / HASH_SIZE 开机资源计划由宿主 C++ 在 spawn 后
+              //   直接写入（host.cpp BootResPlan：main=满核+全量大表，sub/fwd=1线程+64MB），
+              //   JS 只保留应用级配置（CAUTION/STRENGTH/SHOW_DETAIL）。
+              var cmds = ['INFO CAUTION_FACTOR 3',
                           'INFO STRENGTH 100',
-                          
-                          'INFO SHOW_DETAIL 2',
-                          'INFO HASH_SIZE ' + sp.hashKB];
+                          'INFO SHOW_DETAIL 2'];
               
               var q = Promise.resolve();
               cmds.forEach(function (c) { q = q.then(function () { return engCmd(lane.name, c); }); });
@@ -951,8 +966,10 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         }).then(function () {
           return new Promise(function (res) { setTimeout(res, 1500); });   
         }).then(function () {
-          var cmds = ['INFO THREAD_NUM 1', 'INFO CAUTION_FACTOR 3', 'INFO STRENGTH 100',
-                      'INFO SHOW_DETAIL 2', 'INFO HASH_SIZE 65536'];
+          // ★ 2026-10-15：fwd 车道的 THREAD_NUM=1 / HASH_SIZE=64MB 由宿主 C++ BootResPlan
+          //   在 spawn 后写入，JS 只发应用级配置。
+          var cmds = ['INFO CAUTION_FACTOR 3', 'INFO STRENGTH 100',
+                      'INFO SHOW_DETAIL 2'];
           var q = Promise.resolve();
           cmds.forEach(function (c) { q = q.then(function () { return engCmd(lane.name, c); }); });
           return q;
@@ -1117,7 +1134,9 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             var batch = [];
             
             if (lane.name === 'main' && newGamePending) { newGamePending = false; batch.push('YXHASHCLEAR'); }
-            if (wantT > 0 && lane.curThreads !== wantT) { lane.curThreads = wantT; batch.push('INFO THREAD_NUM ' + wantT); }
+            // ★ 2026-10-15：THREAD_NUM 由宿主 C++ 按意图计算（本批次 res=full|plan 前置），
+            //   JS 只维护展示口径的记账。
+            if (wantT > 0 && lane.curThreads !== wantT) lane.curThreads = wantT;
             batch.push('INFO RULE ' + rule);
             
             if (lane.name === 'main') {
@@ -1144,7 +1163,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             
             var retryBody = batch.join('\n');
             lane.outBuf = '';
-            var q = engCmd(lane.name, retryBody).then(function () {
+            var q = engCmd(lane.name, retryBody, resQ(lane, boost, false)).then(function () {
               lane.inSearch = true;
               return forbidP.then(function (fb) {
                 var forbid = fb || [];
@@ -1214,10 +1233,8 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           if (boostB && lane.name === 'main') yieldAuxToMain();
           var wantT = boostB ? boostThreads() : planThreads(lane);
           var q = Promise.resolve();
-          if (wantT > 0 && lane.curThreads !== wantT) {
-            lane.curThreads = wantT;
-            q = q.then(function () { return engCmd(lane.name, 'INFO THREAD_NUM ' + wantT); });
-          }
+          // ★ 2026-10-15：THREAD_NUM 由宿主 C++ 按意图计算（YXBOARD 批次 res= 前置），JS 只记账。
+          if (wantT > 0 && lane.curThreads !== wantT) lane.curThreads = wantT;
           ['INFO RULE ' + rule, 'INFO TIMEOUT_TURN ' + turnMs, 'INFO TIMEOUT_MATCH ' + matchMs,
            'INFO TIME_LEFT ' + matchMs].forEach(function (c) { q = q.then(function () { return engCmd(lane.name, c); }); });
           var reqSide = (body.side === 1 || body.side === 2) ? body.side : 0;
@@ -1227,7 +1244,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           cmd += ' DONE';
           var t0 = Date.now();
           q = q.then(function () {
-            engCmd(lane.name, cmd);
+            engCmd(lane.name, cmd, resQ(lane, boostB, false));
             lane.outBuf = '';
             engCmd(lane.name, 'YXBLOCKRESET');
             // ★ 官方开局区间锁（zoneR>0）：YXBLOCK 掉天元 (2R+1)² 之外的全部点。
@@ -2152,9 +2169,9 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         //   的公式喂给禁手局面（10-12 21:59 修过的老问题）。
         try {
           await onMainLane(function () {
-            return engCmd('main', 'INFO RULE ' + rule).then(function () {
-              return engCmd('main', 'INFO THREAD_NUM ' + (S.threads || 4));
-            });
+            // ★ 2026-10-15：线程计划由宿主 C++ 计算（res=full：单发平衡搜索前占满核），
+            //   不再用页面里的 S.threads||4 直接写 INFO THREAD_NUM。
+            return engCmd('main', 'INFO RULE ' + rule, resQ(LANES.main, true, false));
           });
           var s2 = await onMainLane(function () { return wsCall('swap2board', {}, 8000); });
           if (s2 && s2.pts && s2.pts.length === 3 && !isLibFallback(s2.pts) && takeLib(s2.pts))

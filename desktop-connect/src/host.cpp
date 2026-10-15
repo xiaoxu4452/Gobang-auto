@@ -2429,6 +2429,179 @@ struct Engine {
 static Engine      g_eng[LANE_COUNT];
 static std::string g_laneName[LANE_COUNT] = {"main", "sub", "fwd"};
 
+// ★★ 2026-10-15（用户：「资源调度、引擎实例创建、CPU亲和、内存分配、Rapfi调用逻辑，
+//     全部放在 C++；JS（WebView2前端）只负责：界面展示、接收用户配置、下发指令、展示结果」
+//   ＋「增强引擎的单发通道接近满核的逻辑……单 Rapfi 引擎高效变体 + 多线程协同搜索同一
+//     博弈树，共享大分区置换表，让计算变得更纯粹，搜索得更深，智力更高」）：
+//   引擎资源计划（线程数 / 哈希 KB / 占主切换）从页面 JS（engine-ai.js）整体下沉到宿主。
+//   JS 只在命令批次上附 res 意图（t: full|plan / h: claim|keep + busy 忙碌名单 = 事实），
+//   具体数字由本文件按「用户配置 + 本机引擎核预算(CpuSplit) + 物理 RAM」计算，并以
+//   INFO 指令前置到同一批次写出（顺序与旧 JS 实现等价：先资源、后搜索指令，单次写入）。
+//   引擎实例创建 / 变体冒烟降档 / CPU 亲和 / Job 对象本来就在本文件 —— 至此 Rapfi 的
+//   全部资源面都在 C++。主车道 = 单一 Rapfi 高效变体 + 满核多线程 + 大共享置换表，
+//   在同一棵博弈树上协同搜索；sub/fwd 让核让内存（64MB 待机档），计算更纯粹、更深。
+static std::mutex g_resMu;
+static int g_laneThreads[LANE_COUNT] = {0, 0, 0};   // 各车道当前 THREAD_NUM（0=未设定）
+static int g_laneHashKB[LANE_COUNT]  = {0, 0, 0};   // 各车道当前 HASH_SIZE KB
+static int g_hashOwner = 0;                          // 占主车道（默认 main）
+static std::atomic<int> g_usrThreads{0};             // 用户线程偏好（0=自动=满核）
+static std::atomic<int> g_usrHashMB{0};              // 用户哈希偏好 MB（0=自动）
+
+static void Write(int idx, const std::string& text);   // 定义在本文件下方（管道写入）
+
+static const int kHashFloorKB = 65536;               // 64MB 待机档（与旧 JS HASH_FLOOR_KB 一致）
+
+static int ResEngCoreBudget() {
+  int c = EngThreadCPUs();                           // 引擎核组（CpuSplit 启用时）
+  if (c <= 0) {
+    SYSTEM_INFO si = {};
+    GetSystemInfo(&si);
+    c = (int)si.dwNumberOfProcessors;
+  }
+  return c > 0 ? c : 1;
+}
+
+static long long ResTotalPhysKB() {
+  MEMORYSTATUSEX ms = {};
+  ms.dwLength = sizeof(ms);
+  if (GlobalMemoryStatusEx(&ms) && ms.ullTotalPhys > 0)
+    return (long long)(ms.ullTotalPhys / 1024);
+  return 8LL * 1024 * 1024;                          // 探测失败按 8GB 兜底
+}
+
+// 满核线程数：用户选 1 就是 1（2026-10-15 用户反馈「保存线程数为 1 保存不了更改」——
+// 旧 JS max(2,…) 把 1 静默抬到 2，设置看起来不生效）；0=自动 = 引擎核预算全开。
+static int CalcFullThreads() {
+  int cores = ResEngCoreBudget();
+  int usr = g_usrThreads.load();
+  if (usr > 0) return std::max(1, std::min(usr, cores));
+  return std::max(1, cores / 2);   // factory default: half of the system cores
+}
+
+// 共享大分区置换表：用户选择 x2、每核 ≥128MB 兜底、自动档 = RAM/4；硬上限 6GB，
+// 且永不超过 min(80% RAM, RAM - 2GB 系统预留) —— 与旧 JS hashBudgetKB 逐条等价。
+static int CalcHashFullKB() {
+  const long long kHashCapKB = 6291456LL;
+  long long memKB = ResTotalPhysKB();
+  long long ramCap = std::max(262144LL,
+      std::min((long long)(memKB * 0.8), memKB - 2097152LL));
+  int usrT = g_usrThreads.load();
+  int cores = std::max(1, usrT > 0 ? usrT : ResEngCoreBudget());
+  int usrKB = g_usrHashMB.load() * 1024;
+  long long want;
+  if (usrKB > 0)
+    want = std::max(65536LL, std::min(kHashCapKB,
+             std::max((long long)usrKB * 2, (long long)cores * 131072LL)));
+  else
+    want = 524288LL;   // factory default: 512MB (still clamped by ramCap)
+  return (int)std::min(want, ramCap);
+}
+
+// 由忙碌名单（页面事实）计算并落盘本车道资源计划，返回需要前置到本批次的 INFO 指令；
+// claim 时其他**不忙碌**车道直接降 64MB 待机档（与旧 JS claimHash 语义一致）。
+// 调用方必须已持有 g_resMu。
+static std::string ResPlanCmdsLocked(int idx, int resT, int resH,
+                                     const std::vector<std::string>& busyNames) {
+  std::string pre;
+  auto isBusy = [&](int o) {
+    for (const std::string& n : busyNames) if (n == g_laneName[o]) return true;
+    return false;
+  };
+  if (resT == 1) {                                   // full：单发通道满核
+    int want = CalcFullThreads();
+    if (want != g_laneThreads[idx]) {
+      g_laneThreads[idx] = want;
+      pre += "INFO THREAD_NUM " + std::to_string(want) + "\n";
+    }
+  } else if (resT == 2) {                            // plan：核预算 - 忙碌车道占用（接近满核）
+    int busyT = 0;
+    for (int o = 0; o < LANE_COUNT; ++o)
+      if (o != idx && isBusy(o)) busyT += std::max(1, g_laneThreads[o]);
+    int want = std::max(1, ResEngCoreBudget() - busyT);
+    if (want != g_laneThreads[idx]) {
+      g_laneThreads[idx] = want;
+      pre += "INFO THREAD_NUM " + std::to_string(want) + "\n";
+    }
+  }
+  if (resH == 1) {                                   // claim：本车道占全量大表
+    g_hashOwner = idx;
+    int fullH = CalcHashFullKB();
+    if (fullH != g_laneHashKB[idx]) {
+      g_laneHashKB[idx] = fullH;
+      pre += "INFO HASH_SIZE " + std::to_string(fullH) + "\n";
+    }
+    for (int o = 0; o < LANE_COUNT; ++o) {
+      if (o == idx || !g_eng[o].alive.load() || isBusy(o)) continue;
+      if (g_laneHashKB[o] != kHashFloorKB) {
+        g_laneHashKB[o] = kHashFloorKB;
+        Write(o, "INFO HASH_SIZE " + std::to_string(kHashFloorKB));
+      }
+    }
+  }
+  return pre;
+}
+
+// engineConfig（用户在界面改线程/哈希）到达：存偏好 + 全量再分配（C++ 资源面入口）。
+static void ResyncResPlans();                // 定义在本块下方
+static void SetUserPrefs(int threads, int hashMB) {
+  g_usrThreads.store(threads > 0 ? threads : 0);
+  g_usrHashMB.store(hashMB > 0 ? hashMB : 0);
+  ResyncResPlans();
+}
+
+// HTTP 控制面（bridge.js 连线页）资源意图入口：计算并返回需前置的 INFO 指令。
+static std::string ResPreCmds(int idx, int resT, int resH,
+                              const std::vector<std::string>& busyNames) {
+  if (idx < 0) return "";
+  std::lock_guard<std::mutex> lk(g_resMu);
+  return ResPlanCmdsLocked(idx, resT, resH, busyNames);
+}
+
+// 引擎配置变更（engineConfig）后的全量再分配：占主全量、其余待机
+//（与旧 JS applyHashBudget 语义一致）。线程偏好变化同样即时生效到占主车道。
+static void ResyncResPlans() {
+  std::lock_guard<std::mutex> lk(g_resMu);
+  int fullH = CalcHashFullKB();
+  int fullT = CalcFullThreads();
+  for (int o = 0; o < LANE_COUNT; ++o) {
+    if (!g_eng[o].alive.load()) continue;
+    int wantH = (o == g_hashOwner) ? fullH : kHashFloorKB;
+    int wantT = (o == g_hashOwner) ? fullT : g_laneThreads[o];
+    if (g_laneHashKB[o] != wantH) {
+      g_laneHashKB[o] = wantH;
+      Write(o, "INFO HASH_SIZE " + std::to_string(wantH));
+    }
+    if (o == g_hashOwner && wantT != g_laneThreads[o]) {
+      g_laneThreads[o] = wantT;
+      Write(o, "INFO THREAD_NUM " + std::to_string(wantT));
+    }
+  }
+  LogMsg("[engine] 资源再分配(C++): prefs threads=" + std::to_string(g_usrThreads.load()) +
+         " hashMB=" + std::to_string(g_usrHashMB.load()) +
+         " -> owner=" + g_laneName[g_hashOwner] +
+         " THREAD_NUM=" + std::to_string(fullT) + " HASH_SIZE=" + std::to_string(fullH) + "KB");
+}
+
+// 开机资源计划：spawn 成功后立即写入（实测 Rapfi 接受 INFO 先于 START）。
+// main = 满核 + 全量大表（单一 Rapfi 变体多线程协同搜索同一博弈树）；
+// sub/fwd = 1 线程 + 64MB 待机（让核让内存，主车道才算得纯粹）。
+static void BootResPlan(int idx) {
+  std::lock_guard<std::mutex> lk(g_resMu);
+  bool isMain = (idx == 0);
+  int wantT = isMain ? CalcFullThreads() : 1;
+  int wantH = isMain ? CalcHashFullKB() : kHashFloorKB;
+  g_laneThreads[idx] = wantT;
+  g_laneHashKB[idx]  = wantH;
+  if (isMain) g_hashOwner = 0;
+  std::string cmds;
+  cmds += "INFO THREAD_NUM " + std::to_string(wantT) + "\n";
+  cmds += "INFO HASH_SIZE " + std::to_string(wantH) + "\n";
+  Write(idx, cmds);
+  LogMsg("[engine:" + g_laneName[idx] + "] 资源计划(C++): THREAD_NUM=" +
+         std::to_string(wantT) + " HASH_SIZE=" + std::to_string(wantH) + "KB" +
+         (isMain ? " (owner, 满核+共享大置换表)" : " (待机档)"));
+}
+
 static bool    g_probed  = false;   
 static bool    g_avail   = false;   
 
@@ -2800,6 +2973,7 @@ static bool SpawnLocked(int idx) {
   }
   e.alive = true;
   std::thread(ReaderThread, idx, outR, myGen).detach();
+  BootResPlan(idx);
   LogMsg("[engine:" + g_laneName[idx] + "] 已启动 " + WideToUtf8(exe) + " (gen=" + std::to_string(myGen) + ")");
   return true;
 }
@@ -2908,13 +3082,24 @@ static bool FlushToPage() {
 }
 
 static std::string HandlePageCmd(const std::string& op, int idx,
-                                 const std::vector<std::string>& cmds, int id) {
+                                 const std::vector<std::string>& cmds, int id,
+                                 int resT = 0, int resH = 0,
+                                 const std::vector<std::string>& busyNames = {}) {
   bool ok = false;
   if (idx < 0) ok = false;
   else if (op == "cmd") {
     std::string body;
+    // ★ 2026-10-15：资源计划前置（C++ 计算，见 g_resMu 块注释）。先算好并释放
+    //   g_resMu，再走 WriteEnsured（其内部 Ensure→SpawnLocked→BootResPlan 也会取
+    //   g_resMu，两把锁不可倒序嵌套）。
+    std::string pre;
+    if (g_avail && idx >= 0 && (resT != 0 || resH != 0)) {
+      std::lock_guard<std::mutex> lk(g_resMu);
+      pre = ResPlanCmdsLocked(idx, resT, resH, busyNames);
+    }
+    body += pre;
     for (size_t i = 0; i < cmds.size(); i++) { body += cmds[i]; body += "\n"; }
-    ok = cmds.empty() || WriteEnsured(idx, body);
+    ok = body.empty() || WriteEnsured(idx, body);
   } else if (op == "ensure") ok = Ensure(idx);
   else if (op == "reset")    ok = Spawn(idx);
   else if (op == "status")   ok = true;
@@ -2962,9 +3147,28 @@ static std::string NativeEngineRouteJson(const std::string& route, const std::st
   } else if (idx < 0) {
     payload = "{\"error\":\"bad lane\"}";
   } else if (route == "cmd") {
-    
-    bool ok = nativeeng::WriteEnsured(idx, reqBody);
-    
+
+    // ★ 2026-10-15：HTTP 控制面同样支持资源意图（bridge.js 连线页用）——
+    //   ?res=full|plan&claim=1&busy=sub,fwd → C++ 计算数字并前置 INFO 指令，再写命令本体。
+    std::string body2 = reqBody;
+    std::string rq = qget("res");
+    if (nativeeng::g_avail && idx >= 0 && !rq.empty()) {
+      int resT = (rq == "full") ? 1 : (rq == "plan") ? 2 : 0;
+      int resH = (qget("claim") == "1") ? 1 : 0;
+      std::vector<std::string> busyNames;
+      std::string b = qget("busy");
+      size_t p0 = 0;
+      while (p0 < b.size()) {
+        size_t p1 = b.find(',', p0);
+        std::string nm = b.substr(p0, (p1 == std::string::npos ? b.size() : p1) - p0);
+        if (!nm.empty()) busyNames.push_back(nm);
+        if (p1 == std::string::npos) break;
+        p0 = p1 + 1;
+      }
+      if (resT || resH) body2 = nativeeng::ResPreCmds(idx, resT, resH, busyNames) + reqBody;
+    }
+    bool ok = nativeeng::WriteEnsured(idx, body2);
+
     if (ok && reqBody.find("YXBOARD") != std::string::npos ||
         ok && reqBody.find("YXNBEST") != std::string::npos) {
       
@@ -4067,8 +4271,22 @@ class MsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
       int id = atoi(s.c_str() + (s.find("\"id\":") == std::string::npos
                                    ? 0 : s.find("\"id\":") + 5));
       auto cmds = JsonStrArray(s, "\"cmds\":");
+      // ★ 2026-10-15：解析资源意图（t: full|plan / h: claim + busy 忙碌名单）——
+      //   数字与 INFO 下发在 HandlePageCmd 内由 C++ 资源管理器完成。
+      int resT = 0, resH = 0;
+      std::vector<std::string> busyNames;
+      {
+        size_t rp = s.find("\"res\":{");
+        if (rp != std::string::npos) {
+          std::string r = s.substr(rp);
+          resT = (r.find("\"t\":\"full\"") != std::string::npos) ? 1
+               : (r.find("\"t\":\"plan\"") != std::string::npos) ? 2 : 0;
+          resH = (r.find("\"h\":\"claim\"") != std::string::npos) ? 1 : 0;
+          busyNames = JsonStrArray(r, "\"busy\":");
+        }
+      }
       int idx = nativeeng::LaneIndex(lane);
-      PostToPageSoon(nativeeng::HandlePageCmd(op, idx, cmds, id));
+      PostToPageSoon(nativeeng::HandlePageCmd(op, idx, cmds, id, resT, resH, busyNames));
       return S_OK;
     }
      if (s.find("\"engineConfig\"") != std::string::npos) {
@@ -4081,9 +4299,13 @@ class MsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
       int h = num("\"hashMB\":");
       bool cfgChanged = (t != g_threads || h != g_hashMB);
       g_threads = t; g_hashMB = h;
-      
+
       LogMsg("[ai] engineConfig threads=" + std::to_string(t) + " hashMB=" + std::to_string(h) + " (in-page)");
-      
+
+      // ★ 2026-10-15：用户偏好进 C++ 资源管理器 —— 原生引擎的 THREAD_NUM / HASH_SIZE
+      //   再分配由宿主直接完成（占主全量、其余 64MB 待机），不再经页面 JS 公式计算。
+      nativeeng::SetUserPrefs(t, h);
+
       if (cfgChanged || g_linkCfgSeen == 0) {
         g_linkCfgSeen = 1;
         PostToLinkPageSoon(std::string("{\"type\":\"engineCfg\",\"threads\":") +

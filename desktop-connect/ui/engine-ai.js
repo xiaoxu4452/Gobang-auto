@@ -32,12 +32,18 @@ function probeNative() {
 
 var RELAY = false;
 var relaySeq = 0;
-function relayPost(op, lane, cmds) {
-  self.postMessage({ type: '__host', payload: { type: 'engine', op: op, lane: lane.name,
-    cmds: cmds || [], id: ++relaySeq } });
+function relayPost(op, lane, cmds, res) {
+  // ★ 2026-10-15（用户：「资源调度、引擎实例创建、CPU亲和、内存分配、Rapfi调用逻辑，
+  //   全部放在 C++；JS 只负责界面展示、接收用户配置、下发指令、展示结果」）：
+  //   原生命令批次可携带 res 资源意图（t: full|plan / h: claim|keep + busy 名单）——
+  //   具体的 THREAD_NUM / HASH_SIZE 数字与 INFO 指令下发全部由宿主 C++ 计算（host.cpp
+  //   nativeeng 资源管理器），JS 不再自己算预算、也不再直接发资源 INFO。
+  var pl = { type: 'engine', op: op, lane: lane.name, cmds: cmds || [], id: ++relaySeq };
+  if (res) pl.res = res;
+  self.postMessage({ type: '__host', payload: pl });
 }
-function nativeCmd(lane, cmd) {
-  if (RELAY) { relayPost('cmd', lane, String(cmd).split('\n')); return; }
+function nativeCmd(lane, cmd, res) {
+  if (RELAY) { relayPost('cmd', lane, String(cmd).split('\n'), res); return; }
   try {
     fetch('/engine/cmd?lane=' + encodeURIComponent(lane.name), { method: 'POST', body: cmd })
       .catch(function () {});
@@ -78,7 +84,7 @@ function makeNativeEngine(lane) {
   }
   pump();
   return {
-    sendCommand: function (cmd) { if (!stopped) nativeCmd(lane, cmd); },
+    sendCommand: function (cmd, res) { if (!stopped) nativeCmd(lane, cmd, res); },
     terminate: function () { stopped = true; },
     __native: true,
     __feed: feed,          
@@ -118,13 +124,35 @@ function engineCoreBudget() {
 }
 
 function fullCoreThreads() {
-  // Honor the user's thread choice exactly on this machine: 4 means 4, 8 means 8.
+  // Honor the user's thread choice exactly on this machine: 4 means 4, 8 means 8,
+  // and ★1 means 1（2026-10-15：用户反馈「保存线程数为 1 保存不了更改」——原 max(2,…)
+  // 把用户明确选的 1 静默抬到 2，设置看起来"不生效"。现在 1 就是 1；本地引擎路径上
+  // 这条公式已整体下沉到宿主 C++（host.cpp CalcFullThreads），这里只剩 WASM 回退在用。
   // If the saved choice was made on a bigger PC (more cores), clamp it to this
   // machine's engine core budget so a smaller PC never oversubscribes.
   // Only the 0 (auto) default falls back to all engine cores.
   var cpuAll = engineCoreBudget();
-  return CFG.threads > 0 ? Math.max(2, Math.min(CFG.threads, cpuAll))
-                         : Math.max(2, cpuAll);
+  return CFG.threads > 0 ? Math.max(1, Math.min(CFG.threads, cpuAll))
+                         : Math.max(1, cpuAll);
+}
+
+// ★ 2026-10-15：忙碌车道名单（事实，不是决策）——宿主 C++ 据此计算 plan 车道的线程数。
+function busyLaneNames(except) {
+  var out = [], all = [LANES.main, LANES.sub, LANES.fwd];
+  for (var i = 0; i < all.length; i++) {
+    if (all[i] === except) continue;
+    if (all[i].liveState && all[i].liveState.searching) out.push(all[i].name);
+  }
+  return out;
+}
+// 原生路径的资源意图：JS 只声明「要满核还是让核 / 要不要claim大哈希」+ 忙碌名单，
+// 数字与 INFO 指令全部由宿主 C++ 计算下发。t='full' 单发通道（exclusive/boost）满核；
+// 'plan' = 引擎核预算减去忙碌车道占用（接近满核的常规态）。
+function resHint(lane, tFull, claim) {
+  if (!NATIVE.ok) return null;
+  return { t: tFull ? 'full' : 'plan',
+           h: claim ? 'claim' : 'keep',
+           busy: busyLaneNames(lane) };
 }
 
 function laneBusyT(lane) {
@@ -199,8 +227,10 @@ function laneSpecs() {
   
   var cpuAll = engineCoreBudget();
   
-  var mainT = CFG.threads > 0 ? Math.max(2, Math.min(CFG.threads, cpuAll))
-                              : Math.max(2, cpuAll);
+  // ★ 2026-10-15：用户选 1 就是 1（与 fullCoreThreads 一致；原 max(2) 是「线程数=1 保存不了」根因之一）。
+  // max(2) 仅保留在 engineCoreBudget 的机器核预算下限，不碰用户显式选择。
+  var mainT = CFG.threads > 0 ? Math.max(1, Math.min(CFG.threads, cpuAll))
+                              : Math.max(1, cpuAll);
   
   return [
     { lane: LANES.main, threads: mainT, hashKB: hashBudgetKB() },
@@ -407,9 +437,9 @@ function laneSerial(lane, action) {
   return run;
 }
 
-function sendLaneCmds(lane, cmds) {
-  if (!cmds.length) return;
-  if (lane.engine && lane.engine.__native) lane.engine.sendCommand(cmds.join('\n'));
+function sendLaneCmds(lane, cmds, res) {
+  if (!cmds.length && !res) return;
+  if (lane.engine && lane.engine.__native) lane.engine.sendCommand(cmds.join('\n'), res);
   else for (var i = 0; i < cmds.length; i++) lane.engine.sendCommand(cmds[i]);
 }
 function whenBootReady(lane) {
@@ -587,10 +617,16 @@ function doAnalyze(body, lane) {
     lane.outBuf = '';
 
     var pre = [];
-    var wantT = body.exclusive ? fullCoreThreads() : planLaneThreads(lane);
-    if (wantT > 0 && lane.curThreads !== wantT) {
-      lane.curThreads = wantT;
-      pre.push('INFO THREAD_NUM ' + wantT);
+    // ★ 2026-10-15：原生路径资源决策下沉 C++ —— JS 只带意图（full/plan + claim + busy），
+    //   宿主按用户配置与本机核/RAM 预算算出 THREAD_NUM / HASH_SIZE 并前置到本批次。
+    var res = resHint(lane, !!body.exclusive,
+                      body.cid !== 'warmup' && (body.exclusive || turnMs >= HASH_CLAIM_MIN_MS));
+    if (!res) {
+      var wantT = body.exclusive ? fullCoreThreads() : planLaneThreads(lane);
+      if (wantT > 0 && lane.curThreads !== wantT) {
+        lane.curThreads = wantT;
+        pre.push('INFO THREAD_NUM ' + wantT);
+      }
     }
     
     var ponderOn = body.exclusive && lane.name === 'main' && turnMs >= 2000 && !body.noPonder;
@@ -602,7 +638,7 @@ function doAnalyze(body, lane) {
       pre.push('INFO PONDERING 0');   
     }
     
-    if (body.cid !== 'warmup' && (body.exclusive || turnMs >= HASH_CLAIM_MIN_MS))
+    if (!res && body.cid !== 'warmup' && (body.exclusive || turnMs >= HASH_CLAIM_MIN_MS))
       pre = pre.concat(claimHash(lane));
     
     var cmds = pre.concat(['INFO RULE ' + rule, 'INFO TIMEOUT_TURN ' + turnMs,
@@ -611,8 +647,8 @@ function doAnalyze(body, lane) {
     if (rule === 2 || rule === 4) { cmds.push('YXSHOWFORBID'); forbidCap = armForbidCapture(lane); }
     cmds.push('YXNBEST ' + effTopN);
     var forbidP = forbidCap ? forbidCap.promise : Promise.resolve([]);
-    sendLaneCmds(lane, cmds);
-    
+    sendLaneCmds(lane, cmds, res);
+
     var retryBody = cmds.join('\n');
     return forbidP.catch(function () { return []; }).then(function (forbid) {
       return waitForMove(lane, Math.min(timeLeft, turnMs + 1500), effTopN, body.liveId, body.tag, retryBody).then(function (result) {
@@ -700,10 +736,14 @@ function doBalance(body, lane) {
     var t0 = Date.now();
     lane.liveState = { searching: true, t0: t0, cid: body.cid || '', best: null, speed: 0, nodes: 0, pvs: [] };
     var pre = [];
-    var wantT = (body.exclusive || body.boost || turnMs <= 1000) ? fullCoreThreads() : planLaneThreads(lane);
-    if (wantT > 0 && lane.curThreads !== wantT) {
-      lane.curThreads = wantT;
-      pre.push('INFO THREAD_NUM ' + wantT);
+    // ★ 2026-10-15：平衡点（单发通道）资源意图下沉 C++ —— boost/exclusive/短时限 = 满核。
+    var bres = resHint(lane, !!(body.exclusive || body.boost || turnMs <= 1000), false);
+    if (!bres) {
+      var wantT = (body.exclusive || body.boost || turnMs <= 1000) ? fullCoreThreads() : planLaneThreads(lane);
+      if (wantT > 0 && lane.curThreads !== wantT) {
+        lane.curThreads = wantT;
+        pre.push('INFO THREAD_NUM ' + wantT);
+      }
     }
     pre.push('INFO RULE ' + rule, 'INFO TIMEOUT_TURN ' + turnMs,
              'INFO TIMEOUT_MATCH ' + matchMs, 'INFO TIME_LEFT ' + matchMs);
@@ -731,7 +771,7 @@ function doBalance(body, lane) {
       if (zbl.length) pre.push('YXBLOCK ' + zbl.join(' ') + ' DONE');
     }
     lane.outBuf = '';
-    sendLaneCmds(lane, pre);
+    sendLaneCmds(lane, pre, bres);
     var results = [], swap = false, lastEv = null;
     var waitMs = turnMs + 6000;
     var step = function (idx) {
@@ -796,14 +836,17 @@ function bootSpec(sp) {
       if (!sp.lane.engine) return;
       
       var dbCfg = [];
+      // ★ 2026-10-15：原生路径的开机资源计划（THREAD_NUM / HASH_SIZE）由宿主 C++ 在
+      //   spawn 后直接写入（host.cpp BootResPlan），JS 不再重复下发；WASM 回退仍走这里。
+      var resCmds = NATIVE.ok ? []
+                              : ['INFO THREAD_NUM ' + sp.threads,
+                                 'INFO HASH_SIZE ' + sp.hashKB];
       sendLaneCmds(sp.lane, ['START ' + SIZE,
-        'INFO THREAD_NUM ' + sp.threads,
         'INFO CAUTION_FACTOR 3',
         'INFO STRENGTH 100',
         'INFO SHOW_DETAIL 3',
         'INFO PONDERING 0',
-        'INFO SWAPABLE 0',
-        'INFO HASH_SIZE ' + sp.hashKB].concat(dbCfg));
+        'INFO SWAPABLE 0'].concat(resCmds).concat(dbCfg));
       
       sp.lane.bootThreads = sp.threads;
       sp.lane.curThreads = sp.threads;
@@ -894,9 +937,11 @@ self.onmessage = function (e) {
       }
     }
   } else if (d.type === 'hash') {
-    
+
     CFG.hashKB = d.hashKB;
-    applyHashBudget();
+    // ★ 2026-10-15：原生路径的哈希再分配由宿主 C++ 在 engineConfig 变更时 resync
+    //   （占主全量、其余 64MB 待机），JS 不再下发；WASM 回退仍走 applyHashBudget。
+    if (!NATIVE.ok) applyHashBudget();
   }
   
 };

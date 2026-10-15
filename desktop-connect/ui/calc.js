@@ -8868,7 +8868,9 @@ var HASH_FLOOR_MB = 64;
 function renderHashInfo() {
   var el = els.hashInfo;
   if (!el) return;
-  var fullMB = S.hashMB | 0;
+  // ★ 2026-10-15：展示**生效值**（本机装得下的档位）——偏好被本机上限折衷时，
+  //   这里如实显示折衷后的数字；偏好本身仍持久化，换大机器自动恢复。
+  var fullMB = (G.hashEffMB || S.hashMB) | 0;
   var h = '<div class="si-r"><span class="si-k">' + escHtml(T('hmExcl')) +
           '</span><span class="si-v">' + escHtml(T('hmExclVal').replace('{m}', fullMB)) +
           '</span></div>';
@@ -8894,14 +8896,19 @@ function buildSelects() {
   renderSysInfo();
   var maxT = Math.max(1, host.threadsMax || 1);
   
-  // Persisted user choice wins; a machine/core-count change only updates the
-  // recorded host fingerprint, never resets the chosen thread count.
-  if (S.coresHost !== host.cpu) { S.coresHost = host.cpu; save(); }
-  if (!S.cores || S.cores > maxT || S.cores < 1)
-    S.cores = maxT || host.threadsDefault || 1;
+  // ★ 2026-10-15（用户：「有的用户反映保存线程数为 1 的时候……保存不了更改。增强适应
+  //   能力和持久化的适应能力」）：S.cores / S.hashMB 是**用户偏好**，永不因本机能力被
+  //   改写（老逻辑会把超上限的哈希降档后 save()、把换机后的线程数重置为最大值——偏好
+  //   就这样被永久抹掉了）。本机装不下的部分只在「生效值」里折衷：下拉按生效值选中、
+  //   engineConfig 下发生效值；换到大内存/多核机器后，用户偏好自动完整恢复。
+  //   线程数=1 现在全程生效（宿主 C++ CalcFullThreads / 本下拉都原样尊重 1）。
+  var halfT = Math.max(1, Math.floor(maxT / 2)); // factory default: half of the system threads
+  var effT = (S.cores >= 1 && S.cores <= maxT) ? S.cores
+            : (S.cores > maxT ? maxT : halfT);
+  if (!S.cores) { S.cores = effT; save(); }          // 首次使用：建立默认偏好（一半线程）
   var html = '';
   for (var t = 1; t <= maxT; t++) {
-    html += '<option value="' + t + '"' + (t === S.cores ? ' selected' : '') + '>' + t + '</option>';
+    html += '<option value="' + t + '"' + (t === effT ? ' selected' : '') + '>' + t + '</option>';
   }
   els.sel_cores.innerHTML = html;
   
@@ -8923,21 +8930,24 @@ function buildSelects() {
     var byRes = Math.max(0, memMB - 2048);
     capMB = Math.min(maxH, byPct, byRes);
   }
-  if (S.hashMB && S.hashMB > capMB) {
-    S.hashMB = hs.filter(function (h) { return h <= capMB; }).pop() || 0;
-    if (!S.hashMB) S.hashMB = 512;
-    save();
-  }
-  if (!S.hashDefMig) {                               
+  // ★ 2026-10-15：哈希偏好**永不改写**（去掉「超上限 → 降档 → save()」的破坏性回写）。
+  //   生效值 effH = 本机装得下的最大档：下拉按生效值选中、超上限档 disabled 照旧；
+  //   engineConfig 照发用户偏好，宿主 C++ CalcHashFullKB 按 min(80% RAM, RAM-2GB, 6GB)
+  //   自适应 —— 小内存机器不炸、换大机器后用户偏好自动完整恢复。
+  var effH = (S.hashMB && hs.indexOf(S.hashMB) >= 0 && S.hashMB <= capMB)
+    ? S.hashMB
+    : (hs.filter(function (h) { return h <= capMB; }).pop() || 512);
+  if (!S.hashDefMig) {                               // 一次性历史默认迁移（1024 → 512）
     S.hashDefMig = true;
-    if (S.hashMB === 1024) { S.hashMB = 512; save(); }
+    if (S.hashMB === 1024) { S.hashMB = 512; save(); effH = 512; }
   }
-  if (!S.hashMB || hs.indexOf(S.hashMB) < 0) S.hashMB = 512;   
+  if (!S.hashMB) { S.hashMB = 512; save(); effH = 512; } // factory default: 512MB
   els.sel_hash.innerHTML = hs.map(function (h) {
     var off = (h > capMB);
-    return '<option value="' + h + '"' + (h === S.hashMB ? ' selected' : '') +
+    return '<option value="' + h + '"' + (h === effH ? ' selected' : '') +
            (off ? ' disabled' : '') + '>' + h + ' MB</option>';
   }).join('');
+  G.hashEffMB = effH;                                // 生效值给 renderHashInfo / 引擎口径展示
 
   if (S.hashMul !== undefined) { delete S.hashMul; save(); }
   renderHashInfo();

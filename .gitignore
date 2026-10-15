@@ -96,3 +96,6 @@ installer/
 
 **/bak-manual/
 **/bak-opencv5/
+
+/tools/
+
