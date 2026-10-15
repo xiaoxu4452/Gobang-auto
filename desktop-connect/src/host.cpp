@@ -2490,8 +2490,7 @@ static int CalcHashFullKB() {
   int usrKB = g_usrHashMB.load() * 1024;
   long long want;
   if (usrKB > 0)
-    want = std::max(65536LL, std::min(kHashCapKB,
-             std::max((long long)usrKB * 2, (long long)cores * 131072LL)));
+    want = std::max(65536LL, std::min(kHashCapKB, (long long)usrKB)); // user choice as-is
   else
     want = 524288LL;   // factory default: 512MB (still clamped by ramCap)
   return (int)std::min(want, ramCap);
@@ -2891,6 +2890,7 @@ static void ReaderThread(int idx, HANDLE out, int myGen) {
     e.lines.push_back("");         
     e.seq++;
   }
+  RequestEngineFlush();   // push alive=false so the page detects the crash and revives
   
   DWORD code = 0;
   if (e.hProcess && GetExitCodeProcess(e.hProcess, &code) && code != 0) {

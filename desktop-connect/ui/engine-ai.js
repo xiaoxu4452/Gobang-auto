@@ -178,8 +178,8 @@ function hashBudgetKB() {
   var hashCapKB = NATIVE.ok ? 6291456 : 2097152;
   var hashDiv = NATIVE.ok ? 4 : 3;
   var cores = Math.max(1, (CFG.threads > 0 ? CFG.threads : engineCoreBudget()));
-  var want = CFG.hashKB > 0 ? Math.max(65536, Math.min(hashCapKB, Math.max(CFG.hashKB * 2, cores * 131072)))
-                            : Math.max(262144, Math.min(hashCapKB, Math.floor(totalMemKB() / hashDiv)));
+  var want = CFG.hashKB > 0 ? Math.max(65536, Math.min(hashCapKB, CFG.hashKB))
+                            : Math.max(262144, Math.min(hashCapKB, 524288));
   
   // Shared TT must never exceed 80% of RAM and always leaves a 2GB system
   // reserve - the same cap the UI hash dropdown greys out, so a saved hash

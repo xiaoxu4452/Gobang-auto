@@ -436,14 +436,26 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     if (NATENG) return NATENG;
     NATENG = (function () {
       var SIZE = N;                              
-      function engFetch(path, body) {
-        var opt = { cache: 'no-store' };
-        if (body !== undefined) { opt.method = 'POST'; opt.body = body; }
-        return fetch(path, opt).then(function (r) { return r.json(); });
+      // Engine channel: pure C++ hard link (chrome.webview IPC, zero HTTP).
+      // Commands go straight to the host as WebMessage; engine stdout is pushed
+      // back by the host via {"type":"engineOut"} (no polling, no network).
+      var engSeq = 0, engPending = {};
+      function engSend(op, lane, cmds, resObj) {
+        var cv = window.chrome && window.chrome.webview;
+        if (!cv || !cv.postMessage) return Promise.resolve(null);
+        var id = ++engSeq;
+        return new Promise(function (resolve) {
+          engPending[id] = resolve;
+          var o = { type: 'engine', op: op, lane: lane || '', cmds: cmds || [], id: id };
+          if (resObj) o.res = resObj;
+          cv.postMessage(JSON.stringify(o));
+          setTimeout(function () { if (engPending[id]) { var r = engPending[id]; delete engPending[id]; r(null); } }, 10000);
+        });
       }
-      function engCmd(lane, text, resQ) { return engFetch('/engine/cmd?lane=' + lane + (resQ || ''), text); }
-      function engEnsure(lane) { return engFetch('/engine/ensure?lane=' + lane, ''); }
-      function engStatus() { return engFetch('/engine/status'); }
+      function engCmd(lane, text, resObj) { return engSend('cmd', lane, [text], resObj); }
+      function engEnsure(lane) { return engSend('ensure', lane, []); }
+      function engStatus() { return engSend('status', '', []); }
+      function engReset(lane) { return engSend('reset', lane, []); }
 
       function parseK(v) {
         v = String(v).trim();
@@ -663,52 +675,55 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           bootThreads: 0, curThreads: 0, mayPonder: false, inSearch: false,
         };
         
-        lane.pump = setInterval(function () {
-          engFetch('/engine/out?lane=' + name + '&since=' + lane.since).then(function (r) {
-            if (!r) return;
-            
-            var wasAlive = lane.alive;
-            lane.alive = !!r.alive;
-            if (wasAlive === true && lane.alive === false) {
-              lane.gen = (lane.gen || 0) + 1;          
-              lane.engineGone = true;
-              lane.outBuf += '\n';                      
-            } else if (wasAlive === false && lane.alive === true) {
-              lane.engineGone = false;
-              lane.outBuf = '';                         
-              lane.captureLine = null;
-              lane.since = 0;                           
-              lane.dropped = 0;
-              lane.inSearch = false;                    
-              lane.mayPonder = false;
-              lane.ready = false;                       
-              lane.bootThreads = 0; lane.curThreads = 0;
-              lane.bufTrim = 0;                         
-            }
-            if (r.dropped) lane.dropped = r.dropped;
-            if (!lane.alive && !lane.engineGone && wasAlive !== false) {
-              lane.engineGone = true;
-              lane.outBuf += '\n';
-            }
-            lane.since = r.seq || lane.since;
-            var ls = r.lines || [];
-            for (var i = 0; i < ls.length; i++) {
-              if (lane.captureLine && lane.captureLine(ls[i]) === true) continue;
-              lane.outBuf += ls[i] + '\n';
-            }
-            
-            if (lane.outBuf.length > OUTBUF_CAP) {
-              var cut = lane.outBuf.length - OUTBUF_CAP;
-              var nl = lane.outBuf.indexOf('\n', cut);
-              lane.outBuf = (nl >= 0) ? lane.outBuf.slice(nl + 1) : lane.outBuf.slice(cut);
-              lane.bufTrim = (lane.bufTrim || 0) + 1;
-            }
-          }).catch(function () {});
-        }, 40);
+        // No HTTP polling: the host pushes engineOut frames; consume them live.
+        lane.pump = null;
         return lane;
       }
       var LANES = { main: makeLane('main'), sub: makeLane('sub'), fwd: makeLane('fwd') };
       function pickLane(name) { return (name === 'sub') ? LANES.sub : (name === 'fwd') ? LANES.fwd : LANES.main; }
+      function applyEngineOut(msg) {
+        var pls = msg.lanes || [];
+        for (var pi = 0; pi < pls.length; pi++) {
+          var r = pls[pi];
+          var lane = pickLane(r.lane);
+          if (!lane) continue;
+          var wasAlive = lane.alive;
+          lane.alive = !!r.alive;
+          if (wasAlive === true && lane.alive === false) {
+            lane.gen = (lane.gen || 0) + 1;
+            lane.engineGone = true;
+            lane.outBuf += '\n';
+          } else if (wasAlive === false && lane.alive === true) {
+            lane.engineGone = false;
+            lane.outBuf = '';
+            lane.captureLine = null;
+            lane.since = 0;
+            lane.dropped = 0;
+            lane.inSearch = false;
+            lane.mayPonder = false;
+            lane.ready = false;
+            lane.bootThreads = 0; lane.curThreads = 0;
+            lane.bufTrim = 0;
+          }
+          if (r.dropped) lane.dropped = r.dropped;
+          if (!lane.alive && !lane.engineGone && wasAlive !== false) {
+            lane.engineGone = true;
+            lane.outBuf += '\n';
+          }
+          lane.since = r.seq || lane.since;
+          var ls = r.lines || [];
+          for (var i = 0; i < ls.length; i++) {
+            if (lane.captureLine && lane.captureLine(ls[i]) === true) continue;
+            lane.outBuf += ls[i] + '\n';
+          }
+          if (lane.outBuf.length > OUTBUF_CAP) {
+            var cut = lane.outBuf.length - OUTBUF_CAP;
+            var nl = lane.outBuf.indexOf('\n', cut);
+            lane.outBuf = (nl >= 0) ? lane.outBuf.slice(nl + 1) : lane.outBuf.slice(cut);
+            lane.bufTrim = (lane.bufTrim || 0) + 1;
+          }
+        }
+      }
       function laneSerial(lane, action) {
         var run = lane.tail.then(action, action);
         lane.tail = run.catch(function () {});
@@ -841,10 +856,11 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         return out;
       }
       function resQ(lane, tFull, claim) {
-        var busy = busyLaneNames(lane).join(',');
-        return '&res=' + (tFull ? 'full' : 'plan') +
-               (claim ? '&claim=1' : '') +
-               (busy ? '&busy=' + busy : '');
+        var busy = busyLaneNames(lane);
+        var o = { t: tFull ? 'full' : 'plan' };
+        if (claim) o.h = 'claim';
+        if (busy.length) o.busy = busy;
+        return o;
       }
       
       function yieldAuxToMain() {
@@ -1082,7 +1098,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
                 revives = 2;
                 if (console && console.warn) console.warn('[bridge] engine lane dead -> reset ' + lane.name);
                 lane.outBuf = ''; lane.seq = 0; lane.mayPonder = false;
-                try { engFetch('/engine/reset?lane=' + lane.name, '').catch(function () {}); } catch (eR) {}
+                try { engReset(lane.name).catch(function () {}); } catch (eR) {}
                 (function () {
                   var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
                   wait(500).then(function () { return engCmd(lane.name, 'START ' + SIZE); })
@@ -1100,7 +1116,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
               if (lane.timedOut >= 2) {
                 lane.timedOut = 0;
                 lane.seq = 0; lane.outBuf = '';
-                try { engFetch('/engine/reset?lane=' + lane.name, '').catch(function () {}); } catch (eR2) {}
+                try { engReset(lane.name).catch(function () {}); } catch (eR2) {}
                 if (console && console.warn) console.warn('[bridge] engine lane dead -> reset ' + lane.name);
               }
               reject(new Error('Engine did not return a move within time limit'));
@@ -2638,7 +2654,11 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       var msg = ev.data;
       if (typeof msg === 'string') { try { msg = JSON.parse(msg); } catch (e) { return; } }
       if (!msg) return;
-      if (msg.type === 'scan') {
+      if (msg.type === 'engineAck') {
+        if (msg.id && engPending[msg.id]) { var r = engPending[msg.id]; delete engPending[msg.id]; r(msg); }
+      }
+      else if (msg.type === 'engineOut') { applyEngineOut(msg); }
+      else if (msg.type === 'scan') {
         if (busy) return;                       
         busy = true;
         Promise.resolve(handleScan(msg.data)).finally(function () { busy = false; });
