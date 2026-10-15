@@ -99,3 +99,6 @@ installer/
 
 /tools/
 
+
+# Function-direct build outputs (local only)
+desktop-connect/build_direct/
