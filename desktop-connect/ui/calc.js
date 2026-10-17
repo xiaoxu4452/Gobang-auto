@@ -5801,6 +5801,15 @@ function defaultLayoutLink() {
     if (c) els.dockL.appendChild(c);
   });
 }
+// Link mode: collect every card into the left dock, so the empty right dock collapses to
+// zero width and the board gets a wider viewport. Mirrors cardOrderBySelect()'s link test,
+// so cards opened later from Settings land on the left too.
+function cardsToLeftDock() {
+  if (!els.dockL) return;
+  [].forEach.call(document.querySelectorAll('.card'), function (c) {
+    if (c.parentNode !== els.dockL) els.dockL.appendChild(c);
+  });
+}
 function applyLayout() {
   var l = loadLayout();
   var order = l.order || {};
@@ -6176,8 +6185,14 @@ function applyTheme() {
   if (HOST) tellHost({ type: 'uiTheme', theme: themeKey(), bg: pageBgHex(), lang: S.lang, cssVars: S.cssVars });
 }
 function applyEngineConfig() {
+  // Send threads/hash from the dedicated engine key (S may have been polluted by another
+  // window's save). This is the single gate that keeps the link window and the main UI in
+  // sync with the engine: whatever window triggers it, the host gets the user's real choice.
+  var eo = enginePrefGet();
+  if (eo.cores >= MIN_THREADS) S.cores = eo.cores;
+  if (eo.hashMB >= 1) S.hashMB = eo.hashMB;
   LocalAI.config(S.cores, S.hashMB);       
-  
+
   tellHost({ type: 'engineConfig', threads: S.cores || 0, hashMB: S.hashMB || 0 });
 }
 
@@ -6505,7 +6520,11 @@ var DEFAULT_CARDS = { setup: 0, analysis: 0, engine: 1 };
 //   旧存档里的 1 在启动时自动抬到 2 —— 只此一处定义，宿主 C++ 同口径。
 var MIN_THREADS = 2;
 var PREFS_KEY = 'gbcalc.prefs.v1';
-var PREF_FIELDS = ['cores', 'hashMB', 'turnMs', 'rule', 'lang', 'theme',
+// cores / hashMB were removed from this generic pref table: the main / link / replay / vision
+// windows each have their own S, and any window's save() re-wrote them to the shared key, so a
+// stale window overwrote the value the user had just changed. They now live in ENGINE_PREF_KEY
+// and are only written on an explicit change.
+var PREF_FIELDS = ['turnMs', 'rule', 'lang', 'theme',
                    'cards', 'customBase', 'aiB', 'aiW', 'linkAuto', 'linkClicks'];
 function prefsAll() {
   var o = null;
@@ -6555,6 +6574,56 @@ function prefsApplyToS() {
     });
   } catch (e) {}
 }
+// Root cause of "changing the thread count while the link feature is on does not persist":
+// the main / link (?link=1) / replay (?rv=1) / vision (?vis=1) windows are four separate pages
+// with four separate S objects sharing one localStorage. After the user changed the thread
+// count in the main window, any other window's save() wrote its own stale cores back to
+// gbcalc.settings.v1, so the main window read the old value on the next start. Threads/hash
+// are engine parameters, not UI state: give them a dedicated key as the single source of truth,
+// written only by an explicit user change (dropdown onchange) or the one-time factory default,
+// and read by every startup / host-dispatch path.
+var ENGINE_PREF_KEY = 'gbcalc.engine.v1';
+function enginePrefAll() {
+  var o = null;
+  try { o = JSON.parse(localStorage.getItem(ENGINE_PREF_KEY) || 'null'); } catch (e) { o = null; }
+  return (o && typeof o === 'object') ? o : null;
+}
+// Read: accept only already-valid values from the dedicated key (no merging); 0 = fall back.
+function enginePrefGet() {
+  var o = enginePrefAll() || {};
+  return { cores: (o.cores >= MIN_THREADS) ? o.cores : 0,
+           hashMB: (o.hashMB >= 1) ? o.hashMB : 0 };
+}
+// Write: the only entry point. Keeps the old value when cores/hashMB are invalid.
+function enginePrefSet(cores, hashMB) {
+  var o = enginePrefAll() || {};
+  if (cores >= MIN_THREADS) o.cores = cores;
+  if (hashMB >= 1) o.hashMB = hashMB;
+  o.ts = Date.now();
+  try { localStorage.setItem(ENGINE_PREF_KEY, JSON.stringify(o)); } catch (e) {}
+}
+// One-time migration: when the key does not exist yet, seed it with the valid values from the
+// legacy prefs / settings.v1 (leave it empty when neither has a valid value, so an explicit
+// user change writes it later).
+function enginePrefEnsure() {
+  if (enginePrefAll()) return;
+  var pc = prefGet('cores', 0), ph = prefGet('hashMB', 0);
+  if (!(pc >= MIN_THREADS) || !(ph >= 1)) {
+    try {
+      var s = JSON.parse(localStorage.getItem('gbcalc.settings.v1') || '{}');
+      if (!(pc >= MIN_THREADS) && s.cores >= MIN_THREADS) pc = s.cores;
+      if (!(ph >= 1) && s.hashMB >= 1) ph = s.hashMB;
+    } catch (e) {}
+  }
+  if (pc >= MIN_THREADS || ph >= 1) enginePrefSet(pc, ph);
+}
+// Align this page's S engine fields with the source of truth (only when the key holds a valid
+// value). Called on boot / link-mode switch / before every save().
+function enginePrefApplyToS() {
+  if (S.hasOwnProperty('cores')) { var c = enginePrefGet().cores; if (c >= MIN_THREADS) S.cores = c; }
+  if (S.hasOwnProperty('hashMB')) { var h = enginePrefGet().hashMB; if (h >= 1) S.hashMB = h; }
+}
+
 function savePins() { prefSet('pins', CARD_PIN); }
 
 // ★★ 2026-10-17：固定状态（引擎卡为 ✕）必须跨启动保留 —— 原来 CARD_PIN 是纯内存
@@ -6613,7 +6682,9 @@ function toggleSetPop() {
 function cardOrderBySelect(id) {
   var card = document.querySelector('.card[data-id="' + id + '"]');
   if (!card || card.hidden || !card.parentNode) return;
-  card.parentNode.appendChild(card);     
+  // In link mode cards opened from Settings land in the left dock as well.
+  var target = (linkSessionOn() && els.dockL) ? els.dockL : card.parentNode;
+  target.appendChild(card);     
 }
 
 function syncPinKeys() {
@@ -9029,11 +9100,18 @@ function renderHashInfo() {
 }
 
 function buildSelects() {
-  // ★★ 2026-10-17：线程/哈希以全局偏好键为唯一真相（S 可能刚被另一套存档覆盖）
-  var _pc = prefGet('cores', 0), _ph = prefGet('hashMB', 0);
-  if (!(S.cores >= MIN_THREADS) && _pc >= MIN_THREADS) S.cores = _pc;   // 只兜底
-  if (!(S.hashMB >= 1) && _ph >= 1) S.hashMB = _ph;   // 只兜底
   var host = G.host || {};
+  // Threads/hash: the host-persisted value is the single source of truth. Page localStorage is
+  // unreliable - Chromium commits DOMStorage lazily (~5s) while the app terminates the WebView2
+  // child on exit, so an uncommitted write is lost (observed: set 5 -> restart read back 3).
+  // The host writes it synchronously on engineConfig (host.cpp SaveEnginePrefs) and sends it
+  // back with the handshake; prefer it here, and keep the local dedicated key as a fallback.
+  var _e = enginePrefGet();
+  if (_e.cores >= MIN_THREADS) S.cores = _e.cores;
+  if (_e.hashMB >= 1) S.hashMB = _e.hashMB;
+  if (host.userThreads >= MIN_THREADS) S.cores = host.userThreads;
+  if (host.userHashMB >= 1) S.hashMB = host.userHashMB;
+  if (host.userThreads >= MIN_THREADS || host.userHashMB >= 1) enginePrefSet(S.cores, S.hashMB);
   // ★★ 2026-10-17：宿主 sysinfo 未到达时 threadsMax 缺失 ⇒ maxT 会退化成 1，
   //   后面的「超上限就重置」逻辑会把用户选好的 12 线程**永久写成 1**
   //   （= 「线程数改了、重启又变回去」的根因之一）。host 未就绪一律不动偏好。
@@ -9061,7 +9139,7 @@ function buildSelects() {
   // ★★ 2026-10-17：**删除**「恰好一半就抬回上限」的迁移 —— 它按 maxT 推算，
   //   在 maxT 偏小的机器上会把用户真实的选择抬走（用户报过两次「改了又恢复」）。
   //   现在只有一种自动行为：小于最小可选值时抬到 factoryT（= 下拉上限）。
-  if (!(S.cores >= MIN_THREADS)) { S.cores = factoryT; save(); }
+  if (!(S.cores >= MIN_THREADS)) { S.cores = factoryT; enginePrefSet(S.cores, S.hashMB); save(); }
   // ★ 偏好永不因本机能力被改写：换到小机器只夹「生效值」，S.cores 保留用户原值，
   //   换回大机器自动恢复（与 2026-10-15 的约定一致；老代码这里 save() 过，等于抹掉偏好）。
   var effT = Math.max(Math.min(MIN_THREADS, maxT), Math.min(S.cores, maxT));
@@ -9097,9 +9175,9 @@ function buildSelects() {
     ? S.hashMB
     : (hs.filter(function (h) { return h <= capMB; }).pop() || 512);
   if (!migFlag('hash1024')) {                        // 一次性历史默认迁移（1024 → 512）
-    if (S.hashMB === 1024) { S.hashMB = 512; save(); effH = 512; }
+    if (S.hashMB === 1024) { S.hashMB = 512; enginePrefSet(S.cores, S.hashMB); save(); effH = 512; }
   }
-  if (!S.hashMB) { S.hashMB = 512; save(); effH = 512; } // factory default: 512MB
+  if (!S.hashMB) { S.hashMB = 512; enginePrefSet(S.cores, S.hashMB); save(); effH = 512; } // factory default: 512MB
   els.sel_hash.innerHTML = hs.map(function (h) {
     var off = (h > capMB);
     return '<option value="' + h + '"' + (h === effH ? ' selected' : '') +
@@ -9139,7 +9217,9 @@ function boot() {
   } catch (e) {}
 
   if (!G.board) G.board = newBoard();
-  prefsApplyToS();   // ★ 全局偏好最后覆盖：任何一套存档都不许把 cores/hashMB 改回旧值
+  enginePrefEnsure();    // seed the engine key from legacy saves (one-time)
+  enginePrefApplyToS();  // threads/hash: the engine key is the source of truth
+  prefsApplyToS();       // remaining global prefs as fallback
   initPanels();
   applyLayout();
   try { syncPinKeys(); } catch (e) {}   // ★ 固定状态按存档重画（✕ / 固定）
@@ -9444,9 +9524,15 @@ function boot() {
   // 启动时若连线会话已开（比如本页是重开的），先把当前规则推一次；之后每次改规则由
   // sel_rule.onchange 里的同名语句负责（见上）。
   if (linkSessionOn()) tellHost({ type: 'linkCfgSync', rule: +S.rule });
-  els.sel_cores.onchange = function () { S.cores = Math.max(MIN_THREADS, +els.sel_cores.value | 0); save(); applyEngineConfig(); };
+  els.sel_cores.onchange = function () {
+    S.cores = Math.max(MIN_THREADS, +els.sel_cores.value | 0);
+    enginePrefSet(S.cores, S.hashMB);   // explicit user change -> write the engine key
+    save(); applyEngineConfig();
+  };
   els.sel_hash.onchange = function () {
-    S.hashMB = +els.sel_hash.value; save(); applyEngineConfig();
+    S.hashMB = +els.sel_hash.value;
+    enginePrefSet(S.cores, S.hashMB);   // explicit user change -> write the engine key
+    save(); applyEngineConfig();
     
     renderHashInfo();
   };
@@ -9495,6 +9581,8 @@ function boot() {
       G.host = {
         cpu: m.cpu || 4, threadsDefault: m.threadsDefault || 2, threadsMax: m.threadsMax || 3,
         memMB: m.memMB || 0, native: !!m.native,
+        // Host-persisted user engine prefs (0 = never set); buildSelects treats them as truth.
+        userThreads: m.userThreads | 0, userHashMB: m.userHashMB | 0,
         
         physCores: m.physCores || 0, memAvailMB: m.memAvailMB || 0,
         cpuName: m.cpuName || '', variant: m.variant || ''
@@ -9924,7 +10012,9 @@ function loadRuleGlobal() {
   } catch (e) { return null; }
 }
 
-function GLOBAL_LOOK_KEYS() { return ['lang', 'theme', 'cssVars', 'customBase', 'cores', 'hashMB', 'rule']; }
+// cores/hashMB no longer take part in the two-save cross copy: they are owned by the dedicated
+// engine key, and copying them between the two S objects was the propagation path.
+function GLOBAL_LOOK_KEYS() { return ['lang', 'theme', 'cssVars', 'customBase', 'rule']; }
 
 // ★★ 2026-10-17（用户：「线程数的更改，还有一些其他持久化做的不好」）：
 //   一次性迁移标记统一存**全局键**。原来放在 S 里，而 S 会在
@@ -9942,6 +10032,9 @@ function migFlag(name) {
 }
 
 function save() {
+  // Align the engine fields with the dedicated key before any window writes a save, so a stale
+  // window can never write an old cores/hashMB again.
+  enginePrefApplyToS();
   // ★ 偏好先进全局键：本函数后面有 `if (!ost) return;`，放在末尾会被跳过
   prefsSyncFromS();
   try {
@@ -9981,7 +10074,8 @@ function setLinkMode(on) {
     try { localStorage.setItem(nk, JSON.stringify(st)); } catch (e) {}
   }
   for (var k in st) if (S.hasOwnProperty(k)) S[k] = st[k];
-  prefsApplyToS();   // ★ link 存档里的旧 cores/hashMB 不许盖掉全局偏好
+  enginePrefApplyToS();  // threads/hash: the engine key is the source of truth
+  prefsApplyToS();   // link save must not override the other global prefs
   
   S.theme = keepTheme; S.cssVars = keepCssVars; S.customBase = keepCustomBase;
   S.lang = keepLang;
@@ -10022,6 +10116,8 @@ function setLinkMode(on) {
   if (els.num_turn) els.num_turn.value = ((+S.turnMs || 2000) / 1000).toFixed(3);
   if (els.sel_rule) els.sel_rule.value = String(S.rule);
   applyLayout();                       
+  // Link session opened: collect all cards into the left dock and persist it.
+  if (on) { cardsToLeftDock(); persistLayout(); }
   
   applyLang();
   buildSelects(); refreshUI(); paint();

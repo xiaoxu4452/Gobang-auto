@@ -72,6 +72,14 @@ desktop-connect/_*.py
 desktop-connect/tools/
 desktop-connect/ui/bridge.js.broken-bak
 
+# ===== Build helpers, third-party clones & local build trees (kept local, never published) =====
+desktop-connect/_build_*.ps1
+desktop-vision/_build_*.ps1
+desktop-connect/rapfi/
+desktop-connect/build_direct/
+desktop-connect/build_legacy/
+*.7z
+
 # ===== auxiliary source internal artifacts =====
 desktop-calculator/build/
 desktop-calculator/ui/_*.html

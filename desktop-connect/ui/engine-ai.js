@@ -748,7 +748,14 @@ function doAnalyze(body, lane) {
       }
     }
     
-    var ponderOn = body.exclusive && lane.name === 'main' && turnMs >= 2000 && !body.noPonder;
+    // Measured correction: restore ponder (the original behaviour), plus an explicit
+    // forcePonder switch. The earlier "PONDERING=1 does not emit a final line" premise was
+    // disproved on the real engine: PONDERING 0/1 both emit the final move at
+    // TIMEOUT_TURN*0.9 and ponder searched ~19% more nodes. waitForMove in this file only
+    // accepts the done branch, so ponder never delays delivery. noPonder stays as an explicit
+    // opt-out for calls that must get a definite move (e.g. the auto-drop).
+    var ponderOn = (body.forcePonder === true) ||
+                   (!!body.exclusive && lane.name === 'main' && turnMs >= 2000 && !body.noPonder);
     if (ponderOn) {
       pre.push('INFO PONDERING 1');
       armPonderWatchdog(lane);

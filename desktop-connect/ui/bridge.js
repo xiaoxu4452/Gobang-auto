@@ -896,21 +896,15 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       function boostThreads() { return engBudget(); }
       
       var cfgApplyBusy = false;
+      // Thread/hash changes no longer restart the whole engine chain. The host already
+      // re-applies INFO THREAD_NUM / INFO HASH_SIZE to the live main lane on engineConfig
+      // (host.cpp SetUserPrefs -> ResyncResPlans), which needs no JS restart. A restart only
+      // cleared the shared TT and cut a converging search - a real strength loss (the
+      // official package keeps one process and one table, so it sharpens as the game goes).
+      // Keep the JS budget bookkeeping only; the host applies the new resources immediately.
       function applyEngineCfgSoon() {
-        if (cfgApplyBusy) return;
-        if (!booted) return;                       
-        cfgApplyBusy = true;
-        var tries = 0;
-        (function step() {
-          if (LANES.main.inSearch || LANES.sub.inSearch || LANES.fwd.inSearch) {
-            if (++tries > 30) { cfgApplyBusy = false; return; }   
-            setTimeout(step, 2000);
-            return;
-          }
-          cfgApplyBusy = false;
-          booted = false;                          
-          bootAll().catch(function () {});
-        })();
+        bridgeDiag('LINK_ENG_CFG_APPLY threads=' + cfgThreads + ' hashMB=' + cfgHashMB +
+                   ' -> host re-applies in place (TT kept, no lane restart)');
       }
 
       function laneBusyT(lane) { return lane.inSearch ? Math.max(1, lane.curThreads || 1) : 0; }
@@ -1075,7 +1069,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
               //   JS 只保留应用级配置（CAUTION/STRENGTH/SHOW_DETAIL）。
               var cmds = ['INFO CAUTION_FACTOR 3',
                           'INFO STRENGTH 100',
-                          'INFO SHOW_DETAIL 2'];
+                          'INFO SHOW_DETAIL 3'];   // unified with host BootResPlan and the main window
               
               var q = Promise.resolve();
               cmds.forEach(function (c) { q = q.then(function () { return engCmd(lane.name, c); }); });
@@ -1138,7 +1132,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           // ★ 2026-10-15：fwd 车道的 THREAD_NUM=1 / HASH_SIZE=64MB 由宿主 C++ BootResPlan
           //   在 spawn 后写入，JS 只发应用级配置。
           var cmds = ['INFO CAUTION_FACTOR 3', 'INFO STRENGTH 100',
-                      'INFO SHOW_DETAIL 2'];
+                      'INFO SHOW_DETAIL 3'];   // unified with host BootResPlan and the main window
           var q = Promise.resolve();
           cmds.forEach(function (c) { q = q.then(function () { return engCmd(lane.name, c); }); });
           return q;
@@ -1186,7 +1180,17 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       
       function waitForMove(lane, budgetMs, wantTopN, retryBody) {
         return new Promise(function (resolve, reject) {
-          var hardDeadline = Date.now() + Math.max(1000, budgetMs) + 8000;
+          var t0 = Date.now();
+          var hardDeadline = t0 + Math.max(1000, budgetMs) + 8000;
+          // Measured against the real Rapfi binary (pbrain-rapfi, THREAD_NUM 4, TIMEOUT_TURN
+          // 3000): PONDERING 0 and 1 BOTH emit the final move at TIMEOUT_TURN*0.9 (Rapfi's
+          // advanced_stop_ratio), so "ponder swallows the final line" was wrong. The real
+          // budget eater was the early delivery below: it resolved once a candidate had been
+          // stable for 700ms, so a 2000ms budget only ever used ~700ms (~1/3) while the engine
+          // was still deepening. Deliver late instead - normally the final line wins the done
+          // branch above (full budget); the candidate fallback only fires near the deadline,
+          // so a stalled engine never drags us out to hardDeadline either.
+          var softAt = Math.max(600, Math.round(budgetMs * 0.9));
           var pvs = { __cur: -1 };
           var revives = 0;
           var firstCandAt = 0;
@@ -1240,11 +1244,9 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
                 out.push({ x: chosen[0], y: chosen[1], winrate: 0.5, eval: '', depth: 0, speed: pvs.__speed || 0, nodes: pvs.__totalnodes || 0, line: [] });
               }
               resolve({ candidates: out, best: chosen });
-            } else if (out.length && firstCandAt && Date.now() - firstCandAt >= 700) {
-              // ★ 2026-10-16：PONDERING=1 时引擎持续搜索、不输出最终行（无 best x,y / 裸 x,y / REJECT），
-              //   原来只能等 hardDeadline（~16.5s）超时回退 —— 连线页因此"迟迟没有评估"。
-              //   候选（Depth 行 bestline 首步）出现并稳定 700ms 即先行交付，对齐主训练工具体验；
-              //   最终行/REJECT 到来时仍走上面的 done 分支即时确认。
+            } else if (out.length && firstCandAt && Date.now() - t0 >= softAt) {
+              // Only fall back to a stable candidate past 90% of the budget (used to be 700ms,
+              // which cut every turn's budget to ~1/3). Normal path is the done branch above.
               clearInterval(timer);
               var cB = (chosen && chosen.length === 2) ? chosen : [out[0].x, out[0].y];
               var fIdx = -1;
@@ -1252,10 +1254,9 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
               if (fIdx > 0) out.unshift(out.splice(fIdx, 1)[0]);
               else if (fIdx < 0) out.unshift({ x: cB[0], y: cB[1], winrate: 0.5, eval: (out[0] && out[0].eval) || '', depth: (out[0] && out[0].depth) || 0, speed: pvs.__speed || 0, nodes: pvs.__totalnodes || 0, line: [] });
               resolve({ candidates: out, best: cB, partial: true });
-            } else if (pvs.__best && bestAt && Date.now() - bestAt >= 500) {
-              // REALTIME BEST from pondering is a solid best move; deliver it
-              // quickly (500ms after first arrival) so the link page shows a
-              // recommendation / fires auto-drop without waiting for a final line.
+            } else if (pvs.__best && bestAt && Date.now() - t0 >= softAt) {
+              // REALTIME BEST only as a late fallback (see softAt note) — it must never
+              // pre-empt the engine's own final line, which is the stronger answer.
               clearInterval(timer);
               var cB = [pvs.__best[0], pvs.__best[1]];
               if (!out.length) out.push({ x: cB[0], y: cB[1], winrate: 0.5, eval: (pvs[0] && pvs[0].eval) || '', depth: (pvs[0] && pvs[0].depth) || 0, speed: pvs.__speed || 0, nodes: pvs.__totalnodes || 0, line: (pvs[0] && pvs[0].bestline) || [] });
@@ -1341,8 +1342,13 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             batch.push('INFO RULE ' + rule);
             
             if (lane.name === 'main') {
+              // Measured correction: keep PONDERING 1. The earlier "ponder does not emit the
+              // final line" premise was disproved on the real engine - PONDERING 0/1 both emit
+              // the final move at TIMEOUT_TURN*0.9 (see the waitForMove softAt note). Ponder
+              // also searched ~19% more nodes (9710K vs 8132K). The budget loss came from the
+              // 700ms early delivery, which is now fixed in waitForMove.
               batch.push('INFO PONDERING 1'); armPonderPark(lane);
-              
+
               if (!ponderLogged) {
                 ponderLogged = true;
                 try { if (window.chrome && window.chrome.webview)

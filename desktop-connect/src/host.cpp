@@ -500,6 +500,8 @@ static std::string JKey(const char* name) {
 }
 static void LoadUiPrefs();
 static void SaveUiPrefs(const std::string& s);
+static void LoadEnginePrefs();
+static void SaveEnginePrefs(int threads, int hashMB);
 static void ApplyDarkTitleBar(HWND h, bool dark);
 static void SetWebviewBg(ICoreWebView2Controller* ctl, COLORREF c);
 static void RevealMainPage();
@@ -2680,6 +2682,11 @@ static void ResyncResPlans();                // 定义在本块下方
 static void SetUserPrefs(int threads, int hashMB) {
   g_usrThreads.store(threads > 0 ? threads : 0);
   g_usrHashMB.store(hashMB > 0 ? hashMB : 0);
+  // Persist user engine prefs (single source of truth). Page localStorage is unreliable:
+  // Chromium commits DOMStorage lazily (~5s) while we terminate the WebView2 child on exit,
+  // so the write is lost (observed: set 5 -> restart read back 3). engineConfig reaches the
+  // host synchronously, so writing here fixes the root cause.
+  SaveEnginePrefs(threads, hashMB);
   ResyncResPlans();
 }
 
@@ -2740,7 +2747,9 @@ static void BootResPlan(int idx) {
   cmds += "INFO HASH_SIZE " + std::to_string(wantH) + "\n";
   cmds += "INFO CAUTION_FACTOR 3\n";
   cmds += "INFO STRENGTH 100\n";
-  cmds += "INFO SHOW_DETAIL 2\n";
+  // Unified SHOW_DETAIL=3 (link window sent 2, main window 3). It only widens the detail
+  // output (live PV / REALTIME BEST) and is strength-neutral; both windows now match.
+  cmds += "INFO SHOW_DETAIL 3\n";
   Write(idx, cmds);
   LogMsg("[engine:" + g_laneName[idx] + "] 资源计划(C++): THREAD_NUM=" +
          std::to_string(wantT) + " HASH_SIZE=" + std::to_string(wantH) + "KB" +
@@ -3335,6 +3344,9 @@ static std::string NativeEngineRouteJson(const std::string& route, const std::st
               
               ",\"engineThreads\":" + std::to_string(g_threads) +
               ",\"engineHashMB\":" + std::to_string(g_hashMB) +
+              // Persisted user prefs (0 = never set) so the UI can restore the source of truth.
+              ",\"userThreads\":" + std::to_string(g_usrThreads.load()) +
+              ",\"userHashMB\":" + std::to_string(nativeeng::g_usrHashMB.load()) +
               ",\"lanes\":[\"main\",\"sub\",\"fwd\"]}";
   } else if (idx < 0) {
     payload = "{\"error\":\"bad lane\"}";
@@ -3512,6 +3524,8 @@ static void HttpUiServer() {
                       
                       ",\"engineThreads\":" + std::to_string(g_threads) +
                       ",\"engineHashMB\":" + std::to_string(g_hashMB) +
+                      ",\"userThreads\":" + std::to_string(g_usrThreads.load()) +
+                      ",\"userHashMB\":" + std::to_string(nativeeng::g_usrHashMB.load()) +
                       ",\"lanes\":[\"main\",\"sub\",\"fwd\"]}";
           } else if (idx < 0) {
             payload = "{\"error\":\"bad lane\"}";
@@ -4885,10 +4899,15 @@ class DomHandler : public Cb<ICoreWebView2DOMContentLoadedEventHandler> {
     snprintf(b, sizeof(b),
              "{\"type\":\"host\",\"cpu\":%d,\"threadsDefault\":%d,\"threadsMax\":%d,"
              "\"physCores\":%d,\"memMB\":%d,\"memAvailMB\":%d,\"native\":%s,"
+             // Send persisted user engine prefs with the handshake so the page restores
+             // S.cores/S.hashMB from the source of truth instead of overwriting them with
+             // stale localStorage values (see SaveEnginePrefs). 0 = never set.
+             "\"userThreads\":%d,\"userHashMB\":%d,"
              "\"variant\":%s,\"cpuName\":%s}",
              CpuCount(), ThreadsDefault(), ThreadsMax(), PhysCoreCount(),
              MemTotalMB(), MemAvailMB(),
              nativeeng::Available() ? "true" : "false",
+             g_usrThreads.load(), nativeeng::g_usrHashMB.load(),
              JsonQuote(nativeeng::g_variant).c_str(), JsonQuote(CpuName()).c_str());
     LogMsg(std::string("[host] probe cpu=") + std::to_string(CpuCount()) +
            " threadsDefault=" + std::to_string(ThreadsDefault()) +
@@ -5321,6 +5340,57 @@ static void SaveUiPrefs(const std::string& s) {
   FILE* f = _wfopen(UiFile().c_str(), L"wb");
   if (!f) return;
   fwrite(line.data(), 1, line.size(), f);
+  fclose(f);
+}
+
+// Persist point for the user's engine prefs (threads / hash) - the single source of truth.
+// Root cause of "thread count is not saved": the value only lived in page localStorage,
+// which Chromium commits lazily (~5s) while the app terminates the WebView2 child on exit,
+// so the write was lost (observed: set 5 -> restart read back 3). engineConfig reaches the
+// host synchronously, so writing here bypasses that async commit entirely.
+// Format: `threads|hashMB` (ASCII; 0 = no preference for that field). Kept in %TEMP%, next
+// to GomokuTrainer.ui, so no write permission is needed inside the exe directory.
+static std::wstring EnginePrefFile() {
+  wchar_t tmp[MAX_PATH] = {0};
+  GetTempPathW(MAX_PATH, tmp);
+  return Join(std::wstring(tmp), L"GomokuTrainer.engine");
+}
+
+static void LoadEnginePrefs() {
+  FILE* f = _wfopen(EnginePrefFile().c_str(), L"rb");
+  if (!f) return;
+  char buf[64] = {0};
+  size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+  fclose(f);
+  int t = 0, h = 0;
+  if (sscanf(buf, "%d|%d", &t, &h) < 1) return;
+  if (t > 0) g_usrThreads.store(t);            // g_usrThreads lives in the anonymous namespace
+  if (h > 0) nativeeng::g_usrHashMB.store(h);  // g_usrHashMB lives in namespace nativeeng
+  LogMsg("[engine] loaded user engine prefs: threads=" + std::to_string(t) +
+         " hashMB=" + std::to_string(h));
+}
+
+static void SaveEnginePrefs(int threads, int hashMB) {
+  // 0 = "no new preference for this field": keep the stored value, never overwrite it with 0.
+  if (threads <= 0 || hashMB <= 0) {
+    int pt = 0, ph = 0;
+    FILE* r = _wfopen(EnginePrefFile().c_str(), L"rb");
+    if (r) {
+      char buf[64] = {0};
+      size_t n = fread(buf, 1, sizeof(buf) - 1, r);
+      fclose(r);
+      sscanf(buf, "%d|%d", &pt, &ph);
+    }
+    if (threads <= 0) threads = pt;
+    if (hashMB <= 0) hashMB = ph;
+  }
+  if (threads <= 0 && hashMB <= 0) return;
+  std::string line = std::to_string(threads > 0 ? threads : 0) + "|" +
+                     std::to_string(hashMB > 0 ? hashMB : 0);
+  FILE* f = _wfopen(EnginePrefFile().c_str(), L"wb");
+  if (!f) return;
+  fwrite(line.data(), 1, line.size(), f);
+  fflush(f);                        // flush now: survives a hard kill
   fclose(f);
 }
 
@@ -8663,6 +8733,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
   }
   
   LoadUiPrefs();
+  // Load persisted engine prefs (threads/hash) before any engine is spawned, so
+  // CalcFullThreads/CalcHashFullKB start from the user's real choice.
+  LoadEnginePrefs();
   g_hwnd = CreateWindowExW(0, kCls, kTitle,
                            WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
                            x, y, w, h, nullptr, nullptr, hInst, nullptr);
