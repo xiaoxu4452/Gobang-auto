@@ -5,6 +5,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Meter Gomoku</title>
+<!-- ★ 2026-10-16：页面级错误上报。背景 —— 曾经出现「页面沉默」：宿主 serve 了 calc.html/css/js，
+     但渲染进程此后一个请求都没有、也收不到 {type:'ready'}，日志只剩
+     `main page still silent ... re-navigating`，**完全看不出为什么**。
+     有了这段，任何未捕获异常 / Promise 拒绝都会以 {type:'status', text:'JSERR …'} 发给宿主，
+     宿主日志里就能直接看到 `[msg] {"type":"status","text":"JSERR …"}`。
+     必须放在最前面（早于 calc.js），否则它自己抛出前注册不上。
+     实测：健康路径下宿主日志不会多出任何 JSERR 行。 -->
+<script>
+(function () {
+  window.__gbErrs = [];
+  function report(kind, detail) {
+    try { window.__gbErrs.push(kind + ' ' + detail); } catch (e) {}
+    try {
+      if (window.chrome && window.chrome.webview)
+        window.chrome.webview.postMessage({ type: 'status', text: kind + ' ' + detail });
+    } catch (e2) {}
+  }
+  window.onerror = function (m, s, l, c, e) {
+    report('JSERR', m + ' @' + (s || '') + ':' + l + ':' + c +
+      (e && e.stack ? ' | ' + String(e.stack).split('\n').slice(0, 3).join(' <- ') : ''));
+    return false;   // 不吞掉：控制台照旧能看到
+  };
+  window.addEventListener('unhandledrejection', function (ev) {
+    var r = ev && ev.reason;
+    report('JSREJ', String((r && r.message) || r) + (r && r.stack ? ' | ' + String(r.stack).split('\n')[0] : ''));
+  });
+})();
+</script>
+
 <link rel="stylesheet" href="calc.css">
 </head>
 <body data-theme="light">
@@ -488,7 +517,14 @@
           <div class="stat"><span class="k" id="t_eval">评估</span><span class="v" id="st_eval">-</span></div>
           <div class="stat"><span class="k" id="t_best">最佳</span><span class="v" id="st_best">-</span></div>
         </div>
-        <div class="line" id="st_line"></div>
+        <!-- ★ 消息框（2026-10-16 重新设计，用户要求）：评估曲线**上方**一个固定 3~4 行高的虚线框，
+             专门盛放消息（引擎状态 / 连线提示 / 最佳着法等）。此前这里是「一行随文字伸缩」的
+             行内文字：消息由一行变两行，下面的评估曲线整块被顶下去 = 用户报的「卡片抖动」。
+             现在外框 #engMsg 高度恒定，消息只在其内部滚动；#st_line 仍是消息行的容器
+             （既有 textContent 读法只会拿到多行拼接）。 -->
+        <div class="eng-msg" id="engMsg">
+          <div class="line" id="st_line"></div>
+        </div>
         
         <div class="curve-head"><span id="t_curveTtl">评估曲线</span></div>
         <div id="curveWrap">

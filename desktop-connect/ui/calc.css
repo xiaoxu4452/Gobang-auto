@@ -547,7 +547,22 @@ input[type=checkbox].chk-dot:focus-visible{outline:2px solid var(--accent); outl
 .stat{display:flex; flex-direction:column; background:var(--chip); border-radius:9px; padding:.26rem .5rem}
 .stat .k{color:var(--sub); font-size:.76rem}
 .stat .v{font-variant-numeric:tabular-nums; font-size:1.02rem; font-weight:600}
-#st_line{color:var(--sub); font-size:.8rem; margin-top:.3rem; word-break:break-all; min-height:1.2em}
+/* ★ 消息框（2026-10-16 重新设计，用户要求）：评估曲线**上方**固定 4 行高的虚线框，专门盛放消息。
+   此前这里是「一行随文字伸缩」的行内文字 —— 消息由一行变两行，就把下面的评估曲线整块顶下去
+   （= 用户报的「卡片抖动」）。现在外框高度恒定：3~4 行以内原样显示，更长只在框内滚动。
+   行高 .8rem × 1.32 ≈ 1.056rem ⇒ 4 行 4.22rem + 上下内边距 .56rem ≈ 4.78rem。 */
+.eng-msg{
+  border:1px dashed var(--border); border-radius:9px;
+  padding:.28rem .45rem; margin:.36rem 0 .2rem;
+  height:4.78rem;
+  overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.eng-msg::-webkit-scrollbar{width:6px}
+.eng-msg::-webkit-scrollbar-thumb{background:var(--border); border-radius:3px}
+#st_line{color:var(--sub); font-size:.8rem; line-height:1.32; word-break:break-all}
+#st_line .em-line{margin:0}
+#st_line .em-line + .em-line{margin-top:.08rem}
 
 #curveWrap{
   display:flex; align-items:flex-start; overflow:hidden;

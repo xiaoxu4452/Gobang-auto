@@ -1517,6 +1517,40 @@ static std::string VisionHttpPost(int port, const wchar_t* path, const std::stri
   return VisHttpRequest(port, L"POST", path, body, hdr, VisTimeoutData(), statusOut);
 }
 
+// ★★ 2026-10-17（用户：「识别速度到后期会变得相当慢……挤占视觉线路」）：
+//   优先级现状 = WebView2 渲染 HIGH / 引擎 ABOVE_NORMAL / **视觉 NORMAL**。
+//   引擎 12 线程满核搜索时，NORMAL 的识别进程排在最后 —— 越到中后盘思考越久越明显。
+//   视觉是交互实时任务（一次识别几百 ms），抬到 HIGH 让它插队做完；引擎只在这一瞬
+//   少一个核，整体 nps 影响 < 10%，远小于识别卡顿的体感损失。
+static void BoostVisionPriority(HANDLE h) {
+  if (!h) return;
+  if (SetPriorityClass(h, HIGH_PRIORITY_CLASS))
+    LogMsg("[vis] vision process priority -> HIGH (识别优先于引擎搜索)");
+}
+
+static void BoostExistingVisionPriority() {
+  static std::atomic<bool> done{ false };
+  bool expect = false;
+  if (!done.compare_exchange_strong(expect, true)) return;
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snap == INVALID_HANDLE_VALUE) return;
+  PROCESSENTRY32W pe; pe.dwSize = sizeof(pe);
+  int n = 0;
+  if (Process32FirstW(snap, &pe)) {
+    do {
+      if (_wcsicmp(pe.szExeFile, L"GomokuVision.exe") == 0) {
+        HANDLE h = OpenProcess(PROCESS_SET_INFORMATION, FALSE, pe.th32ProcessID);
+        if (h) {
+          if (SetPriorityClass(h, HIGH_PRIORITY_CLASS)) ++n;
+          CloseHandle(h);
+        }
+      }
+    } while (Process32NextW(snap, &pe));
+  }
+  CloseHandle(snap);
+  if (n > 0) LogMsg("[vis] reusing vision service -> priority HIGH (" + std::to_string(n) + " process)");
+}
+
 static void VisionSpawnDetached(const std::wstring& exe, const std::wstring& cwd) {
   std::wstring cmd = L"\"" + exe + L"\"";
   STARTUPINFOW si; ZeroMemory(&si, sizeof(si)); si.cb = sizeof(si);
@@ -1528,6 +1562,7 @@ static void VisionSpawnDetached(const std::wstring& exe, const std::wstring& cwd
                      cwd.empty() ? nullptr : cwd.c_str(), &si, &pi)) {
     CloseHandle(pi.hThread);
     if (g_job) AssignProcessToJobObject(g_job, pi.hProcess);   
+    BoostVisionPriority(pi.hProcess);
     CloseHandle(pi.hProcess);
   } else {
     LogMsg("[vis] vision service spawn failed err=" + std::to_string(GetLastError()));
@@ -1548,6 +1583,7 @@ static void EnsureVisionServer() {
       SetEnvironmentVariableA("GB_PARENT_PID", std::to_string(GetCurrentProcessId()).c_str());
     }
   }
+  BoostExistingVisionPriority();
   bool scanAlive = VisionPortAlive(VisionScanPort());
   bool recogAlive = VisionPortAlive(VisionRecogPort());
   if (scanAlive && recogAlive) {

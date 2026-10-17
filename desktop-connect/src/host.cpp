@@ -103,7 +103,9 @@ static void StartVisShotFlow();
 static void RunVisionForVis(std::string req);             
 
 static bool ApplyEngineAffinity(HANDLE h);                
-static bool ApplyVisionAffinity(HANDLE h);                
+static bool ApplyVisionAffinity(HANDLE h);
+static void BoostVisionPriority(HANDLE h);
+static void BoostExistingVisionPriority();                
 static void CpuSplitPinHost();                            
 static void CpuSplitUnpinHost();                          
 static std::string CpuSplitStatusJson();                   
@@ -308,13 +310,18 @@ static void LinkParseBest(const std::string& s);
 static void ParseBalPairs(const std::string& s, const char* key, std::vector<std::pair<int,int>>& out);
 
 static void PostToLinkPageSoon(const std::string& json);
+static void PostToLinkPage(const std::string& json);
 
 static const UINT kMsgEngineFlush = WM_APP + 10;
 static std::atomic<bool> g_engineFlushPending{false};
 static std::atomic<bool> g_pushEngineOut{false};   
 static std::atomic<bool> g_pushEverOn{false};      
 
-static std::atomic<bool> g_linkSession(false);     
+static std::atomic<bool> g_linkSession(false);
+// ★ 2026-10-16：连线会话期间引擎输出（engineOut）投递目标 —— true=连线页，false=主页面。
+//   连线页（bridge.js）是纯推送消费方（无轮询），连线期间必须把 flush 改投连线页，
+//   否则 waitForMove 永远收不到搜索行 → 无评估、无蓝色落点。
+static std::atomic<bool> g_engineOutToLink{false};     
 static void RequestEngineFlush() {
   if (!g_pushEngineOut.load()) return;
   if (g_engineFlushPending.exchange(true)) return;   
@@ -472,12 +479,20 @@ static COLORREF g_uiBg = RGB(0x26, 0x27, 0x2a);
 static COLORREF g_uiFg = RGB(0x9a, 0xa0, 0xa6);   
 static std::wstring g_uiText = L"加载中…";
 static bool g_mainPageShown = false;              
-static const UINT_PTR kMainTimerReload = 5;       
-static const UINT_PTR kMainTimerEval = 8;         
+static const UINT_PTR kMainTimerReload = 5;
+static const UINT_PTR kMainTimerEval = 8;
+static const UINT_PTR kMainTimerTestLink = 10;
+static const UINT_PTR kMainTimerTestLinkScan = 11;
+static const UINT_PTR kMainTimerTestLinkCheck = 12;         
+// ★ 2026-10-16：回归探针（GB_TEST_LINK_PROBE=1）——① 空盘帧（应清置换表）
+//   ② 主窗口 → 连线窗的规则同步（应清置换表并按新规则重算）。
+static const UINT_PTR kMainTimerTestLinkProbe = 13;
+static const UINT_PTR kMainTimerTestLinkProbe2 = 14;
 
 static const UINT_PTR kMainTimerSysMem = 9;
 static const UINT kSysMemIntervalMs = 3000;
 static int g_mainReloads = 0;                    
+static int g_mainCtrlRebuilds = 0;               
 static std::wstring UiFile();
 
 static std::string JKey(const char* name) {
@@ -1281,6 +1296,7 @@ static bool VselAutoFindRect(RECT& br, double& step) {
     CloseHandle(pi.hThread);
     if (g_job) AssignProcessToJobObject(g_job, pi.hProcess);
     ApplyVisionAffinity(pi.hProcess);
+    BoostVisionPriority(pi.hProcess);
     ChildTrack(pi.hProcess);
     char buf[4096];
     DWORD n = 0;
@@ -1566,6 +1582,40 @@ static int VisionScanPort() {
 
 static bool VisionServiceUp(int idx);
 
+// ★★ 2026-10-17（用户：「识别速度到后期会变得相当慢……挤占视觉线路」）：
+//   优先级现状 = WebView2 渲染 HIGH / 引擎 ABOVE_NORMAL / **视觉 NORMAL**。
+//   引擎 12 线程满核搜索时，NORMAL 的识别进程排在最后 —— 越到中后盘思考越久越明显。
+//   视觉是交互实时任务（一次识别几百 ms），抬到 HIGH 让它插队做完；引擎只在这一瞬
+//   少一个核，整体 nps 影响 < 10%，远小于识别卡顿的体感损失。
+static void BoostVisionPriority(HANDLE h) {
+  if (!h) return;
+  if (SetPriorityClass(h, HIGH_PRIORITY_CLASS))
+    LogMsg("[vis] vision process priority -> HIGH (识别优先于引擎搜索)");
+}
+
+static void BoostExistingVisionPriority() {
+  static std::atomic<bool> done{ false };
+  bool expect = false;
+  if (!done.compare_exchange_strong(expect, true)) return;
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snap == INVALID_HANDLE_VALUE) return;
+  PROCESSENTRY32W pe; pe.dwSize = sizeof(pe);
+  int n = 0;
+  if (Process32FirstW(snap, &pe)) {
+    do {
+      if (_wcsicmp(pe.szExeFile, L"GomokuVision.exe") == 0) {
+        HANDLE h = OpenProcess(PROCESS_SET_INFORMATION, FALSE, pe.th32ProcessID);
+        if (h) {
+          if (SetPriorityClass(h, HIGH_PRIORITY_CLASS)) ++n;
+          CloseHandle(h);
+        }
+      }
+    } while (Process32NextW(snap, &pe));
+  }
+  CloseHandle(snap);
+  if (n > 0) LogMsg("[vis] reusing vision service -> priority HIGH (" + std::to_string(n) + " process)");
+}
+
 static void VisionSpawnDetached(const std::wstring& exe, const std::wstring& cwd) {
   std::wstring cmd = L"\"" + exe + L"\"";
   STARTUPINFOW si; ZeroMemory(&si, sizeof(si)); si.cb = sizeof(si);
@@ -1578,6 +1628,7 @@ static void VisionSpawnDetached(const std::wstring& exe, const std::wstring& cwd
     CloseHandle(pi.hThread);
     if (g_job) AssignProcessToJobObject(g_job, pi.hProcess);   
     ApplyVisionAffinity(pi.hProcess);          
+    BoostVisionPriority(pi.hProcess);
     ChildTrack(pi.hProcess);                   
     CloseHandle(pi.hProcess);
   } else {
@@ -1602,6 +1653,7 @@ static void EnsureVisionServer() {
       SetEnvironmentVariableA("GB_PARENT_PID", std::to_string(GetCurrentProcessId()).c_str());
     }
   }
+  BoostExistingVisionPriority();
   bool scanAlive = VisionServiceUp(1);              
   bool recogAlive = VisionServiceUp(0);
   if (scanAlive && recogAlive) {
@@ -2060,21 +2112,31 @@ static int        g_hashMB = 0;
 
 static int        g_linkCfgSeen = 0;
 
+// ★ 2026-10-17：**启动时缓存**。任何后续的亲和性/Job 限制都不许再影响这个值 ——
+//   否则「钉核 → 核心数变小 → 下拉上限变小 → 用户偏好被夹」这条链会反复出现。
 static int CpuCount() {
-  SYSTEM_INFO si; GetNativeSystemInfo(&si);
-  int n = (int)si.dwNumberOfProcessors;
-  return n > 0 ? n : 4;
+  static const int cached = [] {
+    SYSTEM_INFO si; GetNativeSystemInfo(&si);
+    return (int)si.dwNumberOfProcessors;
+  }();
+  return cached > 0 ? cached : 4;
 }
-static int ThreadsDefault() {
-  int n = CpuCount();
-  int t = n / 2;
-  if (t < 1) t = 1;
-  return t;
-}
+// 下拉上限 = 本机逻辑核 - 保留核（留给 WebView2 渲染 / 识图 / sub·fwd 车道）。
 static int ThreadsMax() {
   int n = CpuCount();
   int sub = (n >= 16) ? 4 : ((n >= 8) ? 2 : 1);
   int t = n - sub;
+  if (t < 1) t = 1;
+  return t;
+}
+// ★ 2026-10-16（用户：「速度和深度远不如 4.39」「智力不算高」）：首启默认 = **下拉上限**。
+//   v4.39 的口径就是 `S.cores = maxT`（本机 16 逻辑核 ⇒ 12 线程）；后来一段版本把工厂默认
+//   改成「一半核」并被 save() 固化进 localStorage ⇒ **所有老用户**都只跑一半线程（6 个），
+//   引擎明明加载成功、nps/深度却只有 4.39 的一半。这里与 ThreadsMax() 同口径；界面 host
+//   消息与 CalcFullThreads() 的自动档共用同一个值（默认口径只在宿主，界面不自带默认）。
+//   **勿改回「一半核」**。
+static int ThreadsDefault() {
+  int t = ThreadsMax();
   if (t < 1) t = 1;
   return t;
 }
@@ -2148,6 +2210,9 @@ struct CpuSplitInfo {
   std::string why;                                  
 };
 
+// ★ 2026-10-17：提前声明（CpuSplit 要按「当前用户线程数」算掩码）
+static std::atomic<int> g_usrThreads{0};             // 用户线程偏好（0=自动=满核）
+
 static int PopCountPtr(DWORD_PTR v) {
   int n = 0;
   while (v) { v &= (v - 1); ++n; }
@@ -2155,11 +2220,29 @@ static int PopCountPtr(DWORD_PTR v) {
 }
 
 static const CpuSplitInfo& CpuSplit() {
-  static CpuSplitInfo info = [] {
+  // ★★ 2026-10-17：掩码按「当前用户线程数」**重算**（不是进程级一次定死）。
+  //   用户把线程从 12 调到 8，视觉就应多拿 4 个逻辑核 —— 这是「空余的才给识别」
+  //   这句话的字面实现：引擎要几个核就给几个，剩下的全归识别。
+  // ★★ 固定按 ThreadsMax() 算（**不随用户当前线程数变**）：掩码必须在进程生命周期内一致，
+  //   否则「引擎 spawn 时用一套掩码、宿主 pin 时又用另一套」→ 两组重叠，反而互相抢核。
+  //   用户把线程调小时，引擎线程少、掩码不变，视觉的核依旧独占 —— 识别不会变慢。
+  int needWanted = ThreadsMax();
+  static std::mutex csMu;
+  static CpuSplitInfo cache;
+  static int cachedNeed = -1;
+  std::lock_guard<std::mutex> lk(csMu);
+  if (cachedNeed == needWanted) return cache;
+  cachedNeed = needWanted;
+  cache = [needWanted] {
     CpuSplitInfo inf;
     
+    // ★★ 2026-10-17（用户：「为视觉引擎开一些没用到的核心，识别速度永远不会变慢」）：
+    //   **默认启用**核隔离 —— 识别进程钉在「引擎线程上限之外」的物理核上，
+    //   引擎 12 线程占 12 个逻辑核，识别独占剩下 4 个 ⇒ 搜索再久也挤不到识别。
+    //   关闭方式：GB_CPU_SPLIT=0（或排障开关 GB_NO_CPU_SPLIT=1）。
     char on[4] = {0};
-    bool want = (GetEnvironmentVariableA("GB_CPU_SPLIT", on, sizeof(on)) > 0 && on[0] == '1');
+    bool want = true;
+    if (GetEnvironmentVariableA("GB_CPU_SPLIT", on, sizeof(on)) > 0 && on[0] == '0') want = false;
     if (!want) {
       inf.physCores = PhysCoreCount();
       inf.why = "默认不切核（引擎/识别/宿主共用全部逻辑核；GB_CPU_SPLIT=1 可开启隔离）";
@@ -2204,22 +2287,43 @@ static const CpuSplitInfo& CpuSplit() {
     }
     inf.physCores = n;
     if (n < 3) { inf.why = "物理核不足 3 个"; return inf; }
-    int eng = n * 2 / 3;                          
-    if (eng < 2) eng = 2;
-    if (eng > n - 1) eng = n - 1;                 
-    DWORD_PTR em = 0, vm = 0;
-    for (int i = 0; i < n; ++i) {
-      if (i < eng) em |= groups[i];
-      else         vm |= groups[i];
+    // ★★ 2026-10-17 二次修正（用户：「用户选了 8 个线程，系统里还有十多条线程，把空余的
+    //   分几个给视觉，不要耽搁正式的线程」）：上一版按 2/3 分**物理核**，本机只给引擎
+    //   6 个物理核（12 逻辑），比全核少 2 个物理核 —— 实测 nps 明显下降。
+    //   正确口径：引擎优先拿「每个物理核的第 1 个逻辑 CPU(primary)」，N 个搜索线程各占
+    //   一个物理核、互不共享执行单元；线程上限之外的空闲逻辑 CPU（超线程兄弟 + 多余核）
+    //   才归识别。引擎可用逻辑核**永远 ≥ 线程上限**，一个正式线程都不耽搁。
+    int need = needWanted;                    // 由外层按「当前用户线程数」决定
+    if (need < 1) need = 1;
+    if (need > (int)CpuCount() - 2) {         // 核太少，切了也没富余
+      inf.why = "逻辑核不足（引擎上限 " + std::to_string(need) + " / 共 " +
+                std::to_string(CpuCount()) + "）";
+      return inf;
     }
+    DWORD_PTR all = 0, em = 0;
+    for (int i = 0; i < n; ++i) all |= groups[i];
+    for (int i = 0; i < n; ++i) {              // 1) 每物理核 1 个 primary
+      DWORD_PTR g = groups[i];
+      if (g) em |= (g & (~g + 1));
+    }
+    int have = PopCountPtr(em);
+    for (int i = 0; i < n && have < need; ++i) {   // 2) 不够补超线程兄弟
+      DWORD_PTR rest = groups[i] & ~em;
+      while (rest && have < need) {
+        DWORD_PTR low = rest & (~rest + 1);
+        em |= low; rest &= ~low; ++have;
+      }
+    }
+    DWORD_PTR vm = all & ~em;                  // 3) 其余全归识别
     inf.engMask = em; inf.visMask = vm;
-    inf.engCores = eng; inf.visCores = n - eng;
     inf.engCPUs = PopCountPtr(em); inf.visCPUs = PopCountPtr(vm);
-    inf.active = (em != 0 && vm != 0 && inf.engCPUs > 0 && inf.visCPUs > 0);
-    if (!inf.active) inf.why = "掩码构造失败";
+    inf.engCores = inf.engCPUs; inf.visCores = inf.visCPUs;
+    inf.active = (em != 0 && vm != 0 && inf.engCPUs >= need && inf.visCPUs >= 1);
+    if (!inf.active) inf.why = "掩码构造失败（引擎 " + std::to_string(inf.engCPUs) +
+                               " 逻辑 / 识别 " + std::to_string(inf.visCPUs) + " 逻辑）";
     return inf;
   }();
-  return info;
+  return cache;
 }
 
 static void LogCpuSplitOnce() {
@@ -2240,7 +2344,8 @@ static void LogCpuSplitOnce() {
   LogMsg(b);
 }
 
-static int EngThreadCPUs() { return CpuSplit().active ? CpuSplit().engCPUs : 0; }
+// 引擎不钉核 ⇒ 预算按全部逻辑核算（0 = 不限制），线程上限仍由 ThreadsMax() 管
+static int EngThreadCPUs() { return 0; }
 
 static std::string CpuSplitStatusJson() {
   const CpuSplitInfo& c = CpuSplit();
@@ -2253,13 +2358,26 @@ static std::string CpuSplitStatusJson() {
 
 static bool ApplyEngineAffinity(HANDLE h) {
   if (!h) return false;
+  // ★★ 2026-10-17 实测结论（用户：「速度上变慢了，切核逻辑有点错了」）：
+  //   **引擎不许钉核**。实测 12 线程钉到 0x55FF 只有 1.9~2.3M nps，全核 3.0M
+  //   （−30%）—— 钉核把 8 个物理核硬拆成「前 4 核双线程 + 后 4 核单线程」，
+  //   超线程争用 + Rapfi 自己的拓扑感知都受损。正确做法：
+  //   引擎留在**全部逻辑核**上自由调度（ABOVE_NORMAL），只把识别进程钉在富余核
+  //   并抬到 HIGH —— 识别有自己的专属核，引擎一个核都不少。
   const CpuSplitInfo& c = CpuSplit();
   if (!c.active) return false;
   LogCpuSplitOnce();
-  if (!SetProcessAffinityMask(h, c.engMask)) {
-    LogMsg("[cpu] 引擎进程钉核失败 err=" + std::to_string(GetLastError()));
+  // ★★ 关键：子进程会**继承父进程的亲和性**，而宿主已经被 CpuSplitPinHost() 钉在
+  //   识别组（4 逻辑核）。若这里什么也不做，引擎就在那 4 个核上跑 10 个线程
+  //   —— 实测 556K nps（本该 2.4M+）。所以必须**显式解回全部逻辑核**。
+  SYSTEM_INFO si; GetNativeSystemInfo(&si);
+  DWORD_PTR all = (DWORD_PTR)si.dwActiveProcessorMask;
+  if (!SetProcessAffinityMask(h, all)) {
+    LogMsg("[cpu] 引擎解钉失败 err=" + std::to_string(GetLastError()));
     return false;
   }
+  LogMsg("[cpu] 引擎可调度 " + std::to_string(PopCountPtr(all)) +
+         " 逻辑核（解回全核，识别独占 " + std::to_string(c.visCPUs) + " 核）");
   return true;
 }
 
@@ -2277,10 +2395,16 @@ static bool ApplyVisionAffinity(HANDLE h) {
 
 static std::atomic<bool> g_hostPinned{ false };
 static void CpuSplitPinHost() {
+  // ★★ 2026-10-17（「选 1 就触发一连串 bug」的真凶）：**宿主绝对不能钉核**。
+  //   钉了之后 GetNativeSystemInfo()/GetLogicalProcessorInformationEx() 只返回
+  //   亲和性内的 4 个逻辑核 ⇒ host 消息变成 cpu=4 / threadsMax=3 / memMB=4096(兜底)
+  //   ⇒ 页面下拉上限缩成 3，用户选的线程数被反复夹取改写（看起来就是「改了又恢复」）。
+  //   只钉识别进程就够了（它才是要被保护的一方）。
   const CpuSplitInfo& c = CpuSplit();
   if (!c.active) return;
-  bool e = false;
-  if (!g_hostPinned.compare_exchange_strong(e, true)) return;
+  LogCpuSplitOnce();
+  LogMsg("[cpu] 宿主不钉核（保持系统探测准确），识别独占 " + std::to_string(c.visCPUs) + " 逻辑核");
+  return;
   if (!SetProcessAffinityMask(GetCurrentProcess(), c.visMask)) {
     g_hostPinned.store(false);
     LogMsg("[cpu] 宿主钉核失败 err=" + std::to_string(GetLastError()) + "（引擎配额不受影响）");
@@ -2307,6 +2431,14 @@ static LONG RegDword(HKEY root, const wchar_t* sub, const wchar_t* val, DWORD& o
   return r;
 }
 
+// ★ 2026-10-16（性能）：渲染进程**保持 HIGH_PRIORITY_CLASS**。
+//   实测教训（勿改）：把它降到 NORMAL 之后，页面**全程沉默** —— 宿主能 serve 出 calc.html /
+//   calc.css / calc.js，但渲染进程再没有任何后续请求、也收不到 {type:'ready'}
+//   （日志只有 `main page still silent ... re-navigating`），UI 本身是好的（同一份 calc.js
+//   解密后在无头 Edge 里 readySent=true / 零异常）。也就是说：这里给的不只是「优先权」，
+//   降到 NORMAL 会把 WebView2 渲染进程变成实质不可用。
+//   给搜索线程让路的正确做法是**抬引擎**（spawn 后 ABOVE_NORMAL_PRIORITY_CLASS），
+//   而不是压渲染进程。
 static void BoostWebViewPriority() {
   HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if (snap == INVALID_HANDLE_VALUE) return;
@@ -2444,7 +2576,6 @@ static std::mutex g_resMu;
 static int g_laneThreads[LANE_COUNT] = {0, 0, 0};   // 各车道当前 THREAD_NUM（0=未设定）
 static int g_laneHashKB[LANE_COUNT]  = {0, 0, 0};   // 各车道当前 HASH_SIZE KB
 static int g_hashOwner = 0;                          // 占主车道（默认 main）
-static std::atomic<int> g_usrThreads{0};             // 用户线程偏好（0=自动=满核）
 static std::atomic<int> g_usrHashMB{0};              // 用户哈希偏好 MB（0=自动）
 
 static void Write(int idx, const std::string& text);   // 定义在本文件下方（管道写入）
@@ -2469,13 +2600,17 @@ static long long ResTotalPhysKB() {
   return 8LL * 1024 * 1024;                          // 探测失败按 8GB 兜底
 }
 
-// 满核线程数：用户选 1 就是 1（2026-10-15 用户反馈「保存线程数为 1 保存不了更改」——
-// 旧 JS max(2,…) 把 1 静默抬到 2，设置看起来不生效）；0=自动 = 引擎核预算全开。
+// 满核线程数。★★ 2026-10-17（用户：「把可选线程数最小改成 2」）：**最小 2**。
+//   1 线程时引擎 + worker 反复重启、各层「最小 2」夹取互相打架，用户实测会触发一串问题；
+//   界面下拉也同步从 2 起（MIN_THREADS），旧存档里的 1 启动时自动抬到 2。
+//   0 = 自动 = 引擎核预算全开（下拉上限口径）。
 static int CalcFullThreads() {
   int cores = ResEngCoreBudget();
   int usr = g_usrThreads.load();
-  if (usr > 0) return std::max(1, std::min(usr, cores));
-  return std::max(1, cores / 2);   // factory default: half of the system cores
+  if (usr >= 2) return std::min(usr, cores);
+  // ★ 2026-10-16：自动档（界面还没发 engineConfig）也走「下拉上限」口径 —— 与 ThreadsDefault()
+  //   及 v4.39 的 `mainT = engBudget()-1` 一致；仍受引擎核预算 cores 夹取（CpuSplit 核组）。
+  return std::max(1, std::min(ThreadsMax(), cores));
 }
 
 // 共享大分区置换表：用户选择 x2、每核 ≥128MB 兜底、自动档 = RAM/4；硬上限 6GB，
@@ -2486,7 +2621,7 @@ static int CalcHashFullKB() {
   long long ramCap = std::max(262144LL,
       std::min((long long)(memKB * 0.8), memKB - 2097152LL));
   int usrT = g_usrThreads.load();
-  int cores = std::max(1, usrT > 0 ? usrT : ResEngCoreBudget());
+  int cores = std::max(1, usrT >= 2 ? usrT : ResEngCoreBudget());
   int usrKB = g_usrHashMB.load() * 1024;
   long long want;
   if (usrKB > 0)
@@ -2593,8 +2728,19 @@ static void BootResPlan(int idx) {
   g_laneHashKB[idx]  = wantH;
   if (isMain) g_hashOwner = 0;
   std::string cmds;
+  // ★ 2026-10-16（用户：「还是会经常触发引擎连不上」「智力不算高」）：
+  //   **应用级引擎配置必须随每一次 spawn 重发**。这三条 + START 以前只由页面在引导阶段
+  //   发一次；引擎一旦重启（崩溃、页面 reset、宿主 WriteEnsured 按需 spawn —— 后者在
+  //   「页面还没启动/引导失败」时也会走到），页面并不知道要补发，引擎就退回 config.toml /
+  //   内建默认：CAUTION_FACTOR 没了、SHOW_DETAIL 没了（本页面的输出解析依赖 detail 行
+  //   ⇒ 直接表现为「没有着法 / 引擎连不上」），而 START 没了时棋盘尺寸也是未定义态。
+  //   放在 spawn 路径 = 单一真相，任何重启后自动恢复，不依赖页面记性。
+  cmds += "START 15\n";
   cmds += "INFO THREAD_NUM " + std::to_string(wantT) + "\n";
   cmds += "INFO HASH_SIZE " + std::to_string(wantH) + "\n";
+  cmds += "INFO CAUTION_FACTOR 3\n";
+  cmds += "INFO STRENGTH 100\n";
+  cmds += "INFO SHOW_DETAIL 2\n";
   Write(idx, cmds);
   LogMsg("[engine:" + g_laneName[idx] + "] 资源计划(C++): THREAD_NUM=" +
          std::to_string(wantT) + " HASH_SIZE=" + std::to_string(wantH) + "KB" +
@@ -2874,6 +3020,16 @@ static void ReaderThread(int idx, HANDLE out, int myGen) {
       pending.erase(0, pos + 1);
       if (!line.empty() && line.back() == '\r') line.pop_back();
       if (line.rfind("ERROR", 0) == 0) LogMsg("[engine:" + g_laneName[idx] + "] " + line);
+      // ★ 2026-10-16：连线会话诊断 —— 记录 main 车道全部非空行，核对页面解析器与引擎输出格式
+      else if (g_engineOutToLink.load() && idx == 0 && !line.empty()) {
+        static DWORD s_lastResLog = 0;
+        DWORD nowMs = GetTickCount();
+        if (nowMs - s_lastResLog >= 150) {
+          s_lastResLog = nowMs;
+          std::string vis = line.substr(0, 150);
+          LogMsg("[engine:" + g_laneName[idx] + "] out: " + vis);
+        }
+      }
       std::lock_guard<std::mutex> lk(e.mu);
       
       if (e.lines.size() >= 40000) { e.lines.pop_front(); e.dropped++; }
@@ -2960,6 +3116,14 @@ static bool SpawnLocked(int idx) {
   if (g_job) AssignProcessToJobObject(g_job, pi.hProcess);   
   
   ApplyEngineAffinity(pi.hProcess);
+  // ★ 2026-10-16（性能）：引擎进程优先级必须**高于界面**。
+  //   之前只把 WebView2 渲染进程抬到 HIGH_PRIORITY_CLASS、引擎留在 NORMAL ——
+  //   多线程搜索时渲染进程（画盘、刷评估、滚曲线）会把搜索线程从核上挤下来，
+  //   线程数越多越明显（这是「线程加上去了、nps 上不去」最典型的一类）。现在反过来：
+  //   引擎 = ABOVE_NORMAL（比 NORMAL 高、又不像 HIGH 那样抢住整个系统），
+  //   WebView2 = NORMAL（见 BoostWebViewPriority）。ABOVE_NORMAL 随进程一起，
+  //   引擎被 kill 时自动消失，不留系统状态。
+  SetPriorityClass(pi.hProcess, ABOVE_NORMAL_PRIORITY_CLASS);
   CpuSplitPinHost();
   ChildTrack(pi.hProcess);           
 
@@ -2997,7 +3161,8 @@ static void Write(int idx, const std::string& text) {
   std::string s = text;
   if (s.empty() || s.back() != '\n') s += "\n";
   DWORD wr = 0;
-  WriteFile(e.hStdin, s.data(), (DWORD)s.size(), &wr, nullptr);
+  if (!WriteFile(e.hStdin, s.data(), (DWORD)s.size(), &wr, nullptr))
+    LogMsg("[engine:" + g_laneName[idx] + "] write FAIL err=" + std::to_string(GetLastError()));
 }
 
 static bool WriteEnsured(int idx, const std::string& text) {
@@ -3010,7 +3175,11 @@ static bool WriteEnsured(int idx, const std::string& text) {
   std::string s = text;
   if (s.empty() || s.back() != '\n') s += "\n";
   DWORD wr = 0;
-  return WriteFile(e.hStdin, s.data(), (DWORD)s.size(), &wr, nullptr) != 0;
+  if (!WriteFile(e.hStdin, s.data(), (DWORD)s.size(), &wr, nullptr)) {
+    LogMsg("[engine:" + g_laneName[idx] + "] writeEnsured FAIL err=" + std::to_string(GetLastError()));
+    return false;
+  }
+  return true;
 }
 
 static std::string Poll(int idx, uint64_t since) {
@@ -3047,6 +3216,8 @@ static void ClearLaneLines() {
 static bool FlushToPage() {
   std::string out = "{\"type\":\"engineOut\",\"lanes\":[";
   bool any = false, first = true;
+  size_t flushedLines = 0;
+  static std::string s_lastTail3;
   for (int i = 0; i < LANE_COUNT; i++) {
     Engine& e = g_eng[i];
     std::vector<std::string> take;
@@ -3060,6 +3231,13 @@ static bool FlushToPage() {
       take.assign(e.lines.begin(), e.lines.begin() + n);
       e.lines.erase(e.lines.begin(), e.lines.begin() + n);
       seq = e.seq; dropped = e.dropped;
+      flushedLines += n;
+      if (g_engineOutToLink.load() && !take.empty()) {
+        s_lastTail3.clear();
+        for (size_t z = take.size() > 3 ? take.size() - 3 : 0; z < take.size(); z++) {
+          s_lastTail3 += take[z]; s_lastTail3 += " | ";
+        }
+      }
     }
     if (!first) out += ",";
     first = false;
@@ -3077,7 +3255,18 @@ static bool FlushToPage() {
   }
   out += "]}";
   if (!any) return false;
-  PostToPage(out);
+  // ★ 2026-10-16：按连线会话路由 —— 连线期间投连线页（bridge.js 纯推送消费），
+  //   其余时间投主页面。lines 是排空语义（take 后 erase），同一帧只能投一个目标。
+  if (g_engineOutToLink.load()) {
+    static DWORD s_lastLinkPushLog = 0;
+    DWORD nowMs = GetTickCount();
+    if (nowMs - s_lastLinkPushLog >= 2000) {
+      s_lastLinkPushLog = nowMs;
+      LogMsg("[link] engineOut push -> link page (" + std::to_string(flushedLines) + " lines) [" + s_lastTail3 + "]");
+    }
+    PostToLinkPage(out);
+  }
+  else                          PostToPage(out);
   return true;
 }
 
@@ -3086,7 +3275,11 @@ static std::string HandlePageCmd(const std::string& op, int idx,
                                  int resT = 0, int resH = 0,
                                  const std::vector<std::string>& busyNames = {}) {
   bool ok = false;
-  if (idx < 0) ok = false;
+  // ★ 2026-10-16：status 是全局查询（页面发 lane=""），不依赖 lane 索引 ——
+  //   以前 idx<0 的门在前，status ack 恒为 ok=false（页面只认 available 所以无碍，
+  //   但日志口径混乱）。
+  if (op == "status")    ok = true;
+  else if (idx < 0)      ok = false;
   else if (op == "cmd") {
     std::string body;
     // ★ 2026-10-15：资源计划前置（C++ 计算，见 g_resMu 块注释）。先算好并释放
@@ -3102,7 +3295,6 @@ static std::string HandlePageCmd(const std::string& op, int idx,
     ok = body.empty() || WriteEnsured(idx, body);
   } else if (op == "ensure") ok = Ensure(idx);
   else if (op == "reset")    ok = Spawn(idx);
-  else if (op == "status")   ok = true;
   std::string r = "{\"type\":\"engineAck\",\"id\":" + std::to_string(id);
   r += ",\"op\":" + JsonQuote(op);
   r += ",\"lane\":" + JsonQuote(idx >= 0 ? g_laneName[idx] : std::string(""));
@@ -3594,6 +3786,27 @@ static void LayoutWebView() {
   GetClientRect(g_hwnd, &r);
   g_controller->put_Bounds(r);
 }
+
+// ★ 2026-10-16：主页面「沉默」时的取证探针。沉默 = 宿主 serve 了 calc.html/css/js，
+//   此后页面一条消息都不发、也收不到 ready。两种完全不同的病因必须区分开：
+//     · 有回话 ⇒ 渲染进程活着、JS 能跑 ⇒ 卡在 boot() / chrome.webview 缺失；
+//     · 没回话 ⇒ 渲染进程根本没起来（浏览器/GPU 进程问题）。
+static const char* kSilentProbeJs =
+    "(function(){try{return JSON.stringify({rs:document.readyState,"
+    "cv:(window.chrome&&window.chrome.webview)?1:0,title:document.title,"
+    "boot:!!window.GBUI,errs:(window.__gbErrs||[]).slice(0,3),"
+    "htmlLen:document.documentElement?document.documentElement.innerHTML.length:-1});"
+    "}catch(e){return 'EVALERR '+e.message}})()";
+
+class MainProbeHandler : public Cb<ICoreWebView2ExecuteScriptCompletedHandler> {
+ public:
+  HRESULT STDMETHODCALLTYPE Invoke(HRESULT errorCode, LPCWSTR result) override {
+    if (result && *result) LogMsg("[ui] silent-probe reply: " + WideToUtf8(result));
+    else LogMsg("[ui] silent-probe: 渲染进程无回话（hr=0x" +
+                std::to_string((unsigned)errorCode) + "）⇒ 渲染进程未起来");
+    return S_OK;
+  }
+};
 
 class EvalHandler : public Cb<ICoreWebView2ExecuteScriptCompletedHandler> {
  public:
@@ -4261,11 +4474,11 @@ class MsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
      LogMsg("[msg] " + s.substr(0, 200));
     
     if (s.find("\"engine\"") != std::string::npos && s.find("\"op\":") != std::string::npos) {
-      
-      if (!g_linkSession.load()) {
-        g_pushEngineOut = true;                       
-        g_pushEverOn = true;                          
-      }
+
+      // ★ 2026-10-16：推送是页面消费引擎输出的唯一通道（连线页也如此）。
+      //   任何页面的 engine 命令都确保推送开启；连线期间由 g_engineOutToLink 决定投递目标。
+      g_pushEngineOut = true;
+      g_pushEverOn = true;
       std::string op   = JsonStrAfter(s, "\"op\":");
       std::string lane = JsonStrAfter(s, "\"lane\":");
       int id = atoi(s.c_str() + (s.find("\"id\":") == std::string::npos
@@ -4422,6 +4635,20 @@ class MsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
       return S_OK;
     }
     
+    // ★ 2026-10-16（用户：「变规则的时候不能顺利的切换规则而评估」）：
+    //   主窗口改规则时 calc.js 会发 {type:'linkCfgSync', rule:N}（见 sel_rule.onchange /
+    //   setLinkMode），但 MsgHandler 里**从来没有这个分支** —— 消息被静默吞掉，连线窗
+    //   永远不知道主界面把规则改了，继续按旧规则算平衡点与评估。这里补上转发：
+    //   连线页 calc.js 收到后 lkBridgeRule() → 高亮 + BS.rule 同步 → bridge.js 清置换表重算。
+    if (s.find("\"linkCfgSync\"") != std::string::npos) {
+      std::string payload = s;
+      size_t p = payload.find('{');
+      if (p != std::string::npos) payload = payload.substr(p);
+      PostToLinkPageSoon(payload);
+      LogMsg("[link] rule sync main -> link: " + payload.substr(0, 120));
+      return S_OK;
+    }
+    
     if (s.find("\"linkDrop\"") != std::string::npos) {
       int lx = JsonIntAfter(s, "\"x\":"), ly = JsonIntAfter(s, "\"y\":");
       
@@ -4518,12 +4745,27 @@ static long long DirSizeRecursive(const std::wstring& dir) {
   return sum;
 }
 
+// ★ 2026-10-16（用户：「Webview 渲染进程使用最新最科学的渲染方式」）：
+//   原来**每次启动**都无条件删掉 Cache / Code Cache / GPUCache / ShaderCache。
+//   那是「渲染不科学」的经典反例：Code Cache 一没，整个 calc.js（32 万字节）首次
+//   解析/编译全部重来；GPUCache + ShaderCache 一没，GPU 进程每次都要重建着色器缓存，
+//   轻则首屏慢、重则 GPU 进程起不来直接退软渲染。改为**按体积阈值**清理：
+//   只有缓存涨到 96 MB 以上才清（长期使用仍然不会无限膨胀），正常启动一律保留热缓存。
+static const long long kCachePurgeMinBytes = 96LL * 1024 * 1024;
 static void ClearWebViewCache(const std::wstring& udf, const char* when) {
   if (udf.empty()) return;
   static const wchar_t* kDirs[] = {
     L"Cache", L"Code Cache", L"GPUCache", L"ShaderCache", L"VideoDecodeStats",
     L"blob_storage", L"Service Worker\\CacheStorage", L"Service Worker\\ScriptCache",
   };
+  long long total = 0;
+  for (const wchar_t* d : kDirs) total += DirSizeRecursive(Join(udf, d));
+  if (total < kCachePurgeMinBytes) {
+    LogMsg("[wv2] " + std::string(when) + " 缓存 " + std::to_string(total / (1024 * 1024)) +
+           " MB < " + std::to_string(kCachePurgeMinBytes / (1024 * 1024)) +
+           " MB 阈值，保留（热 Code/GPU/Shader 缓存 = 首屏更快、无需重建着色器）");
+    return;
+  }
   long long freed = 0;
   int n = 0;
   for (const wchar_t* d : kDirs) {
@@ -4648,6 +4890,12 @@ class DomHandler : public Cb<ICoreWebView2DOMContentLoadedEventHandler> {
              MemTotalMB(), MemAvailMB(),
              nativeeng::Available() ? "true" : "false",
              JsonQuote(nativeeng::g_variant).c_str(), JsonQuote(CpuName()).c_str());
+    LogMsg(std::string("[host] probe cpu=") + std::to_string(CpuCount()) +
+           " threadsDefault=" + std::to_string(ThreadsDefault()) +
+           " threadsMax=" + std::to_string(ThreadsMax()) +
+           " phys=" + std::to_string(PhysCoreCount()) +
+           " memMB=" + std::to_string(MemTotalMB()) +
+           " hw=" + std::to_string((int)std::thread::hardware_concurrency()));
     PostToPage(b);
     PostToPage(SysInfoJson());   
     
@@ -4699,6 +4947,31 @@ static void FireTestHooks() {
   if (GetEnvironmentVariableA("GB_TEST_AI_BOTH", tv, sizeof(tv)) && tv[0] == '1') {
     PostToPage("{\"type\":\"testAiBoth\"}");
     LogMsg("[ai] test hook: asked the page to run the AI-vs-AI self-play walkthrough");
+  }
+
+  // ★ 2026-10-16：连线链路 E2E 测试钩子（无需真实对局窗口）——
+  //   GB_TEST_OPEN_LINK=1：延时打开连线窗，页面就绪后投「我执黑 + 合成 4B4W 扫描帧」，
+  //   走真实 analyze → 引擎 ack → engineOut 推送 → 推荐落点 全链路。
+  memset(tv, 0, sizeof(tv));
+  if (GetEnvironmentVariableA("GB_TEST_OPEN_LINK", tv, sizeof(tv)) && tv[0] == '1') {
+    UINT delayMs = 2500;
+    char dv[16] = {0};
+    if (GetEnvironmentVariableA("GB_TEST_LINK_DELAY_MS", dv, sizeof(dv))) delayMs = (UINT)atoi(dv);
+    if (delayMs < 500) delayMs = 500;
+    if (g_hwnd && IsWindow(g_hwnd)) {
+      SetTimer(g_hwnd, kMainTimerTestLink, delayMs, nullptr);
+      LogMsg("[test] GB_TEST_OPEN_LINK: link window opens in " + std::to_string(delayMs) + " ms");
+    }
+  }
+
+  // ★ 2026-10-17：持久化回归钩子 —— 把一段 JS 注入主页面（用于「改下拉 → 重启 → 值还在」这类
+  //   只能真机验证的场景）。只在设了 GB_TEST_EVAL 时生效，正常启动零开销。
+  {
+    char ev[2048] = {0};
+    if (GetEnvironmentVariableA("GB_TEST_EVAL", ev, sizeof(ev)) && ev[0] && g_webview) {
+      g_webview->ExecuteScript(Utf8ToWide(ev).c_str(), nullptr);
+      LogMsg("[test] GB_TEST_EVAL injected (" + std::to_string(strlen(ev)) + " chars)");
+    }
   }
 }
 
@@ -4784,6 +5057,9 @@ static void SetupUiServing(ICoreWebView2* wv, const char* tag) {
   wv->add_ProcessFailed(new ProcFailHandler(base), &ptok);
 }
 
+// （前向声明：定义在 EnvHandler 之前，但 CtlHandler 里就要用）
+static void HardenWebviewSettings(ICoreWebView2* wv, const char* tag);
+
 class CtlHandler : public Cb<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler> {
  public:
   HRESULT STDMETHODCALLTYPE Invoke(HRESULT hr, ICoreWebView2Controller* ctl) override {
@@ -4793,18 +5069,7 @@ class CtlHandler : public Cb<ICoreWebView2CreateCoreWebView2ControllerCompletedH
     ctl->get_CoreWebView2(&g_webview);
     if (g_webview) {
       g_webview->AddRef();
-      ICoreWebView2Settings* st = nullptr;
-      if (SUCCEEDED(g_webview->get_Settings(&st)) && st) {
-        st->put_IsStatusBarEnabled(FALSE);
-        st->put_AreDefaultContextMenusEnabled(FALSE);
-        
-        ICoreWebView2Settings3* st3 = nullptr;
-        if (SUCCEEDED(st->QueryInterface(__uuidof(ICoreWebView2Settings3), (void**)&st3)) && st3) {
-          st3->put_IsZoomControlEnabled(FALSE);
-          st3->Release();
-        }
-        st->Release();
-      }
+      HardenWebviewSettings(g_webview, "wv2");
       
       ICoreWebView2_2* wv2 = nullptr;
       if (SUCCEEDED(g_webview->QueryInterface(__uuidof(ICoreWebView2_2), (void**)&wv2)) && wv2) {
@@ -4831,6 +5096,133 @@ class CtlHandler : public Cb<ICoreWebView2CreateCoreWebView2ControllerCompletedH
     return S_OK;
   }
 };
+
+// ★ 2026-10-16（用户：「Webview 渲染进程使用最新最科学的渲染方式」）：
+//   WebView2 的三类「科学渲染 / 不节流」开关。以前 CreateCoreWebView2EnvironmentWithOptions
+//   第 3 参是 nullptr ⇒ 完全走 Chromium 默认：桌面应用里默认值恰恰是最差的一组 ——
+//   （1）被遮挡/最小化的窗口会被判定为 occluded/backgrounded，渲染进程降优先级、定时器
+//       被节流到 1Hz 甚至冻结。本程序的主界面经常被「连线选框窗 / 识别窗 / 复盘窗」盖住，
+//       bridge.js 的 60ms 轮询、waitForMove 的 5ms 轮询一旦被节流 ⇒ 引擎明明在算、
+//       页面却读不到输出 = 用户报的「引擎连不上 / 迟迟不评估」。
+//   （2）canvas 曲线/棋盘走软件光栅，引擎吃满 CPU 时界面明显掉帧。
+//   这里显式关掉节流、开 GPU 光栅 + 零拷贝，并禁掉 Windows 原生遮挡计算（该特性会暂停
+//   被遮窗口的画面提交，对「叠加窗压在主窗上」这种布局是纯负作用）。
+//   另可用 GB_WV2_ARGS 环境变量整体覆盖（排查用），或 GB_WV2_ARGS_EXTRA 追加。
+static std::wstring GbWv2BrowserArgs() {
+  auto getenvW = [](const char* n) -> std::wstring {
+    char b[2048] = {0};
+    DWORD n2 = GetEnvironmentVariableA(n, b, sizeof(b));
+    return (n2 > 0 && n2 < sizeof(b)) ? Utf8ToWide(std::string(b, n2)) : std::wstring();
+  };
+  std::wstring over = getenvW("GB_WV2_ARGS");
+  // GB_WV2_ARGS=none ⇒ 显式「不带任何附加参数」（排查用；空值会被 Windows 当成未设置）
+  if (_wcsicmp(over.c_str(), L"none") == 0) return L"";
+  if (!over.empty()) return over;
+  // 注意：Chromium 只认**最后一个** --enable-features / --disable-features，
+  //       所以每类只能出现一次（多特性用逗号连）。
+  std::wstring a =
+      L"--disable-background-timer-throttling"          // setInterval/setTimeout 不被降频
+      L" --disable-backgrounding-occluded-windows"      // 被遮挡也保持正常优先级
+      L" --disable-renderer-backgrounding"              // 后台/遮挡不降渲染优先级
+      L" --disable-features=CalculateNativeWinOcclusion" // 遮挡不暂停画面提交
+      L" --enable-gpu-rasterization"                    // GPU 光栅（棋盘/曲线更顺）
+      L" --enable-zero-copy"                            // 零拷贝合成
+      L" --enable-features=CanvasOopRasterization"      // canvas 走 OOP 光栅
+      L" --ignore-gpu-blocklist";                       // 别因驱动版本号被降级到软渲染
+  std::wstring extra = getenvW("GB_WV2_ARGS_EXTRA");
+  if (!extra.empty()) { a += L" "; a += extra; }
+  return a;
+}
+
+// ICoreWebView2EnvironmentOptions 的最小实现（只用来塞 AdditionalBrowserArguments）。
+// ★ TargetCompatibleBrowserVersion 必须给一个**低于本机运行时**的值：给高了会让
+//   环境创建直接失败（整套 UI 起不来），给低了只是「不排除任何已装运行时」。
+class EnvOptions : public ICoreWebView2EnvironmentOptions {
+ public:
+  explicit EnvOptions(std::wstring args) : m_args(std::move(args)) {}
+  ULONG STDMETHODCALLTYPE AddRef() override { return InterlockedIncrement(&m_rc); }
+  ULONG STDMETHODCALLTYPE Release() override {
+    ULONG r = InterlockedDecrement(&m_rc);
+    if (r == 0) delete this;
+    return r;
+  }
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** pp) override {
+    if (!pp) return E_POINTER;
+    *pp = nullptr;
+    if (riid == __uuidof(ICoreWebView2EnvironmentOptions) || riid == IID_IUnknown) {
+      *pp = static_cast<ICoreWebView2EnvironmentOptions*>(this);
+      AddRef();
+      return S_OK;
+    }
+    return E_NOINTERFACE;
+  }
+  HRESULT STDMETHODCALLTYPE get_AdditionalBrowserArguments(LPWSTR* value) override {
+    return Dup(value, m_args);
+  }
+  HRESULT STDMETHODCALLTYPE put_AdditionalBrowserArguments(LPCWSTR value) override {
+    m_args = value ? value : L"";
+    return S_OK;
+  }
+  HRESULT STDMETHODCALLTYPE get_Language(LPWSTR* value) override { return Dup(value, L""); }
+  HRESULT STDMETHODCALLTYPE put_Language(LPCWSTR) override { return S_OK; }
+  HRESULT STDMETHODCALLTYPE get_TargetCompatibleBrowserVersion(LPWSTR* value) override {
+    return Dup(value, L"100.0.0.0");
+  }
+  HRESULT STDMETHODCALLTYPE put_TargetCompatibleBrowserVersion(LPCWSTR) override { return S_OK; }
+  HRESULT STDMETHODCALLTYPE get_AllowSingleSignOnUsingOSPrimaryAccount(BOOL* allow) override {
+    if (allow) *allow = FALSE;
+    return S_OK;
+  }
+  HRESULT STDMETHODCALLTYPE put_AllowSingleSignOnUsingOSPrimaryAccount(BOOL) override { return S_OK; }
+  std::wstring args() const { return m_args; }
+
+ private:
+  static HRESULT Dup(LPWSTR* value, const std::wstring& s) {
+    if (!value) return E_POINTER;
+    size_t n = s.size() + 1;
+    *value = (LPWSTR)CoTaskMemAlloc(n * sizeof(wchar_t));
+    if (!*value) return E_OUTOFMEMORY;
+    memcpy(*value, s.c_str(), n * sizeof(wchar_t));
+    return S_OK;
+  }
+  ULONG m_rc = 1;
+  std::wstring m_args;
+};
+
+// 每个 WebView2 都套一遍：统一「关掉不需要的内建 UI/交互 + 保持工程化缩放口径」。
+// 只加**不会改变现有交互**的项：状态栏、右键菜单、缩放、捏合、滑动导航、自动填充、
+// 拖放文件、内建错误页。刻意**不**动 AreBrowserAcceleratorKeysEnabled（关了会连
+// Ctrl+C 一起废掉，「复制代码」按钮的键盘通路就没了）。
+static void HardenWebviewSettings(ICoreWebView2* wv, const char* tag) {
+  if (!wv) return;
+  ICoreWebView2Settings* st = nullptr;
+  if (FAILED(wv->get_Settings(&st)) || !st) return;
+  st->put_IsStatusBarEnabled(FALSE);
+  st->put_AreDefaultContextMenusEnabled(FALSE);
+  ICoreWebView2Settings3* st3 = nullptr;
+  if (SUCCEEDED(st->QueryInterface(__uuidof(ICoreWebView2Settings3), (void**)&st3)) && st3) {
+    st3->put_IsZoomControlEnabled(FALSE);
+    st3->Release();
+  }
+  ICoreWebView2Settings4* st4 = nullptr;
+  if (SUCCEEDED(st->QueryInterface(__uuidof(ICoreWebView2Settings4), (void**)&st4)) && st4) {
+    st4->put_IsGeneralAutofillEnabled(FALSE);
+    st4->put_IsPasswordAutosaveEnabled(FALSE);
+    st4->Release();
+  }
+  ICoreWebView2Settings5* st5 = nullptr;
+  if (SUCCEEDED(st->QueryInterface(__uuidof(ICoreWebView2Settings5), (void**)&st5)) && st5) {
+    st5->put_IsPinchZoomEnabled(FALSE);
+    st5->Release();
+  }
+  ICoreWebView2Settings6* st6 = nullptr;
+  if (SUCCEEDED(st->QueryInterface(__uuidof(ICoreWebView2Settings6), (void**)&st6)) && st6) {
+    st6->put_IsSwipeNavigationEnabled(FALSE);
+    st6->Release();
+  }
+  st->Release();
+  LogMsg(std::string("[wv2] ") + (tag ? tag : "?") + " settings hardened (throttle-free render)");
+}
 
 class EnvHandler : public Cb<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler> {
  public:
@@ -4863,6 +5255,16 @@ class EnvHandler : public Cb<ICoreWebView2CreateCoreWebView2EnvironmentCompleted
     g_env = env;
     env->AddRef();
     LogBoot("wv2 env ready");
+    // ★ 2026-10-16：把真正在跑的 WebView2 运行时版本记进日志 —— 「最新最科学的渲染方式」
+    //   这件事必须可证：日志里能直接看到渲染内核版本，而不是靠猜。
+    {
+      LPWSTR bv = nullptr;
+      if (SUCCEEDED(env->get_BrowserVersionString(&bv)) && bv) {
+        LogMsg("[wv2] runtime " + WideToUtf8(bv));
+        CoTaskMemFree(bv);
+      }
+      LogMsg("[wv2] browser args: " + WideToUtf8(GbWv2BrowserArgs()));
+    }
     env->CreateCoreWebView2Controller(g_hwnd, new CtlHandler());
     return S_OK;
   }
@@ -5214,17 +5616,7 @@ class RvCtlHandler : public Cb<ICoreWebView2CreateCoreWebView2ControllerComplete
     ctl->get_CoreWebView2(&g_rvWebview);
     if (!g_rvWebview) return S_OK;
     g_rvWebview->AddRef();
-    ICoreWebView2Settings* st = nullptr;
-    if (SUCCEEDED(g_rvWebview->get_Settings(&st)) && st) {
-      st->put_IsStatusBarEnabled(FALSE);
-      st->put_AreDefaultContextMenusEnabled(FALSE);
-      ICoreWebView2Settings3* st3 = nullptr;
-      if (SUCCEEDED(st->QueryInterface(__uuidof(ICoreWebView2Settings3), (void**)&st3)) && st3) {
-        st3->put_IsZoomControlEnabled(FALSE);
-        st3->Release();
-      }
-      st->Release();
-    }
+    HardenWebviewSettings(g_rvWebview, "rv");
     
     SetupUiServing(g_rvWebview, "rv");
     EventRegistrationToken tok = {};
@@ -5527,17 +5919,7 @@ class VisCtlHandler : public Cb<ICoreWebView2CreateCoreWebView2ControllerComplet
     ctl->get_CoreWebView2(&g_visWebview);
     if (!g_visWebview) return S_OK;
     g_visWebview->AddRef();
-    ICoreWebView2Settings* st = nullptr;
-    if (SUCCEEDED(g_visWebview->get_Settings(&st)) && st) {
-      st->put_IsStatusBarEnabled(FALSE);
-      st->put_AreDefaultContextMenusEnabled(FALSE);
-      ICoreWebView2Settings3* st3 = nullptr;
-      if (SUCCEEDED(st->QueryInterface(__uuidof(ICoreWebView2Settings3), (void**)&st3)) && st3) {
-        st3->put_IsZoomControlEnabled(FALSE);
-        st3->Release();
-      }
-      st->Release();
-    }
+    HardenWebviewSettings(g_visWebview, "vis");
     SetupUiServing(g_visWebview, "vis");
     EventRegistrationToken tok = {};
     g_visWebview->add_WebMessageReceived(new VisMsgHandler(), &tok);
@@ -7439,6 +7821,8 @@ static LRESULT CALLBACK LinkWndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         PostToPageSoon("{\"type\":\"linkClosed\"}");
       }
       
+      // ★ 2026-10-16：连线关闭 → engineOut 恢复投主页面，推送后端按历史状态恢复。
+      g_engineOutToLink = false;
       g_pushEngineOut = g_pushEverOn.load();
       nativeeng::ClearLaneLines();
       LogMsg(std::string("[link] engine lanes -> main page (push backend ") +
@@ -7472,6 +7856,14 @@ class LinkMsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
       if (SUCCEEDED(e->TryGetWebMessageAsString(&raw2)) && raw2) {
         std::string t = WideToUtf8(raw2);
         CoTaskMemFree(raw2);
+        // ★ 2026-10-17：WebView2 的 TryGetWebMessageAsString 只对「以**字符串**形式发出」的
+        //   消息成功，即页面必须 postMessage(JSON.stringify(o))。页面若直接
+        //   postMessage({...})（对象消息），这里取到的是空串 ⇒ 下面整条 { } 分支被跳过
+        //   ⇒ 消息**静默丢弃**。实测事故：bridge.js 的 bridgeDiag 就是这么被丢的，
+        //   LINK_ACK_TIMEOUT / LINK_ENG_STATUS / LINK_BOOT_GUARD / LINK_TT_RESET /
+        //   LINK_EVAL_FAIL 等 15 个诊断点一个都到不了日志。
+        //   兜底：t 为空时改用 AsJson 形式（s）—— 此时它正好是干净的 JSON 对象文本。
+        if (t.empty() && !s.empty() && s[0] == '{') t = s;
         if (!t.empty() && t[0] == '{') {
           
           if (t.find("\"type\":\"autodrop\"") != std::string::npos) {
@@ -7487,6 +7879,44 @@ class LinkMsgHandler : public Cb<ICoreWebView2WebMessageReceivedEventHandler> {
               
               LinkAutoDropAtXY(ax, ay, ac, af, ar);
             }
+            return S_OK;
+          }
+          
+          // ★ 2026-10-16：连线页引擎通道（与主窗口 MsgHandler 同口径）——
+          //   status/ensure/cmd/reset 统一交 HandlePageCmd，ack 投回连线页。
+          //   之前这里缺分支，连线页所有引擎命令被静默丢弃（页面 10s 超时 →
+          //   boot 失败 → analyze 永久挂起 → 无评估、无蓝色落点）。
+          if (t.find("\"engine\"") != std::string::npos && t.find("\"op\":") != std::string::npos) {
+            std::string op   = JsonStrAfter(t, "\"op\":");
+            std::string lane = JsonStrAfter(t, "\"lane\":");
+            int id = atoi(t.c_str() + (t.find("\"id\":") == std::string::npos
+                                         ? 0 : t.find("\"id\":") + 5));
+            auto cmds = JsonStrArray(t, "\"cmds\":");
+            int resT = 0, resH = 0;
+            std::vector<std::string> busyNames;
+            {
+              size_t rp = t.find("\"res\":{");
+              if (rp != std::string::npos) {
+                std::string r = t.substr(rp);
+                resT = (r.find("\"t\":\"full\"") != std::string::npos) ? 1
+                     : (r.find("\"t\":\"plan\"") != std::string::npos) ? 2 : 0;
+                resH = (r.find("\"h\":\"claim\"") != std::string::npos) ? 1 : 0;
+                busyNames = JsonStrArray(r, "\"busy\":");
+              }
+            }
+            int idx = nativeeng::LaneIndex(lane);
+            // ★ 2026-10-16：诊断日志 —— 记录连线页发来的原始批次（\n → ⏎，便于排查批次损坏）
+            for (size_t ci = 0; ci < cmds.size(); ++ci) {
+              std::string vis = cmds[ci];
+              std::string::size_type vp = 0;
+              while ((vp = vis.find('\n', vp)) != std::string::npos) { vis.replace(vp, 1, "\xE2\x8F\x8E"); vp += 3; }
+              if (vis.size() > 160) vis = vis.substr(0, 160) + "...";
+              LogMsg("[link] cmd[" + std::to_string(ci) + "] len=" + std::to_string(cmds[ci].size()) + " <" + vis + ">");
+            }
+            std::string ack = nativeeng::HandlePageCmd(op, idx, cmds, id, resT, resH, busyNames);
+            PostToLinkPageSoon(ack);
+            LogMsg("[link] engine cmd op=" + op + " lane=" + lane +
+                   " n=" + std::to_string(cmds.size()));
             return S_OK;
           }
           
@@ -7687,17 +8117,7 @@ class LinkCtlHandler : public Cb<ICoreWebView2CreateCoreWebView2ControllerComple
     ctl->get_CoreWebView2(&g_linkWebview);
     if (!g_linkWebview) return S_OK;
     g_linkWebview->AddRef();
-    ICoreWebView2Settings* st = nullptr;
-    if (SUCCEEDED(g_linkWebview->get_Settings(&st)) && st) {
-      st->put_IsStatusBarEnabled(FALSE);
-      st->put_AreDefaultContextMenusEnabled(FALSE);
-      ICoreWebView2Settings3* st3 = nullptr;
-      if (SUCCEEDED(st->QueryInterface(__uuidof(ICoreWebView2Settings3), (void**)&st3)) && st3) {
-        st3->put_IsZoomControlEnabled(FALSE);
-        st3->Release();
-      }
-      st->Release();
-    }
+    HardenWebviewSettings(g_linkWebview, "link");
     SetupUiServing(g_linkWebview, "link");
     EventRegistrationToken tok = {};
     g_linkWebview->add_WebMessageReceived(new LinkMsgHandler(), &tok);
@@ -7802,9 +8222,13 @@ static void OpenLinkWindow() {
     PostToPageSoon("{\"type\":\"linkOn\",\"on\":true}");
   }
   
-  g_pushEngineOut = false;
+  // ★ 2026-10-16：连线页是纯推送消费方（bridge.js 无轮询）。连线会话期间推送保持
+  //   开启、engineOut 改投连线页；关闭连线时在 WM_DESTROY 恢复投主页面。
+  g_engineOutToLink = true;
+  g_pushEngineOut = true;
+  g_pushEverOn = true;
   nativeeng::ClearLaneLines();
-  LogMsg("[link] engine lanes -> link page (push backend paused, buffers cleared)");
+  LogMsg("[link] engine lanes -> link page (push routed to link, buffers cleared)");
   
   g_scanRegion.left = g_scanRegion.top = g_scanRegion.right = g_scanRegion.bottom = 0;
   g_lselGrown = false;
@@ -7893,12 +8317,30 @@ static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
       if (w == kMainTimerReload) {
         KillTimer(h, kMainTimerReload);
         if (g_mainPageShown) return 0;
+        // ★ 2026-10-16：自愈之前先取证 —— 每次看到沉默都记一条「渲染进程到底活没活」。
+        //   这是把「约五成随机沉默」变成可定位问题的关键一步（以前只有一句 still silent）。
+        if (g_webview) g_webview->ExecuteScript(Utf8ToWide(kSilentProbeJs).c_str(), new MainProbeHandler());
         if (g_mainReloads < 2 && g_webview) {
           g_mainReloads++;
-          LogMsg("[ui] main page still silent after " + std::to_string(10000 + (g_mainReloads - 1) * 12000) +
-                 "ms - re-navigating (self heal #" + std::to_string(g_mainReloads) + ")");
+          LogMsg("[ui] main page still silent - re-navigating (self heal #" +
+                 std::to_string(g_mainReloads) + "/2)");
           g_webview->Navigate(MainNavUrl(UiBaseUrl(nullptr).c_str()).c_str());
-          SetTimer(h, kMainTimerReload, 12000, nullptr);
+          SetTimer(h, kMainTimerReload, 8000, nullptr);
+          return 0;
+        }
+        // ★ 2026-10-16：重导航两次仍沉默 ⇒ 换一个渲染进程（重建 WebView2 控制器）。
+        //   实测「页面沉默」时渲染进程是可以完全不工作的（探针无回话），此时重导航
+        //   救不回来，只有重建控制器能拿到新的渲染进程。以前走到这里直接
+        //   RevealMainPage() ⇒ 用户看到永久白屏（丢进待办的那个产品级风险）。
+        if (g_mainCtrlRebuilds < 2 && g_env && g_hwnd) {
+          g_mainCtrlRebuilds++;
+          LogMsg("[ui] 页面始终无 ready ⇒ 重建 WebView2 控制器（换渲染进程）#" +
+                 std::to_string(g_mainCtrlRebuilds) + "/2");
+          if (g_webview) { g_webview->Release(); g_webview = nullptr; }
+          if (g_controller) { g_controller->Release(); g_controller = nullptr; }
+          g_mainReloads = 0;
+          g_env->CreateCoreWebView2Controller(g_hwnd, new CtlHandler());
+          SetTimer(h, kMainTimerReload, 10000, nullptr);
           return 0;
         }
         LogMsg("[ui] main page never reported ready - revealing the webview anyway");
@@ -7961,6 +8403,127 @@ static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
       
       if (w == kMainTimerSysMem) {
         PostToPage(SysMemJson());
+        return 0;
+      }
+
+      // ★ 2026-10-16：连线链路 E2E 测试钩子的两段定时器。
+      if (w == kMainTimerTestLink) {
+        KillTimer(h, kMainTimerTestLink);
+        LogMsg("[test] GB_TEST_OPEN_LINK: opening link window");
+        OpenLinkWindow();
+        SetTimer(h, kMainTimerTestLinkScan, 4000, nullptr);
+        return 0;
+      }
+      if (w == kMainTimerTestLinkScan) {
+        KillTimer(h, kMainTimerTestLinkScan);
+        if (!g_linkPageReady) {
+          SetTimer(h, kMainTimerTestLinkScan, 2000, nullptr);
+          return 0;
+        }
+        // 我执黑 + 合成 4B4W 扫描帧（黑先、无五连）→ 触发真实 analyze 链路。
+        // setSide 是切换语义：若上次会话已持久化 side=0，发一次反而取消 —— 连发两次保证终态=黑。
+        PostToLinkPageSoon("{\"type\":\"setSide\",\"v\":0}");
+        PostToLinkPageSoon("{\"type\":\"setSide\",\"v\":0}");
+        std::string fake =
+          "{\"type\":\"scan\",\"data\":{\"ok\":true,\"found\":true,\"size\":15,"
+          "\"geometry\":{\"x_lines\":[100,140,180,220,260,300,340,380,420,460,500,540,580,620,660],"
+          "\"y_lines\":[120,160,200,240,280,320,360,400,440,480,520,560,600,640,680],\"spacing\":40,\"size\":15},"
+          "\"black\":[{\"x\":7,\"y\":7},{\"x\":8,\"y\":8},{\"x\":9,\"y\":9},{\"x\":7,\"y\":9}],"
+          "\"white\":[{\"x\":7,\"y\":8},{\"x\":8,\"y\":9},{\"x\":9,\"y\":7},{\"x\":10,\"y\":10}]}}";
+        PostToLinkPageSoon(fake);
+        LogMsg("[test] link fake scan posted (4B4W, side=black)");
+        // ★ 2026-10-17：连线窗持久化回归钩子 —— 连线窗的卡片固定/布局只能在这里验证。
+        {
+          char lev[2048] = {0};
+          if (GetEnvironmentVariableA("GB_TEST_EVAL_LINK", lev, sizeof(lev)) && lev[0] && g_linkWebview) {
+            g_linkWebview->ExecuteScript(Utf8ToWide(lev).c_str(), nullptr);
+            LogMsg("[test] GB_TEST_EVAL_LINK injected (" + std::to_string(strlen(lev)) + " chars)");
+          }
+        }
+        // ★ 2026-10-16 回归探针（GB_TEST_LINK_PROBE=1）：
+        //   ① 6s 后投空盘帧（连投数帧以过 STABLE_FRAMES/emptyStreak 门槛）
+        //      → 期望日志 LINK_TT_RESET reason=empty-board
+        //   ② 16s 后向**主页面**投 linkCfgSync（模拟主界面改规则）
+        //      → 期望宿主转发 + 连线页 LINK_TT_RESET reason=rule-change ...
+        //   这两条正是用户报的「空盘要清置换表」「变规则不能顺利切换并评估」。
+        char pv2[8] = {0};
+        if (GetEnvironmentVariableA("GB_TEST_LINK_PROBE", pv2, sizeof(pv2)) && pv2[0] == '1') {
+          // ★ 2026-10-17 次序修正：**先**在盘面仍非空（4B4W）时切规则（→ 必须立即按新规则
+          //   重算一次，这才是用户说的「变规则不能顺利切换并评估」），**后**再投空盘帧
+          //   （→ 清置换表）。原先把空盘放在前面，等到切规则时盘面已空，
+          //   kickAnalyze 在空盘下什么都不做 ⇒ 压根证明不了「换规则会重算」。
+          SetTimer(h, kMainTimerTestLinkProbe2, 6000, nullptr);
+          SetTimer(h, kMainTimerTestLinkProbe, 16000, nullptr);
+          LogMsg("[test] link probe armed (rule-sync @6s on non-empty board, empty-board @16s)");
+        }
+        SetTimer(h, kMainTimerTestLinkCheck, 4000, nullptr);
+        return 0;
+      }
+      if (w == kMainTimerTestLinkProbe) {
+        // 空盘帧连投 5 次（每次 400ms）：handleScan 的 busy 守卫会丢帧，
+        // emptyStreak 也要 ≥2 才进空盘分支。
+        static int s_emptyPost = 0;
+        std::string empt =
+          "{\"type\":\"scan\",\"data\":{\"ok\":true,\"found\":true,\"size\":15,"
+          "\"geometry\":{\"x_lines\":[100,140,180,220,260,300,340,380,420,460,500,540,580,620,660],"
+          "\"y_lines\":[120,160,200,240,280,320,360,400,440,480,520,560,600,640,680],\"spacing\":40,\"size\":15},"
+          "\"black\":[],\"white\":[]}}";
+        PostToLinkPageSoon(empt);
+        if (++s_emptyPost < 5) {
+          SetTimer(h, kMainTimerTestLinkProbe, 400, nullptr);
+        } else {
+          KillTimer(h, kMainTimerTestLinkProbe);
+          s_emptyPost = 0;
+          LogMsg("[test] link empty-board frames done (probe 1)");
+        }
+        return 0;
+      }
+      if (w == kMainTimerTestLinkProbe2) {
+        KillTimer(h, kMainTimerTestLinkProbe2);
+        // ★ 2026-10-17 修正：主界面改规则的**真实**路径是「页面主动发给宿主」
+        //   {type:'linkCfgSync',rule:N}（calc.js sel_rule.onchange → tellHost），
+        //   再由宿主 MsgHandler 转发给连线页。原来这里用 PostToPageSoon 把消息**投给
+        //   主页面**，可主页面根本没注册 onLinkHostMsg（那在 bootLink 里）⇒ 等于空投，
+        //   宿主的转发分支从没被走到，回归探针形同虚设。
+        //   现在改为往主页面**注入脚本**，复现页面真实的发送动作（真下拉 + 直发消息）。
+        if (g_webview) {
+          // ★ 2026-10-17：**取反**当前规则再切 —— 上一轮探针会把规则持久化进全局键
+          //   （gbcalc.rule.v1），下一轮连线页开局就已经是新规则 ⇒ 写死 rule=1 会变成
+          //   「没有变化」的空操作，探针静默失效（实测踩过）。
+          const char* inj =
+            "(function(){try{"
+            "var e=document.getElementById('sel_rule');"
+            "var cur=e?parseInt(e.value,10):0;if(!(cur===0||cur===1||cur===2))cur=0;"
+            "var nxt=(cur===1)?0:1;"
+            "var msg='probe2 rule '+cur+'->'+nxt;"
+            "if(e){e.value=String(nxt);e.dispatchEvent(new Event('change'));}"
+            "window.chrome.webview.postMessage({type:'linkCfgSync',rule:nxt});"
+            "try{window.chrome.webview.postMessage({type:'log',text:msg})}catch(e3){msg=msg+' (log post failed)'}"
+            "}catch(err){try{window.chrome.webview.postMessage({type:'log',text:'probe2 inject err '+err.message})}catch(e2){}}"
+            "})()";
+          g_webview->ExecuteScript(Utf8ToWide(inj).c_str(), nullptr);
+          LogMsg("[test] linkCfgSync (rule toggle) sent FROM main page (probe 2)");
+        } else {
+          LogMsg("[test] probe 2 skipped: g_webview null");
+        }
+        return 0;
+      }
+      if (w == kMainTimerTestLinkCheck) {
+        // ★ 2026-10-16：周期探查（4s x6）——覆盖候选快速交付（~1-2s）与各兜底路径。
+        static int s_linkCheckCount = 0;
+        if (g_linkWebview) {
+          g_linkWebview->ExecuteScript(Utf8ToWide(
+            "(function(){"
+            "function t(id){var e=document.getElementById(id);return e?e.textContent:'';}"
+            "var out={status:t('lkStatus').slice(0,120),"
+            "eval:t('__gb_st_eval').slice(0,40),"
+            "depth:t('__gb_st_depth').slice(0,20),"
+            "line:t('__gb_st_line').slice(0,60)};"
+            "return JSON.stringify(out);"
+            "})()").c_str(), new EvalHandler());
+          LogMsg("[test] link state check #" + std::to_string(s_linkCheckCount + 1) + " requested");
+        }
+        if (++s_linkCheckCount >= 6) { KillTimer(h, kMainTimerTestLinkCheck); s_linkCheckCount = 0; }
         return 0;
       }
       break;
@@ -8127,7 +8690,21 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
   std::wstring wv2udf = WebView2UserDataDir();
   
   ClearWebViewCache(wv2udf, "启动");
-  HRESULT hr = CreateCoreWebView2EnvironmentWithOptions(nullptr, wv2udf.c_str(), nullptr, new EnvHandler());
+  // ★ 2026-10-16：不再传 nullptr（= Chromium 桌面默认，节流最狠的一组）。
+  //   直接带上「不节流 + GPU 光栅」的 browser args；万一这套 args 让环境创建失败
+  //   （驱动/企业策略等），自动退回默认口径，保证 UI 一定能起来。
+  HRESULT hr = E_FAIL;
+  {
+    EnvOptions* opt = new EnvOptions(GbWv2BrowserArgs());
+    LogMsg("[wv2] env create with args: " + WideToUtf8(opt->args()));
+    hr = CreateCoreWebView2EnvironmentWithOptions(nullptr, wv2udf.c_str(), opt, new EnvHandler());
+    if (FAILED(hr)) {
+      char b[24] = {0};
+      sprintf_s(b, "0x%08X", (unsigned)hr);
+      LogMsg(std::string("[wv2] env create with args FAILED hr=") + b + " -> retry with defaults");
+      hr = CreateCoreWebView2EnvironmentWithOptions(nullptr, wv2udf.c_str(), nullptr, new EnvHandler());
+    }
+  }
   LogBoot("wv2 env requested");
 
   std::thread([] {

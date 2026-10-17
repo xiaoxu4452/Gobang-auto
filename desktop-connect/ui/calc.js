@@ -887,6 +887,7 @@ var S = {
   rule: 0,
   cores: 0, hashMB: 0,
   hashDefMig: false,          
+  coresDefault: '',           // ★ 线程默认口径迁移标记（'v439' = 已按「下拉上限」口径校正过一次）
   
   coach: false,
   
@@ -972,6 +973,7 @@ function setMissBox() {
   els.rvMiss.textContent = T('miss') + ' ' + n;
 }
 function resetGame(keepLoaded) {
+  engMsgClear();                               /* ★ 消息框（2026-10-16）：新局 / 重置时清空消息区 */
   G.moves = []; G.board = newBoard(); G.curve = [];
   clearHeat();                                 
   clearCoach();                                
@@ -2080,6 +2082,13 @@ var LocalAI = (function () {
       wk = null; booted = false;             
     },
     
+    // ★ 2026-10-17：用户点了分析（计算 / 扫描防守…）⇒ 立刻把这条车道让出来。
+    //   worker 收到 type:'stop' 会对该车道发 STOP 并作废其排队者，不等 AI 把这一手想完。
+    stopLane: function (lane) {
+      if (!wk) return;
+      try { wk.postMessage({ type: 'stop', lane: lane || 'main' }); } catch (e) {}
+    },
+
     relay: function (m) {
       if (!wk) return;
       try { wk.postMessage({ type: '__relay', payload: m }); } catch (e) {}
@@ -2174,6 +2183,7 @@ async function analyze(turnMs, topN, lane, side, tag, opt) {
       
       exclusive: !!(opt && opt.exclusive),
       
+      urgent: (opt && opt.user) ? 'user' : !!(opt && opt.urgent),
       noPonder: !!(opt && opt.noPonder),
     }, Math.max(9000, turnMs + 9000));
     if (G.engineOffline) { G.engineOffline = false; G.retryLeft = null; refreshUI(); }   
@@ -2307,7 +2317,7 @@ async function aiMove() {
     var budget = aiTurnBudget();
     var wasRecon = !!G.reconBoost;                 
     if (wasRecon) { G.reconBoost = false; budget = Math.round(budget * 1.5); }
-    var r = await analyze(budget, 1, null, curColor(), T('tagAiMove'), { exclusive: true });
+    var r = await analyze(budget, 1, null, curColor(), T('tagAiMove'), { exclusive: true, urgent: true });
     
     if (myGen !== gAiGen) { G.think = []; G.busy = false; refreshUI(); return; }
     
@@ -2388,7 +2398,7 @@ async function aiAssistOnce() {
     var t0 = Date.now();                        
     
     var ab = aiTurnBudget();                                  
-    var r = await analyze(ab, 1, null, curColor(), T('tagAssist'), { exclusive: true });
+    var r = await analyze(ab, 1, null, curColor(), T('tagAssist'), { exclusive: true, urgent: true });
     if (myGen !== gAiGen) { G.think = []; G.busy = false; refreshUI(); return; }   
     if (S.paused) { G.think = []; G.busy = false; setTurnPill(T('paused')); refreshUI(); return; }   
     var cs = (r && r.candidates) || [];
@@ -3024,7 +3034,7 @@ function paintLiveDash() {
   var a = liveAgg();
   var busyUI = !!(a || G.busy || G.ana.busy || (G.fwd && G.fwd.busy) || (LIVE_AN.on && LIVE_AN.t0));
   
-  if (busyUI && a && a.tag) els.st_line.textContent = T('calcOn') + ' · ' + a.tag;
+  if (busyUI && a && a.tag) engMsgAdd(T('calcOn') + ' · ' + a.tag);
   if (!a) return;
   if (a.depth) els.st_depth.textContent = String(a.depth);
   els.st_speed.textContent = fmtSpeed(a.speed);
@@ -3032,7 +3042,7 @@ function paintLiveDash() {
   
   var tShow = (LIVE_AN.on && LIVE_AN.t0) ? LIVE_AN.t0 : a.t0;
   els.st_time.textContent = ((Date.now() - tShow) / 1000).toFixed(1) + ' s';
-  if (a.tag) els.st_line.textContent = T('calcOn') + ' · ' + a.tag;
+  if (a.tag) engMsgAdd(T('calcOn') + ' · ' + a.tag);
   
   if (linkSessionOn()) {
     tellHost({ type: 'linkStats',
@@ -3041,6 +3051,32 @@ function paintLiveDash() {
       eval: els.st_eval.textContent, best: els.st_best.textContent });
   }
 }
+
+/* ★ 消息框（2026-10-16 重新设计，用户要求）：评估曲线上方那个「固定 4 行高的虚线框」里的消息。
+   此前所有消息都直接写 els.st_line.textContent —— 谁后写谁把前一条顶掉（引擎状态 / 最佳着法 /
+   提示互相覆盖，看不到上下文）。现在统一走 engMsgAdd()：
+     · 与上一行完全相同 → 不重复占行（paintLiveDash 每次刷新都在报「计算中 · tag」）；
+     · 只保留最近 ENG_MSG_MAX 条（新的在底部，旧的自动挤掉）并自动滚到底；
+     · 空 / null → 不动（空消息不该清空历史），要清空请显式调 engMsgClear()。
+   外框 #engMsg 的高度由 CSS 钉死 ⇒ 消息增减都不改变卡片高度，评估曲线不再上下抖动。
+   #st_line 仍是这些行的容器（既有读法 el.textContent 只是拿到多行拼接）。 */
+var ENG_MSG_MAX = 4;
+function engMsgAdd(msg) {
+  var box = els.st_line;
+  if (!box || msg == null) return;
+  msg = String(msg);
+  if (!msg) return;
+  var last = box.lastElementChild;
+  if (last && last.textContent === msg) return;
+  var d = document.createElement('div');
+  d.className = 'em-line';
+  d.textContent = msg;
+  box.appendChild(d);
+  while (box.children.length > ENG_MSG_MAX) box.removeChild(box.firstElementChild);
+  var wrap = box.parentNode;
+  if (wrap && wrap.classList && wrap.classList.contains('eng-msg')) wrap.scrollTop = wrap.scrollHeight;
+}
+function engMsgClear() { if (els.st_line) els.st_line.innerHTML = ''; }
 
 function setStat(c0, msg) {
   if (c0) {
@@ -3053,9 +3089,9 @@ function setStat(c0, msg) {
       ? (c0.timeMs / 1000).toFixed(3) + ' s' : '-';
     els.st_eval.textContent = c0.eval != null ? c0.eval : '-';
     els.st_best.textContent = (c0.x != null) ? coordName(c0.x, c0.y) : '-';
-    els.st_line.textContent = (c0.line && c0.line.length)
+    engMsgAdd((c0.line && c0.line.length)
       ? c0.line.map(function (p) { return coordName(p[0], p[1]); }).join(' ')
-      : '';
+      : '');
     
     if (linkSessionOn()) {
       tellHost({ type: 'linkStats',
@@ -3064,7 +3100,7 @@ function setStat(c0, msg) {
         eval: els.st_eval.textContent, best: els.st_best.textContent });
     }
   } else {
-    els.st_line.textContent = msg || '';
+    engMsgAdd(msg);
   }
 }
 
@@ -3772,7 +3808,7 @@ function toast(msg) {
   setStat(null, msg);
 }
 
-var APP_VERSION = '4.40';
+var APP_VERSION = '4.41';
 
 var UPDATE_URL = 'https://wwbbj.lanzout.com/b016l49aqj';
 var UPDATE_PWD = '15';
@@ -5717,9 +5753,22 @@ function ingestExternal(text) {
 }
 
 var LAY_KEY = 'gbcalc.layout.v7';   
-function layKey() { return linkSessionOn() ? 'gbcalc.layout.link.v1' : LAY_KEY; }   
+// ★★ 2026-10-17（用户：「还有很多持久化做的不合理」）：布局也收口到**单键**。
+//   原来按 linkSessionOn() 分叉成 gbcalc.layout.v7 / .link.v1 —— 在连线窗拖好的卡片顺序，
+//   回主窗（或下次启动）读的是另一套，表现就是「布局没保存」。
+function layKey() { return 'gbcalc.layout.v8'; }   
 function loadLayout() {
-  try { return JSON.parse(localStorage.getItem(layKey()) || '{}'); } catch (e) { return {}; }
+  try {
+    var raw = localStorage.getItem(layKey());
+    if (!raw) {   // 一次性迁移：v7（主窗）优先，其次 link 键
+      var cands = ['gbcalc.layout.v7', 'gbcalc.layout.link.v1'];
+      for (var i = 0; i < cands.length; i++) {
+        var sv = localStorage.getItem(cands[i]);
+        if (sv && sv.length > 2) { localStorage.setItem(layKey(), sv); raw = sv; break; }
+      }
+    }
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
 }
 function saveLayout(l) { try { localStorage.setItem(layKey(), JSON.stringify(l)); } catch (e) {} }
 
@@ -5821,10 +5870,12 @@ function initPanels() {
       var id = card.getAttribute('data-id');
       if (CARD_PIN[id]) {                     
         delete CARD_PIN[id];
+        savePins();
         var v = cardVis(); v[id] = 0; save();
         applyCardVis(); layoutBoard();
       } else {                                
         CARD_PIN[id] = true;
+        savePins();
         pinKeySync(pk, id);
       }
     });
@@ -6444,7 +6495,80 @@ function wireColors() {
 var CARD_IDS = ['setup', 'analysis', 'engine'];   
 var DEFAULT_CARDS = { setup: 0, analysis: 0, engine: 1 };   
 
-var CARD_PIN = { engine: true };
+// ★★ 2026-10-17（用户：「线程数选择 1 就保存不了」「固定变 × 后再开又显示固定」）：
+//   用户偏好统一收口到一个**全局键**，不再依赖会被整体覆盖的 S 快照。
+//   病根：S 在 gbcalc.settings.v1 与 gbcalc.settings.link.v1 两套存档之间来回覆盖；
+//   且 save() 里「另一个键不存在就 return」—— 只在连线窗里改过的偏好永远落不到主键，
+//   下次启动读到的还是旧值（线程选 1 被写回 12 就是这条链路）。
+// ★★ 2026-10-17（用户：「把可选线程数最小改成 2」）：线程 1 会让引擎 + worker 反复重启、
+//   与各处的「最小 2」夹取互相打架（表现就是一串莫名其妙的 bug）。下拉从 2 起，
+//   旧存档里的 1 在启动时自动抬到 2 —— 只此一处定义，宿主 C++ 同口径。
+var MIN_THREADS = 2;
+var PREFS_KEY = 'gbcalc.prefs.v1';
+var PREF_FIELDS = ['cores', 'hashMB', 'turnMs', 'rule', 'lang', 'theme',
+                   'cards', 'customBase', 'aiB', 'aiW', 'linkAuto', 'linkClicks'];
+function prefsAll() {
+  var o = null;
+  try { o = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null'); } catch (e) { o = null; }
+  return (o && typeof o === 'object') ? o : {};
+}
+function prefGet(k, def) {
+  var o = prefsAll();
+  return (o[k] === undefined || o[k] === null) ? def : o[k];
+}
+function prefSet(k, v) {
+  try {
+    var o = prefsAll();
+    if (v === undefined) delete o[k]; else o[k] = v;
+    localStorage.setItem(PREFS_KEY, JSON.stringify(o));
+  } catch (e) {}
+}
+function prefsSyncFromS() {
+  try {
+    var o = prefsAll(), ch = false;
+    PREF_FIELDS.forEach(function (k) {
+      if (S[k] === undefined) return;
+      // ★ 线程/哈希的 0 不是用户选择，是「还没初始化」——写进偏好会把用户值永久抹掉
+      if (k === 'cores' && !(S[k] >= MIN_THREADS)) return;
+      if (k === 'hashMB' && !(S[k] >= 1)) return;
+      var a = S[k], b = o[k];
+      if (typeof a === 'object') { if (JSON.stringify(a) !== JSON.stringify(b)) { o[k] = a; ch = true; } }
+      else if (a !== b) { o[k] = a; ch = true; }
+    });
+    if (ch) localStorage.setItem(PREFS_KEY, JSON.stringify(o));
+  } catch (e) {}
+}
+// ★★ 2026-10-17 修正：prefs **只兜底、不覆盖**。
+//   第一版写成「prefs 优先」，结果 prefs 里的旧值（3）会把用户刚选的 10 盖掉 ——
+//   又一次变成「改了又恢复」。settings 才是最后写入者，prefs 只在字段缺失/非法时补。
+function prefsApplyToS() {
+  try {
+    var o = prefsAll();
+    PREF_FIELDS.forEach(function (k) {
+      if (o[k] === undefined || !S.hasOwnProperty(k)) return;
+      var v = S[k];
+      var bad = (v === undefined || v === null || v === '');
+      if (k === 'cores') bad = !(v >= MIN_THREADS);
+      if (k === 'hashMB') bad = !(v >= 1);
+      if (k === 'cards') bad = !v || typeof v !== 'object';
+      if (bad) S[k] = o[k];
+    });
+  } catch (e) {}
+}
+function savePins() { prefSet('pins', CARD_PIN); }
+
+// ★★ 2026-10-17：固定状态（引擎卡为 ✕）必须跨启动保留 —— 原来 CARD_PIN 是纯内存
+//   对象，关掉软件就回到默认 {engine:true}，用户看到的就是「显示固定了」。
+var CARD_PIN = (function () {
+  var p = prefGet('pins', null);
+  if (p && typeof p === 'object') {
+    var o = {};
+    for (var k in p) o[k] = !!p[k];   // 保留 false：取消固定也要跨重启
+    return o;
+  }
+  return { engine: true };
+})();
+
 function cardVis() {
   
   if (S.cards && S.cards.curve !== undefined) S.cards = null;
@@ -6503,7 +6627,7 @@ function toggleCardFromMenu(id) {
   var v = cardVis();
   var opening = !v[id];
   v[id] = opening ? 1 : 0;
-  if (!opening) delete CARD_PIN[id];   
+  if (!opening) { delete CARD_PIN[id]; savePins(); }   
   save();
   if (opening && (id === 'setup' || id === 'analysis')) {
     var other = (id === 'setup') ? 'analysis' : 'setup';
@@ -6657,7 +6781,7 @@ function anaIp() { return Math.max(2, Math.min(8, Math.round(+S.nbest || 4))); }
 
 async function anaCalc() {
   if (!anaGuard(0)) return;
-  evalQuietAi();                              
+  aiStandDown();                              
   var gen = ++G.ana.gen;
   G.ana.busy = true; G.ana.kind = 'calc';
   G.ana.marks = []; G.ana.rows = [];
@@ -6760,6 +6884,7 @@ function defendMateAt(board, x, y, me, opp, basePly) {
 }
 function anaDefend(renew) {
   if (!anaGuard(1)) return;
+  aiStandDown();                              
   var gen = ++G.ana.gen;
   
   G.ana.busy = true; G.ana.kind = 'defend';
@@ -6879,7 +7004,7 @@ function liveAnaToggle() {
   LIVE_AN.on = !LIVE_AN.on;
   liveAnaUI();
   if (LIVE_AN.on) {
-    evalQuietAi();                          
+    aiStandDown();                          
     
     if (!G.ana.busy) { G.ana.marks = []; G.ana.rows = []; renderAna(T('anIdle')); }
     liveAnaTick();
@@ -7942,6 +8067,18 @@ function evalQuietAi() {
   if (G.busy) gAiGen++;                       
 }
 
+// ★★ 2026-10-17（用户口径）：「AI 落子（人机/自我对弈）占满车道；用户点计算分析、扫描防守
+//   这类功能时，那个功能也占满车道 —— 但 AI 落子这条先停掉，AI 不用再落子，自动关闭黑白 AI 执子。」
+//   所以这里做两件事：① 关执子 + 作废当前这一手；② 让 worker 对三条车道发 STOP，把引擎整条让出来。
+function aiStandDown() {
+  evalQuietAi();
+  try { LocalAI.stopLane('main'); } catch (e) {}
+  try { LocalAI.stopLane('sub'); } catch (e) {}
+  try { LocalAI.stopLane('fwd'); } catch (e) {}
+  if (G.busy) { gAiGen++; G.busy = false; G.think = []; }
+  try { refreshUI(); } catch (e) {}
+}
+
 function coachPauseByAiVsAi() {
   if (!aiVsAi()) return false;
   clearCoach();                              
@@ -8306,7 +8443,7 @@ function anaStop() {
 
 async function anaNbest() {
   if (!anaGuard(0)) return;
-  evalQuietAi();                              
+  aiStandDown();                              
   var gen = ++G.ana.gen, N = anaIp();
   G.ana.busy = true; G.ana.kind = 'nbest';
   anaMark(els.btn_an_nbest);
@@ -8559,7 +8696,7 @@ function balOpenHintTxt() {
 
 async function anaBalPoints() {
   if (!anaGuard(0)) return;
-  evalQuietAi();
+  aiStandDown();
   var gen = ++G.ana.gen;
   G.ana.busy = true; G.ana.kind = 'bal';
   anaMark(els.btn_an_bal);
@@ -8777,7 +8914,7 @@ function wireAnalysis() {
     fwdStep(e.key === 'ArrowLeft' ? -1 : 1);
     e.preventDefault();
   });
-  els.btn_an_defend.onclick = function () { evalQuietAi(); anaDefend(true); };   
+  els.btn_an_defend.onclick = function () { aiStandDown(); anaDefend(true); };   
   els.btn_an_bal.onclick = function () { anaBalPoints(); };
   if (els.btn_an_baln) els.btn_an_baln.onchange = function () {
     var n = parseInt(els.btn_an_baln.value, 10);
@@ -8892,7 +9029,15 @@ function renderHashInfo() {
 }
 
 function buildSelects() {
+  // ★★ 2026-10-17：线程/哈希以全局偏好键为唯一真相（S 可能刚被另一套存档覆盖）
+  var _pc = prefGet('cores', 0), _ph = prefGet('hashMB', 0);
+  if (!(S.cores >= MIN_THREADS) && _pc >= MIN_THREADS) S.cores = _pc;   // 只兜底
+  if (!(S.hashMB >= 1) && _ph >= 1) S.hashMB = _ph;   // 只兜底
   var host = G.host || {};
+  // ★★ 2026-10-17：宿主 sysinfo 未到达时 threadsMax 缺失 ⇒ maxT 会退化成 1，
+  //   后面的「超上限就重置」逻辑会把用户选好的 12 线程**永久写成 1**
+  //   （= 「线程数改了、重启又变回去」的根因之一）。host 未就绪一律不动偏好。
+  if (!(host.threadsMax >= 1)) return;
   renderSysInfo();
   var maxT = Math.max(1, host.threadsMax || 1);
   
@@ -8902,12 +9047,26 @@ function buildSelects() {
   //   就这样被永久抹掉了）。本机装不下的部分只在「生效值」里折衷：下拉按生效值选中、
   //   engineConfig 下发生效值；换到大内存/多核机器后，用户偏好自动完整恢复。
   //   线程数=1 现在全程生效（宿主 C++ CalcFullThreads / 本下拉都原样尊重 1）。
-  var halfT = Math.max(1, Math.floor(maxT / 2)); // factory default: half of the system threads
-  var effT = (S.cores >= 1 && S.cores <= maxT) ? S.cores
-            : (S.cores > maxT ? maxT : halfT);
-  if (!S.cores) { S.cores = effT; save(); }          // 首次使用：建立默认偏好（一半线程）
+  // ★★ 2026-10-16（用户：「速度和深度远不如 4.39」/「智力不算高」）——根因就在这里。
+  //   v4.39 的口径是**首启默认 = 下拉上限**（buildSelects 里 `S.cores = maxT`），本机 16 逻辑核
+  //   ⇒ maxT = 12 ⇒ 主车道满 12 线程搜索。后来一段版本把工厂默认写成 half(maxT)=6，且被
+  //   save() 固化进 localStorage ⇒ **所有老用户**都只跑一半线程：引擎明明加载成功（用户看到
+  //   的「引擎加载成功了」），nps / 深度 / 出分速度却只有 4.39 的一半，「迟迟没有评估」正是它。
+  //   现在：默认 = host.threadsDefault（宿主 ThreadsMax 同口径），并做一次性迁移 —— marker
+  //   缺失时把「恰好等于 halfT 的偏好」抬回上限（= 那一版自动写进去的值）。用户手选的其他值
+  //   一律不动（2026-10-15 用户反馈过「线程数=1 保存不了更改」，绝不能因为本机能力改写偏好）。
+  //   maxT<4 的机器上 halfT 会是 1 或 2，可能撞上用户的真实选择 ⇒ 那种小机器不迁移。
+  var factoryT = (host.threadsDefault >= 1 && host.threadsDefault <= maxT) ? host.threadsDefault : maxT;
+  if (factoryT < MIN_THREADS) factoryT = Math.min(maxT, MIN_THREADS);
+  // ★★ 2026-10-17：**删除**「恰好一半就抬回上限」的迁移 —— 它按 maxT 推算，
+  //   在 maxT 偏小的机器上会把用户真实的选择抬走（用户报过两次「改了又恢复」）。
+  //   现在只有一种自动行为：小于最小可选值时抬到 factoryT（= 下拉上限）。
+  if (!(S.cores >= MIN_THREADS)) { S.cores = factoryT; save(); }
+  // ★ 偏好永不因本机能力被改写：换到小机器只夹「生效值」，S.cores 保留用户原值，
+  //   换回大机器自动恢复（与 2026-10-15 的约定一致；老代码这里 save() 过，等于抹掉偏好）。
+  var effT = Math.max(Math.min(MIN_THREADS, maxT), Math.min(S.cores, maxT));
   var html = '';
-  for (var t = 1; t <= maxT; t++) {
+  for (var t = Math.min(MIN_THREADS, maxT); t <= maxT; t++) {   // 最小 2
     html += '<option value="' + t + '"' + (t === effT ? ' selected' : '') + '>' + t + '</option>';
   }
   els.sel_cores.innerHTML = html;
@@ -8937,8 +9096,7 @@ function buildSelects() {
   var effH = (S.hashMB && hs.indexOf(S.hashMB) >= 0 && S.hashMB <= capMB)
     ? S.hashMB
     : (hs.filter(function (h) { return h <= capMB; }).pop() || 512);
-  if (!S.hashDefMig) {                               // 一次性历史默认迁移（1024 → 512）
-    S.hashDefMig = true;
+  if (!migFlag('hash1024')) {                        // 一次性历史默认迁移（1024 → 512）
     if (S.hashMB === 1024) { S.hashMB = 512; save(); effH = 512; }
   }
   if (!S.hashMB) { S.hashMB = 512; save(); effH = 512; } // factory default: 512MB
@@ -8981,8 +9139,10 @@ function boot() {
   } catch (e) {}
 
   if (!G.board) G.board = newBoard();
+  prefsApplyToS();   // ★ 全局偏好最后覆盖：任何一套存档都不许把 cores/hashMB 改回旧值
   initPanels();
   applyLayout();
+  try { syncPinKeys(); } catch (e) {}   // ★ 固定状态按存档重画（✕ / 固定）
   
   wireColors();
   wireCards();
@@ -9178,7 +9338,11 @@ function boot() {
     var wOn = (key === 'w') ? !S.aiW : S.aiW;
     setAiSides(bOn, wOn);
     
-    if (S.mode !== 'pve') { S.mode = 'pve'; save(); }
+    // ★ 2026-10-17：执子状态必须落盘。原来只在 mode 变化时 save()，而 mode 早就是
+    //   'pve' 时（绝大多数情况）S.aiB/aiW 的改动根本没写进 localStorage ⇒ 重启后
+    //   AI 执子又回到旧状态。这是「其他持久化做得不好」里最直观的一条。
+    if (S.mode !== 'pve') S.mode = 'pve';
+    save();
     S.paused = false;
     try { window.chrome && window.chrome.webview &&
       window.chrome.webview.postMessage({ type: 'aiSide', b: bOn, w: wOn, mode: S.mode }); } catch (e) {}
@@ -9280,7 +9444,7 @@ function boot() {
   // 启动时若连线会话已开（比如本页是重开的），先把当前规则推一次；之后每次改规则由
   // sel_rule.onchange 里的同名语句负责（见上）。
   if (linkSessionOn()) tellHost({ type: 'linkCfgSync', rule: +S.rule });
-  els.sel_cores.onchange = function () { S.cores = +els.sel_cores.value; save(); applyEngineConfig(); };
+  els.sel_cores.onchange = function () { S.cores = Math.max(MIN_THREADS, +els.sel_cores.value | 0); save(); applyEngineConfig(); };
   els.sel_hash.onchange = function () {
     S.hashMB = +els.sel_hash.value; save(); applyEngineConfig();
     
@@ -9737,7 +9901,11 @@ function fitFont() {
 }
 
 function linkSessionOn() { return !!(G && G.linkOn); }
-function settingsKey() { return linkSessionOn() ? 'gbcalc.settings.link.v1' : 'gbcalc.settings.v1'; }
+// ★★ 2026-10-17（用户：「线程数改了又恢复」的真正根因）：设置**单键化**。
+//   原来按 linkSessionOn() 在 gbcalc.settings.v1 / .link.v1 之间来回切：在连线窗改的
+//   线程数写进 link 键，主窗读 v1 —— 两套快照互相覆盖，任何一次读错就把偏好改回旧值。
+//   两版（主窗/连线窗）本来就是同一份偏好，没有理由分开存。
+function settingsKey() { return 'gbcalc.settings.v1'; }
 
 // ★ 2026-10-13（用户：「有禁手和无禁手的平衡点它都是不一样的，在用户选择规则的时候，
 //   一定要正确链接」）：规则改用**一个专属键**做全局单一来源。
@@ -9757,7 +9925,25 @@ function loadRuleGlobal() {
 }
 
 function GLOBAL_LOOK_KEYS() { return ['lang', 'theme', 'cssVars', 'customBase', 'cores', 'hashMB', 'rule']; }
+
+// ★★ 2026-10-17（用户：「线程数的更改，还有一些其他持久化做的不好」）：
+//   一次性迁移标记统一存**全局键**。原来放在 S 里，而 S 会在
+//   gbcalc.settings.v1 / gbcalc.settings.link.v1 两套存档之间来回覆盖 ——
+//   marker 跟着丢、迁移就重跑，每进一次连线窗都把用户手选的线程数/哈希再改一遍。
+var MIG_KEY = 'gbcalc.mig.v1';
+function migFlag(name) {
+  var o = null;
+  try { o = JSON.parse(localStorage.getItem(MIG_KEY) || '{}'); } catch (e) { o = null; }
+  if (!o || typeof o !== 'object') o = {};
+  if (o[name]) return true;
+  o[name] = 1;
+  try { localStorage.setItem(MIG_KEY, JSON.stringify(o)); } catch (e) {}
+  return false;
+}
+
 function save() {
+  // ★ 偏好先进全局键：本函数后面有 `if (!ost) return;`，放在末尾会被跳过
+  prefsSyncFromS();
   try {
     var k = settingsKey();
     localStorage.setItem(k, JSON.stringify(S));
@@ -9780,15 +9966,14 @@ function setLinkMode(on) {
   var keepTheme = S.theme, keepCssVars = S.cssVars, keepCustomBase = S.customBase;
   var keepLang = (S.lang === 'en') ? 'en' : 'zh';
   
-  try { localStorage.setItem(on ? 'gbcalc.settings.v1' : 'gbcalc.settings.link.v1',
-                             JSON.stringify(S)); } catch (e) {}
+  try { localStorage.setItem('gbcalc.settings.v1', JSON.stringify(S)); } catch (e) {}   // 单键：切换模式不再换存档
   G.linkOn = !!on;
   document.body.classList.toggle('linkOn', !!on);
   try { localStorage.setItem('gbcalc.link.active', on ? '1' : '0'); } catch (e) {}
   
   LINK_EVAL_BUSY = false; LINK_EVAL_PENDING = ''; LINK_EVAL_LASTFP = ''; LINK_HAS_FRAME = false;
   
-  var nk = on ? 'gbcalc.settings.link.v1' : 'gbcalc.settings.v1';
+  var nk = 'gbcalc.settings.v1';   // ★ 单键：进/出连线窗读同一份，旧 link 快照不再覆盖用户偏好
   var st = null;
   try { st = JSON.parse(localStorage.getItem(nk) || 'null'); } catch (e) {}
   if (!st) {
@@ -9796,6 +9981,7 @@ function setLinkMode(on) {
     try { localStorage.setItem(nk, JSON.stringify(st)); } catch (e) {}
   }
   for (var k in st) if (S.hasOwnProperty(k)) S[k] = st[k];
+  prefsApplyToS();   // ★ link 存档里的旧 cores/hashMB 不许盖掉全局偏好
   
   S.theme = keepTheme; S.cssVars = keepCssVars; S.customBase = keepCustomBase;
   S.lang = keepLang;
@@ -10506,6 +10692,20 @@ function bootLink() {
       if (st2) st2.textContent = lkL('思考时间已设为 ' + v + ' 秒', 'Think time set to ' + v + ' s');
     };
   }
+
+  // ★★ 2026-10-17（用户：「点固定变成 ×，下一次打开又变回固定」「卡片移到棋盘左边，
+  //   重启又回原位」）：连线窗走的是 **bootLink**，而原代码在这里**没有面板初始化** ——
+  //   `.pinkey`（固定）和 `.dash`（折叠）根本没绑事件、`loadLayout` 也从不被读。
+  //   主窗 boot() 里有这一整套，连线窗漏了，所以「保存过的固定/布局」在连线窗永远看不到。
+  try {
+    prefsApplyToS();
+    initPanels();
+    applyLayout();
+    wireColors();
+    wireCards();
+    wireAnalysis();
+    try { syncPinKeys(); } catch (e1) {}
+  } catch (ePanel) {}
 
   lkStatus(); lkSyncCount(); lkPaintBoard(); lkPaintCurve();
   bootDone();                        

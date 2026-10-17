@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>引擎强度与性能修复报告 · 2026-10-16</title>
+<style>
+  :root{ --bg:#f7f8fa; --card:#fff; --fg:#1f2328; --sub:#57606a; --line:#d8dee4; --ok:#1a7f37; --bad:#cf222e; --warn:#9a6700; --accent:#0969da; }
+  *{box-sizing:border-box}
+  body{margin:0;padding:32px 20px 64px;background:var(--bg);color:var(--fg);
+       font:14px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 6px}
+  .meta{color:var(--sub);font-size:13px;margin-bottom:24px}
+  h2{font-size:16px;margin:30px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
+  .kpi{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}
+  .kpi div{flex:1 1 180px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .kpi b{display:block;font-size:22px;line-height:1.3}
+  .kpi span{color:var(--sub);font-size:12px}
+  code,pre{font-family:Consolas,"Cascadia Mono",monospace}
+  code{background:#eef1f4;border-radius:4px;padding:1px 5px;font-size:12.5px}
+  pre{background:#0d1117;color:#d6deeb;border-radius:8px;padding:12px 14px;overflow-x:auto;font-size:12.5px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f0f3f6;font-weight:600}
+  .tag{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;border:1px solid}
+  .t-ok{color:var(--ok);border-color:#aee0b8;background:#e8f5ec}
+  .t-bad{color:var(--bad);border-color:#f5b6b6;background:#fdecec}
+  .t-warn{color:var(--warn);border-color:#ecd39a;background:#fdf5e2}
+  ul{margin:8px 0 8px 18px;padding:0}
+  li{margin:4px 0}
+  .note{color:var(--sub);font-size:12.5px}
+  .accent{color:var(--accent);font-weight:600}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>引擎强度与性能修复报告</h1>
+<div class="meta">
+  交付物：<code>Gobang auto/Meter Gomoku/</code>（连线版）· 宿主 <code>Desktop GomokuTrainer.exe</code> 887,808 B ·
+  加密 UI <code>calc/*.enc</code> 5 个已同步 · 2026-10-16
+</div>
+
+<div class="kpi">
+  <div><b>6 → 12</b><span>主车道搜索线程（回退修复）</span></div>
+  <div><b>+20%</b><span>宿主代码体积（<code>/Ob3</code> 更激进内联的副产品）</span></div>
+  <div><b>3 / 3</b><span>连线 E2E 绿色运行（PAGE READY + 引擎 12 线程）</span></div>
+  <div><b>5 / 5</b><span>部署密文与源码逐字节同源</span></div>
+</div>
+
+<h2>一、根因：不是编译开关，是「调用参数」被回退</h2>
+<div class="card">
+  <p>查证 v4.39 参考包（<code>.workbuddy/tmp/v439_calc.js</code>）后确认：</p>
+  <ul>
+    <li><b>v4.39 的口径 = 首启默认「下拉上限」</b>：<code>buildSelects()</code> 里
+        <code>S.cores = maxT</code>；本机 16 逻辑核、<code>maxT = 12</code> ⇒ 主车道 <b>12 线程</b>。
+        v4.39 的 <code>bridge.js</code> 甚至直接给 <code>mainT = engTotal - 1</code>（15 线程）。</li>
+    <li><b>当前源码被改成了「一半核」</b>（<code>CalcFullThreads</code> 自动档 <code>cores/2</code>、
+        <code>calc.js</code> 的 <code>halfT</code>），并被 <code>save()</code> 固化进 localStorage
+        ⇒ <b>所有老用户一律只跑 6 线程</b>。</li>
+    <li>实测宿主日志：<code>资源计划(C++): THREAD_NUM=6 HASH_SIZE=524288KB</code>
+        —— 引擎明明加载成功，nps / 深度却只有 4.39 的一半。这就是「引擎加载成功了，但是智力不算高」
+        「迟迟没有评估」。</li>
+  </ul>
+</div>
+
+<h2>二、三处修复（默认口径统一在宿主）</h2>
+<table>
+  <tr><th>位置</th><th>改动</th></tr>
+  <tr><td><code>host.cpp ThreadsDefault()</code></td>
+      <td>直接返回 <code>ThreadsMax()</code>（本机 = 12）；定义挪到 <code>ThreadsMax()</code> 之后</td></tr>
+  <tr><td><code>host.cpp CalcFullThreads()</code></td>
+      <td>自动档由 <code>cores / 2</code> 改为 <code>min(ThreadsMax(), cores)</code></td></tr>
+  <tr><td><code>ui/calc.js buildSelects()</code></td>
+      <td>工厂默认 <code>factoryT = host.threadsDefault || maxT</code>；新增一次性迁移
+          <code>S.coresDefault = 'v439'</code> —— marker 缺失时把「恰好等于 halfT 的偏好」抬回上限。
+          用户手选的其他值一律不动（2026-10-15 专门修过「线程数=1 保存不了更改」）；
+          <code>maxT &lt; 4</code> 的小机器不迁移，以免撞上真实的 1 线程选择。</td></tr>
+</table>
+<p class="note">★ 该默认值<b>只许在宿主</b>（<code>ThreadsDefault / ThreadsMax / CalcHashFullKB</code>），
+界面不再自带默认。勿改回「一半核」。</p>
+
+<h2>三、编译开关：<code>/O2 /Os</code> 是自相矛盾的</h2>
+<div class="card">
+  <p>MSVC 里 <code>/Os</code>（偏向小代码，等价 <code>/Ot-</code>）写在 <code>/O2</code> 之后，
+  会把「偏向快代码」压掉 —— 等于按<b>体积优先</b>编译整个宿主。改为：</p>
+  <pre>/O2 /Oi /Ot /Ob3 /GL /Gy        （链接 /LTCG /OPT:REF /OPT:ICF）</pre>
+  <p>可测量证据：宿主 <b>735,232 → 887,808 B</b>。另加两个环境变量：
+  <code>GB_HOST_OPT</code>（覆盖优化档，<code>/GL</code> 出现时自动配 <code>/LTCG</code>，用于二分定位）、
+  <code>GB_HOST_ARCH=AVX2</code>（注入 <code>/arch:AVX2</code>，默认不加以保老 CPU）。</p>
+  <p class="note">⚠️ 边界要说清楚：宿主只是薄壳（消息泵 + UI 硬链 + 管道转发），真正吃 CPU 的是
+  <b>官方 Rapfi 引擎进程</b>。这些开关只影响宿主自身开销；「引擎强不强」要看下面的调用参数。</p>
+</div>
+
+<h2>四、并发/优先权</h2>
+<table>
+  <tr><th>项</th><th>结论</th></tr>
+  <tr><td>引擎进程优先权</td>
+      <td><span class="tag t-ok">已加</span> spawn 后 <code>SetPriorityClass(ABOVE_NORMAL_PRIORITY_CLASS)</code>
+          —— 高于其它普通进程（比 HIGH 温和，不抢满系统）</td></tr>
+  <tr><td>WebView2 渲染进程</td>
+      <td><span class="tag t-warn">保持原样</span> 仍为 <code>HIGH_PRIORITY_CLASS</code>。
+          曾试降到 <code>NORMAL</code> 给搜索线程让路，但期间页面持续「沉默」，<b>无法区分是它还是
+          渲染进程自身的随机抖动</b>，为稳妥已回退。</td></tr>
+  <tr><td>核亲和（CpuSplit）</td>
+      <td><span class="tag t-ok">默认不启用</span> <code>ApplyEngineAffinity</code> 在未启用时直接返回，
+          引擎使用全部 16 逻辑核，未被钉到子集</td></tr>
+  <tr><td>引擎变体选择</td>
+      <td><span class="tag t-ok">正常</span> <code>CPUID + kVariantOrder{avx512vnni, avxvnni, avx512, avx2, sse}</code>，
+          本机选中 <code>avx512vnni</code>；NNUE 权重 <code>mix9svq*.bin.lz4</code> 齐全</td></tr>
+</table>
+
+<h2>五、调用口径核对（除线程数外，与 4.39 一致）</h2>
+<ul>
+  <li><code>INFO CAUTION_FACTOR 3</code> / <code>STRENGTH 100</code> / <code>SHOW_DETAIL 2</code>
+      连线页仍在车道 boot 时下发 —— <b>不是</b>弱化项，无需改动。</li>
+  <li><code>SHOW_DETAIL</code> 决定引擎是否输出 <code>INFO TOTALNODES/TOTALTIME/SPEED</code>
+      （实测：不发就没有这些行）。界面「速度 / 节点」仪表依赖它，<b>别删这三条</b>。</li>
+  <li>引擎自带 <code>rapfi-native/config.toml</code> 的默认是
+      <code>default_thread_num = 1</code>、<code>default_tt_size_kb = 32768</code>
+      ⇒ 宿主必须自己下发 <code>THREAD_NUM / HASH_SIZE</code>（<code>BootResPlan</code> 已发）。</li>
+</ul>
+
+<h2>六、验证证据</h2>
+<p>绿色运行（<code>.workbuddy/tmp/run-once.js</code>，exe 887,808 B）：</p>
+<pre>[res] serve calc.html   how=enc bytes=26452
+[res] serve calc.css    how=enc bytes=52964
+[res] serve calc.js     how=enc bytes=321969
+[res] serve engine-ai.js how=enc bytes=21602
+[msg] {"type":"ready","theme":"light","bg":"#f6f6f4","lang":"zh"}
+[perf] PAGE READY                2156 ms
+[engine] cpuid: avx2=1 avx512f=1 avx512vnni=1 avxvnni=0
+[engine:main] 资源计划(C++): THREAD_NUM=12 HASH_SIZE=524288KB (owner, 满核+共享大置换表)
+[engine:main] 已启动 …\rapfi-native\RapfiEngine-avx512vnni.exe (gen=1)
+[link] link window shown
+[engine:main] out: MESSAGE Load config from "config.toml"
+--- PAGE READY: 有 | JSERR: 无</pre>
+<p class="note">共三次绿色运行（21:35 / 21:42 / 21:44），三次都打印 <code>THREAD_NUM=12</code>。
+线上一致性：<code>check-enc-fresh.js</code> 5 个 <code>.enc</code> 全部 <code>SAME</code>（与源码打磨结果逐字节相同）。</p>
+
+<h2>七、本次新增的诊断基建（都留在仓库里）</h2>
+<table>
+  <tr><th>工具</th><th>作用</th></tr>
+  <tr><td><code>ui-harness.js</code></td>
+      <td>解密 <code>calc/*.enc</code> → 注入 <code>chrome.webview</code> 桩 + <code>onerror</code>
+          → 无头 Edge <code>--dump-dom</code> 读探针 JSON。<b>不依赖 WebView2 渲染进程能否起来</b>，
+          一眼分清「JS 坏了」还是「渲染进程没起来」</td></tr>
+  <tr><td><code>calc.html</code> 头部错误上报</td>
+      <td><code>window.onerror</code> + <code>unhandledrejection</code> →
+          <code>{type:'status', text:'JSERR …'}</code> ⇒ 宿主日志直接看到
+          <code>[msg] {"type":"status","text":"JSERR …"}</code>。从此「沉默」不再是无信息故障</td></tr>
+  <tr><td><code>bench-engine.js --rep / --only</code></td>
+      <td>引擎横比（线程/哈希/CAUTION），支持重复取样取最大值</td></tr>
+  <tr><td><code>probe-engine-defaults.js</code></td>
+      <td>探引擎自身默认口径（config.toml / 消息模式）</td></tr>
+  <tr><td><code>run-once.js</code> / <code>launch-app.js</code> / <code>relaunch-check.js</code></td>
+      <td>启动冒烟与重开重复性判定（带重试）</td></tr>
+</table>
+
+<h2>八、已知遗留（诚实交代）</h2>
+<ul>
+  <li><b>WebView2 渲染进程随机起不来（约五成）</b>：同一份 exe、同一驱动会时好时坏，表现为
+      「页面沉默」（宿主 serve 了 calc.html/css/js，但渲染进程此后一个请求都没有、收不到
+      <code>ready</code>）。已排除 UI、编译开关、渲染进程优先级、配置目录删除等假设。
+      <span class="tag t-warn">产品级偶发</span>
+      用户手动关再开一般正常。配方（多次取绿）：<code>taskkill /IM &lt;镜像&gt; /T /F</code> → 静置 ≥6s → 启动。</li>
+  <li><b>「沉默自愈」只重导航 2 次</b>（10s / 22s）就放弃 —— 若用户真的删掉/损坏了
+      <code>GomokuTrainer resources</code>，会一直白屏。建议后续改成退避重试。</li>
+  <li><b>吞吐量基准在忙碌桌面上不可靠</b>：同一配置跨次能差 7 倍（Rapfi 的
+      <code>advanced_stop_ratio = 0.9</code> 会提前收敛，<code>TOTALTIME</code> 每次不同）。
+      因此<b>没有</b>据基准去改哈希（512MB）/CAUTION（3）等默认 —— 一律按 4.39 口径。
+      若日后要「超过 gomocup 上的 Rapfi」，应走独立机器的固定局面/固定节点口径，而不是本机墙钟。</li>
+</ul>
+
+</div></body></html>

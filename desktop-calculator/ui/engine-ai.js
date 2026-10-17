@@ -520,6 +520,125 @@ function armForbidCapture(lane) {
 
 var requestSeq = 0;
 
+// ★★ 2026-10-17 排队单通道闸门（用户口径原话）：
+//   「相当于一队人用水管，排队用的话水管流量最大、最充足，同时用流量会小；
+//     AI 落子和计算分析是两个独立事件 —— 分析的时候 AI 不用落子，落子的时候不需要分析。
+//     因此调用引擎的管道 + 多线程并行全力搜一棵树最强，再配合较大的哈希表。」
+//   在此之前三车道（main/sub/fwd）是**并行**跑的：AI 思考时实时分析在抢核、前推算杀在抢核，
+//   同一棵树拿不到满线程 ⇒ 同一引擎显得更笨。这里改成全局互斥：同一时刻只有一个车道在搜。
+//   优先级 main(AI 落子/主分析) > sub(热力/试探) > fwd(前推)；main 到达时可抢占非 main 的持锁者。
+var GATE = { busy: false, holder: null, q: [] };
+var GATE_WAIT_MAX_MS = 12000;
+var GATE_PREEMPT_AFTER_MS = 800;
+
+// 闸门可观测性：排队/抢占/放行都落一行 LINK_GATE 到宿主日志（否则改了也说不清有没有生效）
+function gateLog(text) {
+  try { self.postMessage({ type: '__host', payload: { type: 'bridgeDiag', text: 'LINK_GATE ' + text } }); } catch (e) {}
+}
+
+function gateStop(lane) {
+  try {
+    if (lane && lane.engine && lane.engine.sendCommand) lane.engine.sendCommand('STOP');
+  } catch (e) {}
+}
+
+// ★★ 2026-10-17（用户二次澄清）：「AI 落子本身是 AI 去思考和落子，用户并没有点击计算评估等功能时，
+//   占满车道、全力思考。」⇒ AI 落子走 urgent 档（prio 3）：抢走引擎、作废一切排队中的分析、
+//   并关掉其他车道搜索结束后仍在闸门外吃 CPU 的 ponder。此时整机只搜这一棵树。
+function gateQuietOthers(exceptLane, urgent) {
+  var all = [LANES.main, LANES.sub, LANES.fwd];
+  for (var i = 0; i < all.length; i++) {
+    var L = all[i];
+    if (!L || L === exceptLane) continue;
+    // ponder 是「搜索结束后继续想」——它不在闸门内，会持续吃满线程。有人要用引擎就先掐掉它。
+    if (L.ponderTmr) {
+      clearTimeout(L.ponderTmr);
+      L.ponderTmr = null;
+      try { if (L.engine && L.engine.sendCommand) L.engine.sendCommand('INFO PONDERING 0'); } catch (e) {}
+    }
+    if (urgent) gateStop(L);
+  }
+}
+
+function gateExec(lane, fn, urgent) {
+  return new Promise(function (resolve, reject) {
+    // 优先级：4 = 用户主动分析（计算/扫描防守…，压过 AI 落子）；3 = AI 落子；2 = main 常规；1 = sub；0 = fwd
+    var prio = (urgent === 'user') ? 4
+             : (urgent ? 3 : (lane.name === 'main' ? 2 : (lane.name === 'sub' ? 1 : 0)));
+    // 同车道只保留最新一个：旧的作废（棋盘已经变了，跑完也没人要）
+    for (var i = GATE.q.length - 1; i >= 0; i--) {
+      if (GATE.q[i].lane === lane) {
+        try { GATE.q[i].reject(new Error('superseded by newer request')); } catch (e) {}
+        GATE.q.splice(i, 1);
+      }
+    }
+    var job = { lane: lane, fn: fn, resolve: resolve, reject: reject, prio: prio,
+                urgent: !!urgent, t0: Date.now(), queued: Date.now() };
+    job.timer = setTimeout(function () {
+      var idx = GATE.q.indexOf(job);
+      if (idx >= 0) {
+        GATE.q.splice(idx, 1);
+        try { reject(new Error('排队超时（' + GATE_WAIT_MAX_MS + 'ms）')); } catch (e) {}
+      }
+    }, GATE_WAIT_MAX_MS);
+    GATE.q.push(job);
+    GATE.q.sort(function (a, b) { return (b.prio - a.prio) || (a.queued - b.queued); });
+    // ★ AI 落子（urgent）：排队中的实时分析/热力/前推全部作废 —— 棋盘马上要变，
+    //   它们跑完也是过期结果，留着只会白烧 CPU、把这一手的机会成本抬高。
+    if (urgent) {
+      var dropped = 0;
+      for (var k = GATE.q.length - 1; k >= 0; k--) {
+        var o = GATE.q[k];
+        if (o !== job && o.prio < 3) {
+          if (o.timer) clearTimeout(o.timer);
+          GATE.q.splice(k, 1);
+          try { o.reject(new Error('dropped: ai move has priority')); } catch (e) {}
+          dropped++;
+        }
+      }
+      if (dropped) gateLog('urgent drop=' + dropped + ' q=' + GATE.q.length);
+    }
+    if (GATE.holder && GATE.holder.lane !== lane) {
+      gateLog('queue lane=' + lane.name + '(p' + prio + ') behind=' + GATE.holder.lane.name + ' q=' + GATE.q.length);
+    }
+    // 高优先级到达 ⇒ 让持锁者尽快收手（它会把已搜到的结果交出来）。
+    // 用户主动分析（4）**无条件**立刻抢占：用户已经在等了，没有理由再把 AI 那一手想完。
+    if (GATE.holder && GATE.holder.prio < prio &&
+        (prio >= 4 || Date.now() - GATE.holder.t0 > GATE_PREEMPT_AFTER_MS)) {
+      gateLog('preempt lane=' + GATE.holder.lane.name + ' by ' + lane.name + '(p' + prio + ')');
+      gateStop(GATE.holder.lane);
+    }
+    pumpGate();
+  });
+}
+
+function pumpGate() {
+  if (GATE.busy || !GATE.q.length) return;
+  var job = GATE.q.shift();
+  if (job.timer) clearTimeout(job.timer);
+  GATE.busy = true;
+  GATE.holder = job;
+  var release = function () {
+    if (GATE.holder !== job) return;
+    GATE.busy = false;
+    GATE.holder = null;
+    setTimeout(pumpGate, 0);
+  };
+  var waited = Date.now() - job.queued;
+  if (waited > 150 || job.urgent) gateLog('run lane=' + job.lane.name + (job.urgent ? '(urgent)' : '') + ' waited=' + waited + 'ms');
+  gateQuietOthers(job.lane, job.urgent);
+  if (waited > GATE_WAIT_MAX_MS) { job.reject(new Error('排队超时（' + waited + 'ms）')); return release(); }
+  try {
+    Promise.resolve(job.fn()).then(
+      function (r) { job.resolve(r); release(); },
+      function (e) { job.reject(e); release(); }
+    );
+  } catch (e) {
+    try { job.reject(e); } catch (e2) {}
+    release();
+  }
+}
+
 var PONDER_IDLE_MS = 10000;    
 function armPonderWatchdog(lane) {
   if (lane.ponderTmr) clearTimeout(lane.ponderTmr);
@@ -689,7 +808,7 @@ self.onmessage = function (e) {
     });
   } else if (d.type === 'analyze') {
     var lane = pickLane(d.body && d.body.lane);
-    laneSerial(lane, function () { return doAnalyze(d.body, lane); })
+    gateExec(lane, function () { return laneSerial(lane, function () { return doAnalyze(d.body, lane); }); }, d.body && d.body.urgent)
       .then(function (result) { self.postMessage({ type: 'done', id: d.id, result: result }); },
             function (err) { self.postMessage({ type: 'fail', id: d.id, message: String(err && err.message || err) }); });
   } else if (d.type === '__relay') {

@@ -6,7 +6,9 @@
 
   var S = window.GB_S || (window.GB_S = {});
 
-  var GB_VER = 'v4.40';
+  var GB_VER = 'v4.41';
+  // 自检钩子（必须尽早挂上：后面任何一句抛异常都不影响它；正常流程不用）
+  try { window.__gbTacTest = engineTacTest; } catch (e) {}
   var UI = window.GBUI || {};
   var N = 15;
 
@@ -418,9 +420,12 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     if (isWaitTimeout(e)) return LT('engineBusyTimeout');
     if (e instanceof TypeError || /failed to fetch|fetch failed|networkerror|load failed/i.test(m)) {
       pingEnsureDeps();
-      return LT('engineUnreachable');
+      // ★ 2026-10-16：把**真实原因**附在后面。以前只返回「连不上本地引擎（硬链接）—— 桌面
+      //   助手正在自动重启它」这一句，用户/日志都拿不到任何可定位的信息；现在原始 message
+      //   一起显示（并随 status 日志落到宿主供取证）。
+      return LT('engineUnreachable') + '（' + m + '）';
     }
-    if (/connection lost/i.test(m)) { pingEnsureDeps(); return LT('engineUnreachable'); }
+    if (/connection lost/i.test(m)) { pingEnsureDeps(); return LT('engineUnreachable') + '（' + m + '）'; }
     return m;
   }
 
@@ -440,6 +445,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       // Commands go straight to the host as WebMessage; engine stdout is pushed
       // back by the host via {"type":"engineOut"} (no polling, no network).
       var engSeq = 0, engPending = {};
+      var engAckTimeouts = 0, engAckOk = 0, engLastAckAt = 0;
       function engSend(op, lane, cmds, resObj) {
         var cv = window.chrome && window.chrome.webview;
         if (!cv || !cv.postMessage) return Promise.resolve(null);
@@ -449,12 +455,33 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           var o = { type: 'engine', op: op, lane: lane || '', cmds: cmds || [], id: id };
           if (resObj) o.res = resObj;
           cv.postMessage(JSON.stringify(o));
-          setTimeout(function () { if (engPending[id]) { var r = engPending[id]; delete engPending[id]; r(null); } }, 10000);
+          setTimeout(function () {
+            if (!engPending[id]) return;
+            var r = engPending[id];
+            delete engPending[id];
+            // ★ 2026-10-16：把「没拿到回执」这件事**记下来并上报**。以前这里静默 resolve(null)，
+            //   调用方（engEnsure/engStatus）把 null 当成「引擎不可用」直接 throw，用户看到
+            //   「分析失败：引擎进程启动失败」= 他说的「引擎连不上」，而日志里什么都没有，
+            //   完全没法定位。现在：计数 + 上报 op/lane/id/未回执总数，供宿主日志取证。
+            engAckTimeouts++;
+            var lnTO = pickLane(lane);
+            if (lnTO) lnTO.ackTimeouts = (lnTO.ackTimeouts || 0) + 1;
+            bridgeDiag('LINK_ACK_TIMEOUT op=' + op + ' lane=' + (lane || '-') + ' id=' + id +
+                       ' total=' + engAckTimeouts + ' ok=' + engAckOk);
+            r(null);
+          }, 10000);
         });
       }
       function engCmd(lane, text, resObj) { return engSend('cmd', lane, [text], resObj); }
       function engEnsure(lane) { return engSend('ensure', lane, []); }
-      function engStatus() { return engSend('status', '', []); }
+      // ★ 2026-10-16：status ack 的载荷嵌套在 engineAck.status 里（available/variant/
+      //   engineCPUs/memMB/...），顶层只有 ok/alive —— 以前 bootAll 直接读 st.available
+      //   恒为 undefined → 引导必失败（无 START/INFO，车道永未 ready）。这里统一解包。
+      function engStatus() {
+        return engSend('status', '', []).then(function (ack) {
+          return (ack && ack.status) ? ack.status : ack;
+        });
+      }
       function engReset(lane) { return engSend('reset', lane, []); }
 
       function parseK(v) {
@@ -587,7 +614,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
               }
               pv.bestline = bl;
             } else {
-              var ms = tail.match(/^Depth\s+(\d+)(?:-(\d+))?\s*\|\s*Eval\s+([^\s|]+)\s*\|\s*Time\s+[\d.]+\s*ms\s*\|\s*(.+)$/);
+              var ms = tail.match(/^(?:\[[^\]]*\]\s*)?Depth\s+(\d+)(?:-(\d+))?\s*\|\s*Eval\s+([^\s|]+)\s*\|\s*Time\s+[\d.]+\s*ms\s*\|\s*(.+)$/);
               if (ms) {
                 var bl2 = [];
                 var parts2 = ms[4].trim().split(/\s+/);
@@ -704,6 +731,14 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             lane.ready = false;
             lane.bootThreads = 0; lane.curThreads = 0;
             lane.bufTrim = 0;
+            // ★ 2026-10-16（用户：「还是会经常触发引擎连不上」）：引擎进程被重建（宿主
+            //   按需 spawn / reset / 崩溃后自愈）时 alive 会 false→true。以前只把 ready 清成
+            //   false 就完事 —— 而 call() 的再引导条件是 `!lane.alive && !lane.ready`，
+            //   spawn 之后 alive 已经是 true ⇒ **再引导永远不会触发** ⇒ whenBootReady 永久
+            //   悬挂 ⇒ 12s 超时 + 静默重试 8 次后放弃。这正是「引擎连不上」的主因之一。
+            //   现在：进程重生即主动重新引导（并让 call() 的门只看 ready）。
+            bridgeDiag('LINK_ENGINE_REBORN lane=' + lane.name + ' → 重新引导');
+            if (lane.name !== 'fwd') { try { bootAll().catch(function () {}); } catch (eRB) {} }
           }
           if (r.dropped) lane.dropped = r.dropped;
           if (!lane.alive && !lane.engineGone && wasAlive !== false) {
@@ -759,12 +794,38 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       }
       function whenBootReady(lane) {
         if (lane.ready) return Promise.resolve();
-        return new Promise(function (resolve) { lane.waiters.push(resolve); });
+        // ★ 2026-10-16（用户：「还是会经常触发引擎连不上」）：这里以前是「挂一个 waiter
+        //   等别人想起来 resolve」——只要 bootAll 因为任何原因失败或半途而废（引擎崩溃
+        //   重启后 alive 变回 true 但 ready 被清掉、宿主 ack 丢一帧、窗口切换竞态），
+        //   waiter 就**永久悬挂**：call() 的 12s 超时 → 静默重试 8 次 → 放弃，
+        //   用户看到的就是「引擎连不上 / 迟迟不评估」，而且引擎其实活得好好的。
+        //   现在：主动再引导一次 + 最多等 3s，到点强制放行（分析批次自带 START/INFO 语义，
+        //   宿主 WriteEnsured 也会按需 spawn），会话绝不再悬挂。
+        bootAll().catch(function () {});
+        return new Promise(function (resolve) {
+          var settled = false;
+          var fin = function () { if (settled) return; settled = true; resolve(); };
+          if (!lane.waiters) lane.waiters = [];
+          lane.waiters.push(fin);
+          setTimeout(function () {
+            if (settled) return;
+            bridgeDiag('LINK_BOOT_WAIT_TIMEOUT lane=' + lane.name +
+                       ' → 强制放行（批次自带 START/INFO，宿主按需 spawn）');
+            fin();
+          }, 3000);
+        });
       }
       function armBootGuard(lane) {
-        setTimeout(function () {
+        if (lane.bootGuard) clearTimeout(lane.bootGuard);
+        lane.bootGuard = setTimeout(function () {
+          lane.bootGuard = null;
           if (lane.ready) return;
           lane.ready = true;
+          // ★ 2026-10-16：兜底放行的同时**要求重试**，而不是「放行完就装作没事」——
+          //   以前 8s 闸一放，如果引导其实没成功，这条车道会一直以「未配置（无 START /
+          //   无 CAUTION / 无 SHOW_DETAIL）」的状态跑，表现为引擎弱、或干脆不吐着法。
+          bridgeDiag('LINK_BOOT_GUARD lane=' + lane.name + ' 8s 未完成引导 → 放行 + 排重试');
+          scheduleBootRetry('guard:' + lane.name);
           var w = lane.waiters; lane.waiters = [];
           for (var i = 0; i < w.length; i++) { try { w[i](); } catch (e) {} }
         }, 8000);
@@ -800,6 +861,26 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       }
       
       var booted = false, booting = null;
+      var bootRetryTimer = null, bootRetries = 0, bootLastDiag = '';
+      // ★ 2026-10-16：引导失败不再「一次定生死」。退避重试（0.8/1.6/3.2/6.4/12s），
+      //   成功一次就停；期间绝不与正在跑的车道抢锁（inSearch 时推后）。
+      function scheduleBootRetry(why) {
+        if (bootRetryTimer) return;
+        var delays = [800, 1600, 3200, 6400, 12000];
+        var d = delays[Math.min(bootRetries, delays.length - 1)];
+        bootRetries++;
+        bridgeDiag('LINK_BOOT_RETRY#' + bootRetries + ' in ' + d + 'ms (' + why + ')' +
+                   (bootLastDiag ? ' last=' + bootLastDiag : ''));
+        bootRetryTimer = setTimeout(function () {
+          bootRetryTimer = null;
+          if (booted && LANES.main.ready && LANES.sub.ready) { bootRetries = 0; return; }
+          if (LANES.main.inSearch || LANES.sub.inSearch || LANES.fwd.inSearch) {
+            scheduleBootRetry('busy');
+            return;
+          }
+          bootAll().catch(function () {});
+        }, d);
+      }
       
       var engCPUs = 0, quotaLogged = false;
       
@@ -838,9 +919,15 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         for (var i = 0; i < all.length; i++) if (all[i] !== except) n += laneBusyT(all[i]);
         return n;
       }
+      // ★★ 2026-10-17 根因修复（勿回退）：诊断消息**必须**走 tellHost。
+      //   tellHost 内部是 postMessage(JSON.stringify(o))（字符串消息），而直接
+      //   postMessage({...}) 发的是「对象消息」—— 宿主 LinkMsgHandler 走
+      //   TryGetWebMessageAsString 取字符串，对象消息会取到空 ⇒ 整个 status 分支被跳过、
+      //   消息**静默丢弃**。实测后果：本函数 15 个调用点（LINK_ACK_TIMEOUT /
+      //   LINK_ENG_STATUS / LINK_BOOT_GUARD / LINK_TT_RESET / LINK_EVAL_FAIL …）在日志里
+      //   一个都没出现过，整套回归探针形同虚设。
       function bridgeDiag(text) {
-        try { if (window.chrome && window.chrome.webview)
-          window.chrome.webview.postMessage({ type: 'status', text: text }); } catch (e) {}
+        try { tellHost({ type: 'status', text: String(text) }); } catch (e) {}
       }
       
       function planThreads(lane) {
@@ -873,16 +960,52 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         if (n) bridgeDiag('LINK_MAIN_EXCLUSIVE stoppedAux=' + n + ' budget=' + engBudget());
         return n;
       }
+      // ★ 2026-10-16（用户：「检测到棋盘空的时候，应该重新清空置换表重新评估计算」
+      //   「变规则的时候不能顺利的切换规则而评估」）：
+      //   置换表（TT）是**跨局、跨规则共用**的，而 Rapfi 的 TT 条目不带规则/局次标记：
+      //     · 新开一局（棋盘被清空）后上一局的 TT 还在 ⇒ 新局前几手直接命中旧条目，
+      //       曲线与推荐点会“沿用上一局”的错误结论；
+      //     · 规则一改（无禁手 ↔ 连珠），同一个局面在两种规则下的分数完全不同 ⇒
+      //       旧 TT 条目直接污染新规则下的搜索，表现为「切了规则但评估没变 / 不对」。
+      //   以前只有 newGamePending 时、且必须等到**下一次 analyze** 才发一次 YXHASHCLEAR；
+      //   空盘那次根本不发（空盘直接 return 了），换规则那次也不发。
+      //   这里给一个显式的「清表 + 复位」：三条车道全清，并复位 ponder/搜索标记。
+      function hardResetEngine(reason) {
+        var names = ['main', 'sub', 'fwd'];
+        for (var i = 0; i < names.length; i++) {
+          var lane = pickLane(names[i]);
+          if (!lane) continue;
+          // 没起来的车道不进清表 —— 新建进程本来就是空表，反而别为它白 spawn 一个引擎。
+          if (!lane.ready && !lane.alive) continue;
+          try { if (lane.inSearch || lane.mayPonder) engCmd(lane.name, 'STOP'); } catch (eS) {}
+          try { engCmd(lane.name, 'YXHASHCLEAR'); } catch (eC) {}
+          lane.outBuf = '';
+          lane.captureLine = null;
+          lane.mayPonder = false;
+        }
+        bridgeDiag('LINK_TT_RESET reason=' + reason);
+      }
+      
       function bootAll() {
         
+        // ★ 2026-10-16：引导前先武装 8s 兜底闸 —— 即使 engStatus/ensure 任一步失败，
+        //   whenBootReady 也会按时放行（analyze 批次自带 INFO RULE/TIMEOUT/PONDERING，
+        //   引擎进程由宿主 WriteEnsured 按需拉起），分析链路绝不永久挂起。
+        armBootGuard(LANES.main); armBootGuard(LANES.sub); armBootGuard(LANES.fwd);
         var lanesReady = LANES.main.ready && LANES.sub.ready;
         if (booted && lanesReady) return Promise.resolve();
         if (booting) return booting;
         booted = false;
         booting = engStatus().then(function (st) {
-          if (!st || !st.available) {
-            var d = (st && st.diag) ? st.diag : '原生引擎不可用（rapfi-native 缺失或被安全软件拦截）';
-            throw new Error(d);
+          // ★ 2026-10-16：把「没回执（null）」和「真的不可用（available:false）」分开。
+          //   以前两者都当失败 throw —— 只要 ack 丢一帧（宿主正忙/正在切窗口），
+          //   整轮引导就作废：ready 一直 false、waiters 被清空、分析链路悬挂。
+          if (st == null) {
+            bootLastDiag = 'status ack 超时（未回执）';
+            bridgeDiag('LINK_ENG_STATUS_TIMEOUT → 按「引擎仍可用」继续（宿主按需 spawn）');
+          } else if (st.available === false) {
+            bootLastDiag = (st && st.diag) ? st.diag : '原生引擎不可用（rapfi-native 缺失或被安全软件拦截）';
+            throw new Error(bootLastDiag);
           }
           var cpuAll = fullCores();
           
@@ -894,7 +1017,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             quotaLogged = true;
             try {
               if (window.chrome && window.chrome.webview)
-                window.chrome.webview.postMessage({ type: 'status', text:
+                tellHost({ type: 'status', text:
                   'LINK_ENG_QUOTA engineCPUs=' + engCPUs + ' visCPUs=' + ((st && st.visionCPUs) || 0) +
                   ' split=' + ((st && st.cpuSplit) ? 1 : 0) + ' cpus=' + cpuAll });
             } catch (eQ) {}
@@ -927,13 +1050,22 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             p = p.then(function () {
               armBootGuard(sp.lane);
               return engEnsure(sp.lane.name).then(function (r) {
-                if (!r || !r.ok) throw new Error('引擎进程启动失败（' + sp.lane.name + ' 车道）');
+                // ★ 2026-10-16：r===null 只是「没拿到回执」（10s 超时），不是引擎不可用 ——
+                //   宿主的 WriteEnsured 在任何写命令时都会按需 spawn。只有明确告知
+                //   ok:false 且进程已死才算真失败。
+                if (r && r.ok === false && !r.alive) {
+                  throw new Error('引擎进程启动失败（' + sp.lane.name + ' 车道）：宿主 ensure 失败');
+                }
+                if (!r) bridgeDiag('LINK_ENSURE_ACK_TIMEOUT lane=' + sp.lane.name +
+                                   ' → 继续（宿主按需 spawn）');
                 return engCmd(sp.lane.name, 'START ' + SIZE);
               });
             });
           });
           p = p.then(function () {
-            return new Promise(function (res) { setTimeout(res, 1500); });
+            // ★ 2026-10-16：不再盲等固定 1500ms —— 引擎回了话（有输出）或已 alive 就立刻继续，
+            //   最多等 2500ms。原来每次引导平白多花 1.5s，慢机器上还未必够。
+            return waitEngineReadyish(LANES.main, 2500);
           });
           specs.forEach(function (sp) {
             p = p.then(function () {
@@ -958,29 +1090,50 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           });
           return p.then(function () { booted = true; });
         });
+        // Warm up engine lanes at page load: the link page does not always
+        // receive engineCfg (main window already pushed it earlier), so boot
+        // here immediately (8s guard armed inside bootAll) and let the first
+        // scan analyze right away.
+        bootAll().catch(function () {});
         
         booting = booting.catch(function (err) {
           booted = false;
           booting = null;
-          
+          bootLastDiag = String(err && err.message || err);
           LANES.main.ready = false; LANES.sub.ready = false; LANES.fwd.ready = false;
           LANES.main.waiters = []; LANES.sub.waiters = []; LANES.fwd.waiters = [];
+          // ★ 2026-10-16：失败即排退避重试（而不是等下一次 analyze 撞上来才想起来）。
+          scheduleBootRetry('bootAll failed');
           throw err;
         });
         return booting;
       }
       
       var fwdBooting = null;
+      // ★ 2026-10-16：事件驱动的「引擎起来了没」等待 —— 有输出立刻返回；只有 alive
+      //   无输出时给 400ms 宽限；都不满足就等满 maxMs。比盲等固定 1500ms 更快也更稳。
+      function waitEngineReadyish(lane, maxMs) {
+        return new Promise(function (res) {
+          var t0 = Date.now(), sawAliveAt = 0;
+          var timer = setInterval(function () {
+            if (lane.alive && !sawAliveAt) sawAliveAt = Date.now();
+            if (lane.outBuf && lane.outBuf.length) { clearInterval(timer); res(); return; }
+            if (sawAliveAt && Date.now() - sawAliveAt >= 400) { clearInterval(timer); res(); return; }
+            if (Date.now() - t0 >= maxMs) { clearInterval(timer); res(); }
+          }, 40);
+        });
+      }
       function bootFwdLane() {
         var lane = LANES.fwd;
         if (lane.ready) return Promise.resolve();
         if (fwdBooting) return fwdBooting;
         armBootGuard(lane);                      
         fwdBooting = engEnsure(lane.name).then(function (r) {
-          if (!r || !r.ok) throw new Error('引擎进程启动失败（fwd 车道）');
+          // ★ 2026-10-16：同 main/sub ——「没回执」不算失败，宿主写命令时会按需 spawn。
+          if (r && r.ok === false && !r.alive) throw new Error('引擎进程启动失败（fwd 车道）：宿主 ensure 失败');
           return engCmd(lane.name, 'START ' + SIZE);
         }).then(function () {
-          return new Promise(function (res) { setTimeout(res, 1500); });   
+          return waitEngineReadyish(lane, 2500);
         }).then(function () {
           // ★ 2026-10-15：fwd 车道的 THREAD_NUM=1 / HASH_SIZE=64MB 由宿主 C++ BootResPlan
           //   在 spawn 后写入，JS 只发应用级配置。
@@ -1035,15 +1188,26 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
         return new Promise(function (resolve, reject) {
           var hardDeadline = Date.now() + Math.max(1000, budgetMs) + 8000;
           var pvs = { __cur: -1 };
-          var revives = 0;                 
+          var revives = 0;
+          var firstCandAt = 0;
+          var bestAt = 0;
           var probeWA = function (stage) {
             try { if (window.chrome && window.chrome.webview)
-              window.chrome.webview.postMessage({ type: 'status', text: 'LINK_WAIT_TIMEOUT stage=' + stage }); } catch (eA) {}
+              tellHost({ type: 'status', text: 'LINK_WAIT_TIMEOUT stage=' + stage }); } catch (eA) {}
           };
           var timer = setInterval(function () {
             var raw = lane.outBuf; lane.outBuf = '';
             var ls = raw.split('\n');
             for (var i = 0; i < ls.length; i++) parseLine(ls[i], pvs);
+            // Live dashboard feed while the engine ponders: depth/speed/nodes
+            // from parsed output update the link stat panel immediately.
+            if (pvs[0] || pvs.__best) {
+              try { ui('setStatPanel', { depth: (pvs[0] && pvs[0].depth) || 0, speed: pvs.__speed || 0, nodes: pvs.__totalnodes || 0 }); } catch (eL) {}
+            }
+            if (raw && raw.indexOf('MESSAGE') !== -1) {
+              try { tellHost({ type: 'diag', tag: 'linklive', has0: !!pvs[0], d: (pvs[0] && pvs[0].depth) || 0, sp: pvs.__speed || 0, nd: pvs.__totalnodes || 0, best: !!pvs.__best, rawlen: raw.length }); } catch (eD) {}
+            }
+            if (raw.indexOf('REALTIME BEST') !== -1 && !bestAt) bestAt = Date.now();
             var out = [];
             for (var li = 0; li < wantTopN; li++) {
               var pv = pvs[li];
@@ -1060,6 +1224,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
                 });
               }
             }
+            if (out.length && !firstCandAt) firstCandAt = Date.now();
             var mbest = raw.match(/\bbest\s+(\d+)\s+(\d+)/);
             var chosen = (mbest ? [+mbest[1], SIZE - 1 - (+mbest[2])] : null) || pvs.__best || pvs.__final;
             var done = !!mbest || !!pvs.__final || /^\s*REJECT\s*$/m.test(raw);
@@ -1075,6 +1240,26 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
                 out.push({ x: chosen[0], y: chosen[1], winrate: 0.5, eval: '', depth: 0, speed: pvs.__speed || 0, nodes: pvs.__totalnodes || 0, line: [] });
               }
               resolve({ candidates: out, best: chosen });
+            } else if (out.length && firstCandAt && Date.now() - firstCandAt >= 700) {
+              // ★ 2026-10-16：PONDERING=1 时引擎持续搜索、不输出最终行（无 best x,y / 裸 x,y / REJECT），
+              //   原来只能等 hardDeadline（~16.5s）超时回退 —— 连线页因此"迟迟没有评估"。
+              //   候选（Depth 行 bestline 首步）出现并稳定 700ms 即先行交付，对齐主训练工具体验；
+              //   最终行/REJECT 到来时仍走上面的 done 分支即时确认。
+              clearInterval(timer);
+              var cB = (chosen && chosen.length === 2) ? chosen : [out[0].x, out[0].y];
+              var fIdx = -1;
+              for (var fK = 0; fK < out.length; fK++) if (out[fK].x === cB[0] && out[fK].y === cB[1]) { fIdx = fK; break; }
+              if (fIdx > 0) out.unshift(out.splice(fIdx, 1)[0]);
+              else if (fIdx < 0) out.unshift({ x: cB[0], y: cB[1], winrate: 0.5, eval: (out[0] && out[0].eval) || '', depth: (out[0] && out[0].depth) || 0, speed: pvs.__speed || 0, nodes: pvs.__totalnodes || 0, line: [] });
+              resolve({ candidates: out, best: cB, partial: true });
+            } else if (pvs.__best && bestAt && Date.now() - bestAt >= 500) {
+              // REALTIME BEST from pondering is a solid best move; deliver it
+              // quickly (500ms after first arrival) so the link page shows a
+              // recommendation / fires auto-drop without waiting for a final line.
+              clearInterval(timer);
+              var cB = [pvs.__best[0], pvs.__best[1]];
+              if (!out.length) out.push({ x: cB[0], y: cB[1], winrate: 0.5, eval: (pvs[0] && pvs[0].eval) || '', depth: (pvs[0] && pvs[0].depth) || 0, speed: pvs.__speed || 0, nodes: pvs.__totalnodes || 0, line: (pvs[0] && pvs[0].bestline) || [] });
+              resolve({ candidates: out, best: cB, realtime: true });
             } else if (Date.now() > hardDeadline) {
               if (chosen || out.length) {
                 clearInterval(timer);
@@ -1161,7 +1346,7 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
               if (!ponderLogged) {
                 ponderLogged = true;
                 try { if (window.chrome && window.chrome.webview)
-                  window.chrome.webview.postMessage({ type: 'status', text:
+                  tellHost({ type: 'status', text:
                     'LINK_PONDER_ON idle_ms=' + PONDER_IDLE_MS + ' dboff=1 threads=' + lane.curThreads }); } catch (eP) {}
               }
             }
@@ -1376,10 +1561,9 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
             return;
           }
           var lane = pickLane(body && body.lane);
-          if (!lane.alive && !lane.ready) {
-            
-            bootAll().catch(function () {});
-          }
+          // ★ 2026-10-16：门只看 ready。以前是 `!lane.alive && !lane.ready` —— 引擎被重建后
+          //   alive 已经是 true，于是再引导永远不触发（详见 applyEngineOut 处的注释）。
+          if (!lane.ready) bootAll().catch(function () {});
           
           if (lane.name === 'fwd' && !lane.ready) bootFwdLane().catch(function () {});
           var run;
@@ -1394,13 +1578,73 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           }, function (e) { fin(reject, new Error(String(e && e.message || e))); });
         });
       }
-      return { call: call, status: engStatus };
+      // ★ 2026-10-16 根因修复：ack / engineOut 的分发必须由 IIFE **内部**导出 ——
+      //   engPending 与 applyEngineOut 都是本闭包的私有符号，模块作用域的
+      //   chrome.webview message 监听器直接引用会抛 ReferenceError
+      //   （status ack 到达 → 监听器抛错 → promise 永不 settle → 车道永未 ready
+      //   → 连线页没有任何 START/INFO/YXBOARD ⇒ 无评估、无蓝色落点）。
+      function onAck(msg) {
+        if (!msg || !msg.id) return;
+        var r = engPending[msg.id];
+        if (r) { delete engPending[msg.id]; engAckOk++; engLastAckAt = Date.now(); r(msg); }
+      }
+      // ★ 2026-10-16：一次把「引擎通道到底怎么了」打到宿主日志里（车道 ready/alive/
+      //   重生态/是否在搜/ack 超时计数 + status 回执）。失败时不再只有一句「分析失败」。
+      function engDiagDump(why) {
+        var L = [LANES.main, LANES.sub, LANES.fwd], parts = [];
+        for (var i = 0; i < L.length; i++) {
+          parts.push(L[i].name + '{ready:' + (L[i].ready ? 1 : 0) + ',alive:' + (L[i].alive ? 1 : 0) +
+                     ',gone:' + (L[i].engineGone ? 1 : 0) + ',search:' + (L[i].inSearch ? 1 : 0) +
+                     ',ackTO:' + (L[i].ackTimeouts || 0) + '}');
+        }
+        bridgeDiag('LINK_ENG_DIAG ' + why + ' ackTO=' + engAckTimeouts + ' ackOK=' + engAckOk +
+                   ' booted=' + (booted ? 1 : 0) + ' retry=' + bootRetries + ' ' + parts.join(' '));
+        engStatus().then(function (st) {
+          bridgeDiag('LINK_ENG_STATUS available=' + (st && st.available) +
+                     ' variant=' + (st && st.variant) +
+                     ' diag=' + ((st && st.diag) ? st.diag : '-'));
+        }).catch(function () {});
+      }
+      return { call: call, status: engStatus, onAck: onAck, onOut: applyEngineOut,
+               diag: engDiagDump, reset: hardResetEngine };
     })();
     return NATENG;
   }
   function wsCall(api, body, timeoutMs) {
     return natEng().call(api, body, timeoutMs);
   }
+  // 置换表清空 / 引擎复位（空盘新局、规则切换时调用）。
+  function engineHardReset(reason) {
+    try { natEng().reset(reason); } catch (e) {
+      try { console.warn('[bridge] engineHardReset failed:', e); } catch (e2) {}
+    }
+  }
+  function engineDiagDump(why) {
+    try { natEng().diag(why); } catch (e) {}
+  }
+
+  // 自检钩子：用合成棋盘验证战术加固层（正常流程不用；窗口全局便于无头自检读取）
+  function engineTacTest(cells, toMove) {
+    var m = [], x, y;
+    for (y = 0; y < N; y++) { m.push([]); for (x = 0; x < N; x++) m[y].push(0); }
+    (cells || []).forEach(function (c) {
+      if (m[c[1]] && m[c[1]][c[0]] !== undefined) m[c[1]][c[0]] = c[2];
+    });
+    var opp = 3 - toMove;
+    var plan = tacPlan(m, toMove, 2000);
+    var oppWin = plan.oppWin || [];
+    var oppFour = plan.oppFour || [];
+    var myFour = oppFour.length ? bOpenFourPoints(m, toMove) : [];
+    var ans = bMustAnswer(m, toMove, [{ x: 0, y: 0 }], oppWin, oppFour, myFour);
+    return {
+      oppWin: oppWin.length,
+      oppFour: oppFour.length,
+      ms: plan.ms,
+      why: plan.why,
+      ans: ans,
+    };
+  }
+  try { window.__gbTacTest = engineTacTest; } catch (e) {}
 
   function suspectTip(res) {
     var nb = (res && res.black && res.black.length) || 0;
@@ -1576,6 +1820,79 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     return out;
   }
 
+  // ★★ 2026-10-17 战术加固层（移植自练习器 calc.js 的 aiTurnBudget / mustAnswer /
+  //    nearStoneGuard —— 用户「智力上远不如 4.39」的机制就在这里）。
+  //    连线窗以前是**引擎裸输出**：固定 2 秒、不做必应、不做近点护栏。同样的引擎、
+  //    同样的 12 线程，练习器会「对手成五就加时 1.5×、必堵必应、开局不飞到天涯海角」，
+  //    连线窗全都没有 ⇒ 同一个局面连线显得更笨。加固只在**引擎给出候选之后**兜底，
+  //    因此永远不会把一个正常的好手强行换掉（只接管「明显必应/必赢」的情形）。
+  function bNearAny(m, x, y) {
+    for (var dy = -3; dy <= 3; dy++) for (var dx = -3; dx <= 3; dx++) {
+      var px = x + dx, py = y + dy;
+      if (px < 0 || py < 0 || px >= N || py >= N) continue;
+      if (m[py][px]) return true;
+    }
+    return false;
+  }
+
+  // 活四点 = 落子后同时形成 ≥2 个成五点（两路都成五，对手只能堵一路）
+  function bOpenFourPoints(m, side) {
+    var out = [];
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) {
+      if (m[y][x] || !bNearAny(m, x, y)) continue;
+      m[y][x] = side;
+      var w = findWinningFive(m, side);
+      m[y][x] = 0;
+      if (w.length >= 2) out.push([x, y]);
+    }
+    return out;
+  }
+
+  function bInList(list, x, y) {
+    for (var i = 0; i < (list || []).length; i++)
+      if (list[i][0] === x && list[i][1] === y) return true;
+    return false;
+  }
+
+  // 必应：① 行棋方成五点直接赢 ② 对手唯一成五点必堵 ③ 对手活四且本方无四 → 破活四
+  function bMustAnswer(m, toMove, cands, oppWin, oppFour, myFour) {
+    var myWin = findWinningFive(m, toMove);
+    if (myWin.length) return { x: myWin[0][0], y: myWin[0][1], why: 'win' };
+    function inCands(p) {
+      for (var i = 0; i < (cands || []).length; i++)
+        if (cands[i].x === p[0] && cands[i].y === p[1]) return true;
+      return false;
+    }
+    if (oppWin && oppWin.length === 1 && !inCands(oppWin[0]))
+      return { x: oppWin[0][0], y: oppWin[0][1], why: 'block5' };
+    if (oppFour && oppFour.length && !(myFour && myFour.length)) {
+      for (var i = 0; i < (cands || []).length; i++)
+        if (bInList(oppFour, cands[i].x, cands[i].y)) return null;   // 引擎已选破点
+      return { x: oppFour[0][0], y: oppFour[0][1], why: 'block4' };
+    }
+    return null;
+  }
+
+  // 近点护栏：开局（≤10 子）不把子下到离所有棋子 >3 的地方
+  function bNearGuard(m, x, y) {
+    var n = 0;
+    for (var j = 0; j < N; j++) for (var i = 0; i < N; i++) if (m[j][i]) n++;
+    if (n === 0 || n > 10) return true;
+    return bNearAny(m, x, y);
+  }
+
+  // 威胁感知预算（练习器 aiTurnBudget 同款）—— 一次性算好威胁，供预算与必应共用
+  function tacPlan(m, toMove, baseMs) {
+    var out = { ms: baseMs, why: '', oppWin: null, oppFour: null, decided: boardDecided(m) };
+    if (out.decided) return out;
+    out.oppWin = findWinningFive(m, 3 - toMove);
+    if (out.oppWin.length) { out.ms = Math.round(baseMs * 1.5); out.why = 'opp5'; return out; }
+    out.oppFour = bOpenFourPoints(m, 3 - toMove);
+    if (out.oppFour.length) { out.ms = Math.round(baseMs * 1.25); out.why = 'opp4'; return out; }
+    if (findWinningFive(m, toMove).length) { out.ms = Math.round(baseMs * 0.8); out.why = 'my5'; }
+    return out;
+  }
+
   function myIsToMove(bl, wh) {
     var toMoveIsBlack = bl.length <= wh.length;
     var iAmBlack = S.side === 0;
@@ -1622,6 +1939,15 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       var turnMsNow = S.turnMs || (adOn ? 2000 : 5000);
       
       if (adOn && /^[+-]?M\d/.test(S.myEval || '')) turnMsNow = Math.min(turnMsNow, 120);
+
+      // ── 威胁感知预算（练习器 aiTurnBudget 同款）：对手有成五点 → ×1.5；
+      //    对手有活四 → ×1.25；行棋方自己已成五点 → ×0.8（已必胜，快出即可）。
+      var tmc = (bl.length <= wh.length) ? 1 : 2;          // 行棋方颜色
+      var bmTac = boardMatrix(bl, wh);
+      var _tac = tacPlan(bmTac, tmc, turnMsNow);
+      turnMsNow = _tac.ms;
+      var _oppWin = _tac.oppWin, _oppFour = _tac.oppFour;
+      if (_tac.why) { try { bridgeDiag('LINK_TACTIC budget why=' + _tac.why + ' ms=' + turnMsNow); } catch (eTB) {} }
       
       var laneSlack = (swBusy || balBusy) ? (SWBAL_BUDGET_MS + 800) : 0;
       var res = await onMainLane(function () {
@@ -1636,8 +1962,9 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       });
       if (res && res.superseded) { postGuide(false); return; }   
       if (!res || res.error || !res.candidates || !res.candidates.length) {
+        try { engineDiagDump('analyze-empty'); } catch (eGD) {}
         try { if (window.chrome && window.chrome.webview)
-          window.chrome.webview.postMessage({ type: 'status', text: 'LINK_EVAL_EMPTY ' + (res && res.error ? String(res.error) : 'no candidates') });
+          tellHost({ type: 'status', text: 'LINK_EVAL_EMPTY ' + (res && res.error ? String(res.error) : 'no candidates') });
         } catch (eD) {}
         ui('setStatus', '<span style="color:#c0392b">' +
           (S.lang === 'en' ? 'Engine returned no move' : '引擎未返回着法') +
@@ -1658,6 +1985,29 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       ui('setStatPanel', S.lastStat.c0, 0);
       ui('drawChart');
       var best = res.best || [c0.x, c0.y];
+
+      // ── 必应兜底：只在引擎**给出候选之后**判断（练习器 mustAnswer 同款）。
+      //    ① 行棋方成五点 → 直接赢；② 对手唯一成五点而引擎没点 → 必堵；
+      //    ③ 对手活四且本方无四、引擎候选也没破点 → 破活四。
+      //    引擎正常给出好手时这里全部放行，不会覆盖。
+      if (!_tac.decided) {
+        var _myFour = (_oppFour && _oppFour.length) ? bOpenFourPoints(bmTac, tmc) : null;
+        var tac = bMustAnswer(bmTac, tmc, res.candidates, _oppWin, _oppFour, _myFour);
+        if (tac) {
+          best = [tac.x, tac.y];
+          try { bridgeDiag('LINK_TACTIC why=' + tac.why + ' -> ' + coordOf(tac.x, tac.y) +
+                           ' (engine ' + coordOf(c0.x, c0.y) + ')'); } catch (eT) {}
+        } else if (best && !bNearGuard(bmTac, best[0], best[1])) {
+          for (var ci = 0; ci < res.candidates.length; ci++) {
+            var cpx = res.candidates[ci];
+            if (bNearGuard(bmTac, cpx.x, cpx.y)) {
+              best = [cpx.x, cpx.y];
+              try { bridgeDiag('LINK_TACTIC why=near-guard -> ' + coordOf(best[0], best[1])); } catch (eT2) {}
+              break;
+            }
+          }
+        }
+      }
       
       lastBest = best;
       lastMainC0 = c0;
@@ -1698,8 +2048,9 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
           analyzeRetryTimer = setTimeout(tryRetry, 1500);
         }
       } else {
+        try { natEng().diag('analyze-fail'); } catch (eG) {}
         try { if (window.chrome && window.chrome.webview)
-          window.chrome.webview.postMessage({ type: 'status', text: 'LINK_EVAL_FAIL ' + String(errText(e)) });
+          tellHost({ type: 'status', text: 'LINK_EVAL_FAIL ' + String(errText(e)) });
         } catch (eD) {}
         
         ui('setStatus', '<span style="color:#c0392b">' +
@@ -1896,6 +2247,8 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
   var adRetryWatch = null, adRetryWatchN = 0; 
   var newGamePending = false;              
   var plyPrev = 0;                         
+  // ★ 2026-10-16：空盘「进入沿」只做一次清表/复位（空盘帧每 ~50ms 来一次，不能每次都清）。
+  var emptyResetDone = false;
 
   function adBtnSync() {
     var b = document.getElementById('__gb_autodrop'), c = document.getElementById('__gb_adcount');
@@ -2453,6 +2806,42 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     } finally { swEvalBusy = false; }
   }
 
+  // ★ 2026-10-16（用户：「检测到棋盘空的时候，应该重新清空置换表重新评估计算」）：
+  //   空盘 = 新一局 ⇒ ① 清引擎置换表（Rapfi 的 TT 跨局共用，不清就会让新局前几手
+  //   直接命中上一局的条目：曲线与推荐点「沿用上一局」）② 复位本地状态（曲线/推荐点/
+  //   热力/平衡标记）③ **不管执黑执白、也不管有没有选边**都要做。
+  //   以前这段在 `sideUnset()`、`!myIsToMove` 之后 —— 执白或还没选边时空盘什么都不做，
+  //   而且原实现只 resetForEmpty（本地缓存），从不碰引擎。
+  function handleEmptyBoard(bl, wh) {
+    if (!emptyResetDone) {
+      emptyResetDone = true;
+      newGamePending = true;
+      engineHardReset('empty-board');
+      resetForEmpty();
+      postGuide(false);
+      tellHost({ type: 'heat', on: false });
+      diag('[reset] empty board -> TT cleared, caches dropped');
+    }
+    if (sideUnset()) {
+      ui('setStatus', S.lang === 'en'
+        ? 'Board located (empty) — TT cleared, pick Black or White to start'
+        : '已定位棋盘（空盘）· 置换表已清空，请先选执黑或执白');
+    } else if (myIsToMove(bl, wh)) {
+      ui('setStatus', S.lang === 'en'
+        ? 'Board located (empty) — TT cleared, analysis starts after the first move'
+        : '已定位棋盘（空盘）· 置换表已清空，落子后自动分析');
+      if (adOn && S.side === 0) {
+        adLastPt = null;
+        adFire((N - 1) >> 1, (N - 1) >> 1, true, true);
+      }
+    } else {
+      ui('setStatus', S.lang === 'en'
+        ? 'Board located (empty) — TT cleared, waiting for the opponent to open'
+        : '已定位棋盘（空盘）· 置换表已清空，等待对手落子');
+    }
+    refreshHeatOverlay(bl, wh).catch(function () {});
+  }
+
   async function handleScan(res) {
     var ok = applyScan(res);
     paintFrame();
@@ -2522,6 +2911,11 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     
     if (balMarks.length && balSticky) return;
     
+    // ★ 2026-10-16：空盘处理提前到所有「有边/轮次」判断之前 —— 空盘就是新一局，
+    //   清置换表与复位不应该依赖「我方是否该走」「有没有选边」。
+    if (emptyNow) { handleEmptyBoard(bl, wh); return; }
+    emptyResetDone = false;
+    
     {
       var mEndPre = lastBoardMatrix();
       if (hasFiveOnBoard(mEndPre)) {
@@ -2581,26 +2975,15 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       }
     }
     
+    if (emptyNow) {
+      // （空盘已在前面提前处理并 return —— 这里保留判定只为可读性提示：不该到达）
+      return;
+    }
     if (!myIsToMove(bl, wh)) {
       waitOpponent();
       return;
     }
-    if (emptyNow) {
-      resetForEmpty();
-      
-      ui('setStatus', S.lang === 'en'
-        ? 'Board located (empty) — analysis starts after the first move'
-        : '已定位棋盘（空盘）· 落子后自动分析');
-      postGuide(false);                     
-      
-      if (adOn && S.side === 0) {
-        adLastPt = null;
-        adFire((N - 1) >> 1, (N - 1) >> 1, true, true);
-      }
-    } else {
-      
-      analyze(bl, wh);
-    }
+    analyze(bl, wh);
     
     refreshHeatOverlay(bl, wh).catch(function () {});
   }
@@ -2656,15 +3039,17 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
       if (typeof msg === 'string') { try { msg = JSON.parse(msg); } catch (e) { return; } }
       if (!msg) return;
       if (msg.type === 'engineAck') {
-        if (msg.id && engPending[msg.id]) { var r = engPending[msg.id]; delete engPending[msg.id]; r(msg); }
+        natEng().onAck(msg);                    // ★ 闭包内部分发（engPending 私有）
       }
-      else if (msg.type === 'engineOut') { applyEngineOut(msg); }
+      else if (msg.type === 'engineOut') { natEng().onOut(msg); }
       else if (msg.type === 'scan') {
         if (busy) return;                       
         busy = true;
         Promise.resolve(handleScan(msg.data)).finally(function () { busy = false; });
       }
       else if (msg.type === 'offline') { offline(); }
+      
+      else if (msg.type === 'setSide') { setSide(msg.v); }
       else if (msg.type === 'engineCfg') {
         
         cfgThreads = msg.threads | 0;
@@ -3032,10 +3417,42 @@ function LT(k) { var d = LBAL[S.lang === 'en' ? 'en' : 'zh'] || LBAL.zh; return 
     });
   }
 
+  // ★ 2026-10-16（用户：「变规则的时候不能顺利的切换规则而评估」）：
+  //   判据必须是「**引擎当前配置的规则**」而不是「上一次点击的值」—— 因为
+  //   calc.js 的 lkBridgeRule() 会先把 window.GB_S.rule 改成新值、再 click 面板按钮
+  //   （主界面 → 连线窗同步走的就是这条路）。若按「点击前后 S.rule 是否变化」判断，
+  //   那条路永远判定为「没变」⇒ 清表不会发生。这里记引擎侧真实生效的规则。
+  var lastEngineRule = (typeof engRuleOf === 'function') ? engRuleOf(S.rule) : null;
+  function syncEngineRule() {
+    var r = engRuleOf(S.rule);
+    if (lastEngineRule !== null && lastEngineRule !== r) {
+      newGamePending = true;
+      engineHardReset('rule-change ' + lastEngineRule + '->' + r);
+      lastEngineRule = r;
+      return true;
+    }
+    lastEngineRule = r;
+    return false;
+  }
+
   Array.prototype.forEach.call(document.querySelectorAll('[data-rule]'), function (el) {
     el.addEventListener('click', function () {
       S.rule = +el.getAttribute('data-rule');
-      saveNow(); ui('paintSel'); kickAnalyze();
+      saveNow(); ui('paintSel');
+      // 规则真的变了才清置换表重算 —— Rapfi 的置换表条目不分规则，旧规则下的分数会直接
+      // 污染新规则下的搜索（禁手/无禁手同一局面分数完全不同）。以前这里只 kickAnalyze()
+      // 直接重算，等于「用旧规则的记忆算新规则」⇒ 用户看到的就是「切了规则但评估没变」。
+      var ruleChanged = syncEngineRule();
+      // ★★ 2026-10-17（用户：「变规则的时候不能顺利的切换规则而评估」）：
+      //   换规则后**立刻**按新规则重算一次，不等下一帧视觉扫描。
+      //   原因：kickAnalyze() 自身**不发起** analyze —— 它只是把 lastBoardKey 清空、
+      //   forceScan 置位，真正的 analyze 由**下一帧 scan** 触发。而画面静止/未框选/
+      //   帧率低时识别不一定推帧 ⇒ 表现就是「选项高亮切过去了，评估数字一动不动」。
+      //   analyze() 里的 rule: engRuleOf(S.rule) 是调用时读取，所以这里发起的就是新规则。
+      if (ruleChanged && lastBl && (lastBl.length + lastWh.length) > 0) {
+        try { analyze(lastBl, lastWh); } catch (eAR) {}
+      }
+      kickAnalyze();
     });
   });
 

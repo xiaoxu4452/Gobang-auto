@@ -2,8 +2,8 @@
 #include <winver.h>
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION    4,40,0,0
- PRODUCTVERSION 4,40,0,0
+ FILEVERSION    4,41,0,0
+ PRODUCTVERSION 4,41,0,0
  FILEFLAGSMASK  0x3fL
  FILEFLAGS      0x0L
  FILEOS         0x40004L
@@ -16,12 +16,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "Meter"
             VALUE "FileDescription",  "Desktop Gomoku Trainer"
-            VALUE "FileVersion",      "4.40.0.0"
+            VALUE "FileVersion",      "4.41.0.0"
             VALUE "InternalName",     "Desktop GomokuTrainer"
             VALUE "LegalCopyright",   "Meter"
             VALUE "OriginalFilename", "Desktop GomokuTrainer.exe"
             VALUE "ProductName",      "Meter Gomoku Trainer"
-            VALUE "ProductVersion",   "4.40.0.0"
+            VALUE "ProductVersion",   "4.41.0.0"
         END
     END
     BLOCK "VarFileInfo"
