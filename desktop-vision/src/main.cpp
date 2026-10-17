@@ -1,19 +1,6 @@
 /* Vision - main. */
 
-// ★ 2026-10-13：**识别进程默认零 TCP**（用户：「识别进程去掉http」）。
-//   本进程首选的、也是我们这一版（连线版 / 独立版）唯一使用的通道是
-//   **命名管道 + 共享内存**（gbpipe.cpp）：
-//     \\.\pipe\GomokuVision.recognize.<port>   ← 识别
-//     \\.\pipe\GomokuVision.scan.<port>        ← 扫描/寻盘
-//   宿主（desktop-connect/src/host.cpp）本来就只走 VisPipeCall。
-//
-//   ★ 为什么不把 gbhttp.cpp 整个删掉：还有两个**老产品**把识别服务当 HTTP 用 ——
-//     · `desktop-overlay`（桌面版助手）宿主用 WinHTTP POST :8971；
-//     · `engine-server`（书签版）的**网页**从浏览器直接 POST :8970（所以当年才要
-//       Access-Control-Allow-Private-Network）。
-//     用户明确说过「发布的新鲜度只针对我们这个版本的软件，其他的软件不要动」，
-//     所以 HTTP 保留为**显式 opt-in**：只有 spawn 时置 `GB_VISION_HTTP=1` 才监听 TCP。
-//     我们这一版**从不设置**这个变量 ⇒ 我们的识别进程运行时**一个 TCP 端口都不开**。
+
 
 #include "gb.h"
 #include "gbhttp.h"
