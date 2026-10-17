@@ -408,12 +408,7 @@ tagDefend: '扫描防守', tagCalc: '计算评估', tagNbest: '多点分析',
     anBalBusy: '官方平衡搜索中…',
     anBalDone: '已给出 {n} 个平衡点：{list}',
     anBalEval: '（引擎判定这一手最平：|评估| ≈ {v}，≤ 50 才是官方平衡窗口内）',
-    // ★ 2026-10-13（用户）：「如果用户想在开局的时候定平衡点的话，应该要评估几个才合理」。
-    //   依据 = 中国五子棋竞赛规则(2025) 第 11 条 / RIF 指定开局：官方开局**只有三手**
-    //   （黑1 天元 · 白2 在以天元为中心的 3×3 内 · 黑3 在 5×5 内），所以开局评估 3 个点最合理；
-    //   第 4 手起进入白4(7×7)/黑5(9×9) 阶段（塔拉山口-10 走满 5 手），再多评估评估分就失真。
-    //   ★ 2026-10-13（用户：「这个提示文案是多条的，是灵活多变的，不应该只是一个大段话」）：
-    //     原来的单条长句拆成**短句池**，每次评估随机抽 1~2 条、分行显示（见 balOpenHintTxt）。
+    
     anBalOpenHints: [
       '官方指定开局只有 3 手（黑1 天元 · 白2 在 3×3 内 · 黑3 在 5×5 内），开局评估 3 个点最合理。',
       '天元是固定的第 1 手，不必评估；真正要搜的只有白 2 与黑 3 这两手。',
@@ -887,7 +882,7 @@ var S = {
   rule: 0,
   cores: 0, hashMB: 0,
   hashDefMig: false,          
-  coresDefault: '',           // ★ 线程默认口径迁移标记（'v439' = 已按「下拉上限」口径校正过一次）
+  coresDefault: '',          
   
   coach: false,
   
@@ -973,7 +968,7 @@ function setMissBox() {
   els.rvMiss.textContent = T('miss') + ' ' + n;
 }
 function resetGame(keepLoaded) {
-  engMsgClear();                               /* ★ 消息框（2026-10-16）：新局 / 重置时清空消息区 */
+  engMsgClear();                             
   G.moves = []; G.board = newBoard(); G.curve = [];
   clearHeat();                                 
   clearCoach();                                
@@ -2082,8 +2077,7 @@ var LocalAI = (function () {
       wk = null; booted = false;             
     },
     
-    // ★ 2026-10-17：用户点了分析（计算 / 扫描防守…）⇒ 立刻把这条车道让出来。
-    //   worker 收到 type:'stop' 会对该车道发 STOP 并作废其排队者，不等 AI 把这一手想完。
+    
     stopLane: function (lane) {
       if (!wk) return;
       try { wk.postMessage({ type: 'stop', lane: lane || 'main' }); } catch (e) {}
@@ -3052,14 +3046,7 @@ function paintLiveDash() {
   }
 }
 
-/* ★ 消息框（2026-10-16 重新设计，用户要求）：评估曲线上方那个「固定 4 行高的虚线框」里的消息。
-   此前所有消息都直接写 els.st_line.textContent —— 谁后写谁把前一条顶掉（引擎状态 / 最佳着法 /
-   提示互相覆盖，看不到上下文）。现在统一走 engMsgAdd()：
-     · 与上一行完全相同 → 不重复占行（paintLiveDash 每次刷新都在报「计算中 · tag」）；
-     · 只保留最近 ENG_MSG_MAX 条（新的在底部，旧的自动挤掉）并自动滚到底；
-     · 空 / null → 不动（空消息不该清空历史），要清空请显式调 engMsgClear()。
-   外框 #engMsg 的高度由 CSS 钉死 ⇒ 消息增减都不改变卡片高度，评估曲线不再上下抖动。
-   #st_line 仍是这些行的容器（既有读法 el.textContent 只是拿到多行拼接）。 */
+
 var ENG_MSG_MAX = 4;
 function engMsgAdd(msg) {
   var box = els.st_line;
@@ -3291,13 +3278,7 @@ function drawCurve() {
     return;
   }
 
-  // ★ 2026-10-13（用户：「在引擎仪表盘上面的评估曲线上带上子数的横坐标小数字」）：
-  //   横轴一直是**按手数线性铺**的（plot 里 x = x0 + (x1-x0) * p.i/maxPly），但轴上没有任何
-  //   刻度数字 —— 只能靠最右端那条「第 N 手」，看不出中间每个点是第几手。
-  //   这里补「子数刻度」：短刻度线 + 小号数字（9px，与纵轴字号一致）。
-  //   · 步长按可用宽度自动选（1/2/5/10/20/25/50 手），保证相邻标签至少隔 22px，不糊成一片；
-  //   · 首尾两个标签会按文字宽度夹回画布内，避免被裁半个字；
-  //   · 画在**滚动画布 #curve 上**（不是在左侧纵轴条上）⇒ 跟数据一起横向滚动、坐标永远对齐。
+ 
   (function drawPlyAxis() {
     if (maxPly <= 0 || x1 <= x0) return;
     var pxPerPly = (x1 - x0) / maxPly;
