@@ -5,13 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Meter Gomoku</title>
-<!-- ★ 2026-10-16：页面级错误上报。背景 —— 曾经出现「页面沉默」：宿主 serve 了 calc.html/css/js，
-     但渲染进程此后一个请求都没有、也收不到 {type:'ready'}，日志只剩
-     `main page still silent ... re-navigating`，**完全看不出为什么**。
-     有了这段，任何未捕获异常 / Promise 拒绝都会以 {type:'status', text:'JSERR …'} 发给宿主，
-     宿主日志里就能直接看到 `[msg] {"type":"status","text":"JSERR …"}`。
-     必须放在最前面（早于 calc.js），否则它自己抛出前注册不上。
-     实测：健康路径下宿主日志不会多出任何 JSERR 行。 -->
+
 <script>
 (function () {
   window.__gbErrs = [];
