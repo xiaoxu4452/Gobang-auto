@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>main</title><link rel="stylesheet" href="app.css">
+<style>html,body{margin:0;padding:0;overflow:hidden;pointer-events:none;user-select:none;-webkit-user-select:none}
+*{animation:none!important;transition:none!important;cursor:default!important}</style></head>
+<body data-theme="light" class="" style="--font: "Source Han Sans SC","Source Han Sans CN","Noto Sans SC","思源黑体","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif; --fontweight: 400; --fontstyle: normal; --logfont: "Source Han Sans SC","Source Han Sans CN","Noto Sans SC","思源黑体","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif; --logweight: 400; --logstyle: normal; --lbl-accent: rgb(47,154,224);">
+
+
+
+
+<header id="hdr">
+  <div class="brand">
+    <span id="t_title">Meter Gomoku</span><span class="ver" id="t_ver">v4.48</span>
+  </div>
+  <div class="hdr-actions">
+    <button id="btn_link" class="btn">连线</button>
+    <button id="btn_vis" class="btn">识图</button>
+    <button id="btn_review" class="btn">复盘</button>
+    <button id="btn_history" class="btn">历史</button>
+    <button id="btn_about" class="btn" data-tip="aboutTip" title="版本、使用方法、功能与开源许可">关于</button>
+    <button id="btn_settings" class="btn" title="设置">设置</button>
+  </div>
+</header>
+<main id="stage">
+  <div id="dockL" class="dock has" data-dock="L"><section class="card" data-id="engine">
+      <div class="card-h">
+        <span class="ttl" id="t_engine">引擎仪表盘</span>
+        <span class="grow"></span>
+        <span class="dash" data-tip="dragCard" title="按住标题栏可拖动换位；点击小横杠折叠 / 展开卡片"></span>
+        <button class="pinkey" data-tip="closeCard" data-pin="engine" title="关闭卡片">✕</button>
+      </div>
+      <div class="card-b">
+        <div class="grid2">
+          <div class="stat"><span class="k" id="t_depth">深度</span><span class="v" id="st_depth">18</span></div>
+          <div class="stat"><span class="k" id="t_speed">速度</span><span class="v" id="st_speed">2949129</span></div>
+          <div class="stat"><span class="k" id="t_nodes">节点</span><span class="v" id="st_nodes">548538</span></div>
+          <div class="stat"><span class="k" id="t_time">用时</span><span class="v" id="st_time">0.353 s</span></div>
+          <div class="stat"><span class="k" id="t_eval" title="">评估</span><span class="v"><span id="st_eval">+405</span></span></div>
+          <div class="stat"><span class="k" id="t_best">最佳</span><span class="v" id="st_best">i4</span></div>
+        </div>
+        <div class="curve-head"><span id="t_curveTtl">评估曲线</span></div>
+        <div id="curveWrap">
+          <canvas id="curveAxis" style="width: 30px; height: 216px; background-image: url(&quot;assets/main-zh-c0.png&quot;); background-size: 100% 100%; background-repeat: no-repeat;"></canvas>
+          <div id="curveScroll"><canvas id="curve" style="width: 208px; height: 216px; background-image: url(&quot;assets/main-zh-c1.png&quot;); background-size: 100% 100%; background-repeat: no-repeat;"></canvas><div id="curveHover" style="display: none;"></div></div>
+        </div>
+        <div class="curve-info" id="curveInfo">
+          <div class="ci cb" style="--wr: 88.34%;">
+            <span class="cih" id="t_blackCurve">黑子</span>
+            <span class="cir"><span class="k ci-score">分数</span><span class="v" id="ci_b_score">+405</span></span>
+            <span class="cir"><span class="k ci-win">胜率</span><span class="v" id="ci_b_win">88%</span></span>
+          </div>
+          <div class="ci cw" style="--wr: 11.66%;">
+            <span class="cih" id="t_whiteCurve">白子</span>
+            <span class="cir"><span class="k ci-score">分数</span><span class="v" id="ci_w_score">-405</span></span>
+            <span class="cir"><span class="k ci-win">胜率</span><span class="v" id="ci_w_win">12%</span></span>
+          </div>
+        </div>
+        <div class="eng-msg" id="engMsg">
+          <div class="line" id="st_line"></div>
+          <div class="pv-box" id="pvBox"><span class="pv-mv best" data-x="8" data-y="11" data-i="0" data-seq="1">i4</span><span class="pv-mv" data-x="8" data-y="10" data-i="1" data-seq="2">i5</span><span class="pv-mv" data-x="6" data-y="10" data-i="2" data-seq="3">g5</span><span class="pv-mv" data-x="9" data-y="9" data-i="3" data-seq="4">j6</span><span class="pv-mv" data-x="8" data-y="8" data-i="4" data-seq="5">i7</span><span class="pv-mv" data-x="9" data-y="7" data-i="5" data-seq="6">j8</span><span class="pv-mv" data-x="9" data-y="8" data-i="6" data-seq="7">j7</span><span class="pv-mv" data-x="10" data-y="8" data-i="7" data-seq="8">k7</span><span class="pv-mv" data-x="11" data-y="7" data-i="8" data-seq="9">l8</span><span class="pv-mv" data-x="11" data-y="9" data-i="9" data-seq="10">l6</span><span class="pv-mv" data-x="12" data-y="10" data-i="10" data-seq="11">m5</span><span class="pv-mv" data-x="6" data-y="5" data-i="11" data-seq="12">g10</span><span class="pv-mv" data-x="8" data-y="5" data-i="12" data-seq="13">i10</span><span class="pv-mv" data-x="5" data-y="4" data-i="13" data-seq="14">f11</span><span class="pv-mv" data-x="3" data-y="6" data-i="14" data-seq="15">d9</span><span class="pv-mv" data-x="10" data-y="9" data-i="15" data-seq="16">k6</span><span class="pv-mv" data-x="12" data-y="9" data-i="16" data-seq="17">m6</span><span class="pv-mv" data-x="7" data-y="4" data-i="17" data-seq="18">h11</span><span class="pv-mv" data-x="7" data-y="5" data-i="18" data-seq="19">h10</span><span class="pv-mv" data-x="8" data-y="3" data-i="19" data-seq="20">i12</span><span class="pv-mv" data-x="5" data-y="6" data-i="20" data-seq="21">f9</span><span class="pv-mv" data-x="10" data-y="7" data-i="21" data-seq="22">k8</span></div>
+        </div>
+        <div class="row col codeRow" id="codeRow">
+          <div class="codeHead">
+            <label id="t_code">局面代码</label>
+            <span class="grow"></span>
+            <button id="btn_copy" class="btn sq2 sym" title="复制" aria-label="复制"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.4" y="5.4" width="8.2" height="8.2" rx="1.5"></rect><path d="M10.6 5.4V3.8a1.5 1.5 0 0 0-1.5-1.5H3.8a1.5 1.5 0 0 0-1.5 1.5v5.3a1.5 1.5 0 0 0 1.5 1.5h1.6"></path></svg></button>
+            <button id="btn_paste" class="btn sq2 sym" title="粘贴并载入（回车也可载入）" aria-label="粘贴并载入（回车也可载入）"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.2" y="3.4" width="9.6" height="10.8" rx="1.6"></rect><path d="M6.1 3.4V2.7c0-.6.5-1.1 1.1-1.1h1.6c.6 0 1.1.5 1.1 1.1v.7"></path></svg></button>
+          </div>
+          <textarea id="inp_code" rows="4" spellcheck="false" placeholder="h8h9g7…" data-tip="codeTip" title="局面代码：小写列字母 + 行号，逐手拼接（与 gomocalc.com 同格式）"></textarea>
+        </div>
+      </div>
+    </section></div>
+  <aside id="visPane" hidden="">
+    <div class="vis-view" id="visView">
+      <div class="vis-imgbar">
+        <button id="btn_vis_upload" class="btn">上传图片</button>
+        <button id="btn_vis_shot" class="btn">屏幕截图</button>
+        <button id="btn_vis_crop" class="btn">裁剪</button>
+        <button id="btn_vis_prev" class="btn sq">&lt;</button>
+        <button id="visPos" class="pill vis-pill" title="点这里打开图片抽屉（选一张 / 移除）">0 / 0</button>
+        <button id="btn_vis_next" class="btn sq">&gt;</button>
+      </div>
+      <div class="vis-box" id="visBox">
+        <img id="visImg" alt="" hidden="">
+        <textarea id="visInput" spellcheck="false" wrap="soft"></textarea>
+        <button id="btn_vis_del" class="btn sq vis-del" title="移除这张" hidden="">✕</button>
+      </div>
+      <div class="vis-acts">
+        <button id="btn_vis_rec" class="btn accent">重新识别</button>
+        <button id="btn_vis_rc" class="btn" title="识别参数">识别参数</button>
+        <button id="btn_vis_load" class="btn">加载到练习</button>
+        <button id="btn_vis_vc" class="btn" title="算杀题模式：黑白子数不统一也可保存/加载（VCF/VCT 题面常见黑远多于白）；加载到练习后只预设进攻方，算杀由你点「VCF / VCT」自己开">VC 模式</button>
+        <button id="btn_vis_edit" class="btn">修改</button>
+      </div>
+      <div class="vis-rcbox" id="visRcBox" hidden=""></div>
+      <div class="vis-codebar" id="visCodeBar" hidden="">
+        <span class="hint vcl" id="t_visCode">棋盘代码</span>
+        <textarea id="visCode" spellcheck="false" wrap="soft" readonly=""></textarea>
+        <button id="btn_vis_codecopy" class="btn vd-mini">复制</button>
+      </div>
+      <div class="vis-msg hint" id="visMsg"></div>
+    </div>
+    <div id="visCrop" class="crop-mask" hidden="">
+      <div class="crop-panel" id="cropPanel">
+        <div class="crop-head">
+          <span class="ttl" id="t_visCropTitle">裁剪图片</span>
+          <span class="hint" id="t_visCropHint">拖动鼠标框选要保留的区域</span>
+          <span class="grow"></span>
+          <span class="hint" id="t_visCropSize"></span>
+        </div>
+        <div class="crop-stage" id="cropStage">
+          <canvas id="cropCanvas"></canvas>
+        </div>
+        <div class="crop-acts">
+          <button id="btn_crop_reset" class="btn">重置</button>
+          <span class="grow"></span>
+          <button id="btn_crop_cancel" class="btn">取消</button>
+          <button id="btn_crop_ok" class="btn accent">确定</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <aside id="visDrawer" hidden="">
+    <div class="vd-head">
+      <span class="ttl" id="t_visDrawer">图片</span>
+      <span class="hint" id="vdCount">0</span>
+      <span class="grow"></span>
+      <button id="btn_vd_sel" class="btn vd-mini">选择</button>
+      <button id="btn_vd_all" class="btn vd-mini">全选</button>
+      <button id="btn_vd_del" class="btn vd-mini danger">删除</button>
+      <button id="btn_vd_close" class="btn sq" data-tip="visDrawerClose" title="收起抽屉">✕</button>
+    </div>
+    <div id="vdList" class="vd-list"></div>
+    <div class="vd-tip hint" id="t_vdTip">点缩略图选中 · ✕ 移除 · 点空白上传</div>
+  </aside>
+  <section id="boardCol">
+    <div id="boardWrap"><canvas id="board" style="width: 753.332px; height: 753.332px; background-image: url(&quot;assets/main-zh-c3.png&quot;); background-size: 100% 100%; background-repeat: no-repeat;"></canvas></div>
+    <div id="visEditBar" hidden="">
+      <div class="ve-row">
+        <button id="btn_ve_swap" class="btn">交换黑白子</button>
+        <button id="btn_ve_del" class="btn">删除棋子</button>
+        <button id="btn_ve_fillb" class="btn">补充黑子</button>
+        <button id="btn_ve_fillw" class="btn">补充白子</button>
+        <button id="btn_ve_add" class="btn">添加黑白子</button>
+        <span id="veAddKeys" class="ve-pop" hidden="">
+          <button id="btn_ve_addb" class="btn">黑子开始</button>
+          <button id="btn_ve_addw" class="btn">白子开始</button>
+        </span>
+        <button id="btn_ve_undo" class="btn">撤销</button>
+      </div>
+    </div>
+    <div id="boardFoot">
+      <div class="bf-side bf-l">
+        <button id="btn_live" class="btn bfkey" title="">分析计算</button>
+      </div>
+      <div id="boardBtns">
+        <span class="bgroup nav-group">
+          <button id="btn_prev" class="btn ico" title="上一步">←</button>
+          <button id="btn_next" class="btn ico" title="下一步" disabled="">→</button>
+        </span>
+        <button id="btn_reset" class="btn">重新开始</button>
+        <button id="btn_pause" class="btn ico" title="点击：AI 辅助计算一次并落子一着">▶</button>
+        <button id="btn_save" class="btn">保存局面</button>
+        <span class="bgroup lay-group">
+          <button id="btn_rot" class="btn ico" title="整体棋子顺时针旋转 90°（坐标轴不动）">↻</button>
+          <button id="btn_mirror" class="btn ico" title="翻转棋子布局">⇄</button>
+          <button id="btn_shift" class="btn ico" title="局面步进（整体平移一格）">✥</button>
+        </span>
+      </div>
+      <div id="mirrorPop" hidden="">
+        <span class="sp-ttl" id="t_mirrorTtl">翻转棋子布局</span>
+        <span class="sp-btns">
+          <button id="btn_mv_fv" class="btn" title="左右翻转">左右</button>
+          <button id="btn_mv_fh" class="btn" title="上下翻转">上下</button>
+          <button id="btn_mv_d1" class="btn" title="对角翻转（左上↔右下）">╲</button>
+          <button id="btn_mv_d2" class="btn" title="对角翻转（右上↔左下）">╱</button>
+          <button id="btn_mv_close" class="btn ico" title="关闭">✕</button>
+        </span>
+      </div>
+      <div id="shiftPop" hidden="">
+        <span class="sp-ttl" id="t_shiftTtl">局面平移</span>
+        <span class="sp-btns">
+          <button id="btn_mv_left" class="btn ico" title="整体向左平移一格">←</button>
+          <button id="btn_mv_up" class="btn ico" title="整体向上平移一格">↑</button>
+          <button id="btn_mv_down" class="btn ico" title="整体向下平移一格">↓</button>
+          <button id="btn_mv_right" class="btn ico" title="整体向右平移一格">→</button>
+          <button id="btn_shift_close" class="btn ico" title="关闭">✕</button>
+        </span>
+      </div>
+      <div id="aiSidePop" hidden="">
+        <span class="ai-grp">
+          <button id="ai_side_b" data-ai="b" class="tglbtn"><span class="tgl"><i></i></span><span class="tgl-txt">AI 执黑</span></button>
+          <button id="ai_side_w" data-ai="w" class="tglbtn"><span class="tgl"><i></i></span><span class="tgl-txt">AI 执白</span></button>
+        </span>
+        <span class="ai-grp">
+          <span class="ai-turn" id="t_aiTurn">思考时间</span>
+          <span class="numbox ainum">
+            <input id="num_turn2" type="number" min="0.2" max="300" step="0.1" value="2">
+            <span class="unit">s</span>
+          </span>
+        </span>
+        <button id="btn_ai_close" class="btn ico" title="关闭">✕</button>
+      </div>
+      <div class="bf-side bf-r">
+        <button id="btn_aiside" class="btn bfkey">AI 执子</button>
+      </div>
+    </div>
+    <div id="openBar" hidden=""><span class="hint" id="openHint"></span>
+      <button id="btn_ten" class="btn" hidden="">十打（叫 10 个候选点）</button><button id="btn_balcall" class="btn" hidden="" title="按官方平衡搜索（YXBALANCE）自动叫点">平衡打点</button><span id="yamaDecl" hidden=""><button class="btn">1</button><button class="btn">2</button><button class="btn">3</button><button class="btn">4</button><button class="btn">5</button><button class="btn">6</button><button class="btn">7</button><button class="btn">8</button><button class="btn">9</button><button class="btn">10</button></span><span id="taraSwap" hidden=""><button id="btn_tara_yes" class="btn">换手</button><button id="btn_tara_no" class="btn">继续</button></span></div>
+    <div id="egBar" hidden="">
+      <button id="btn_eg_ok" class="btn">确定</button>
+      <button id="btn_eg_seq" class="btn">顺序摆盘</button>
+      <button id="btn_eg_free" class="btn">任意摆盘</button>
+      <span id="egKeys" hidden="">
+        <button id="btn_eg_b" class="btn">黑子</button>
+        <button id="btn_eg_w" class="btn">白子</button>
+      </span>
+    </div>
+    <div id="swapPop" class="swappop" hidden="">
+      <span class="sp-ttl" id="t_swapTtl">交换完成 · 请选择你的先后手</span>
+      <span class="sp-btns">
+        <button id="btn_swap_first" class="btn">先手 · 执黑</button>
+        <button id="btn_swap_second" class="btn">后手 · 执白</button>
+      </span>
+    </div>
+    <div id="rvBar" hidden="">
+      <span id="rvGroup" hidden="">
+        <button id="btn_recite" class="btn">背诵复盘</button>
+        <button id="btn_replay" class="btn">回顾复盘</button>
+        <span id="rvMiss" class="missbox">背错 0</span>
+        <button id="btn_rv_prev" class="btn sq" data-tip="prev" hidden="" title="上一步">◀</button>
+        <span class="pill" id="rvPos" hidden="">0 / 0</span>
+        <button id="btn_rv_next" class="btn sq" data-tip="next" hidden="" title="下一步">▶</button>
+        <button id="btn_rv_play" class="btn sq" hidden="">播放</button>
+        <select id="rvSpeed" hidden="" data-tip="rvSpeedTtl" title="单步间隔 0.5~5 秒">
+          <option value="0.5">0.5s</option>
+          <option value="1">1s</option>
+          <option value="1.5">1.5s</option>
+          <option value="2">2s</option>
+          <option value="3">3s</option>
+          <option value="4">4s</option>
+          <option value="5">5s</option>
+        </select>
+        <button id="btn_rv_exit" class="btn" hidden="">退出复盘</button>
+      </span>
+      <button id="btn_rv_num" class="btn" title="在棋子上标出它是第几手 · Ctrl+Z 上一手 · Ctrl+R 重来（回到开局）">序号</button>
+      <button id="btn_redo_rv" class="btn">重来</button>
+      <button id="btn_save_rv" class="btn">保存局面</button>
+      <button id="btn_rv_hist" class="btn">历史</button>
+    </div>
+  </section>
+  <div id="dockR" class="dock has" data-dock="R">
+    <section class="card" data-id="setup">
+      <div class="card-h">
+        <span class="ttl" id="t_setup">对局设置</span>
+        <span class="grow"></span>
+        <span class="dash" data-tip="dragCard" title="按住标题栏可拖动换位；点击小横杠折叠 / 展开卡片"></span>
+        <button class="pinkey" data-tip="closeCard" data-pin="setup" title="关闭卡片">固定</button>
+      </div>
+      <div class="card-b">
+        <div class="sec" data-sec="game">
+          <div class="sec-h"><span class="sec-t" id="t_secGame">对局</span></div>
+          <div class="sec-b">
+        <div id="modeGrp">
+          <div class="row head"><label id="t_mode">模式</label>
+            <div class="seg s3" id="seg_mode">
+              <button data-mode="pve" class="on">对弈</button>
+              <span class="subseg">
+                <button data-mode="place">摆盘</button>
+                <button data-mode="endgame">残局</button>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div id="sideGrp">
+          <div class="row head"><label id="t_side">AI 执子</label>
+            <div class="seg s2" id="seg_side">
+              <button data-ai="b" class="tglbtn" aria-pressed="false"><span class="tgl"><i></i></span><span class="tgl-txt">AI 执黑</span></button>
+              <button data-ai="w" class="tglbtn" aria-pressed="false"><span class="tgl"><i></i></span><span class="tgl-txt">AI 执白</span></button>
+            </div>
+          </div>
+          <div class="row"><span class="hint" id="sideHint">两个都不开：没有 AI，黑白双方都由你自己下</span></div>
+        </div>
+        <div class="row" id="turnRow"><label id="t_turn">思考时间</label>
+          <span class="field">
+            <span class="numbox">
+              <input id="num_turn" type="number" min="0.2" max="300" step="0.1" value="2">
+              <span class="unit">s</span>
+            </span>
+          </span>
+        </div>
+        <div class="row"><label id="t_bgThink">后台思考</label>
+          <button id="btn_bgThink" class="tglbtn" type="button" aria-pressed="false"><span class="tgl"><i></i></span></button>
+          <span class="hint" id="t_bgThinkHint" data-base="轮到你思考时，引擎在后台继续深算这一局面，你一落子就能更快给出应对">轮到你思考时，引擎在后台继续深算这一局面，你一落子就能更快给出应对</span>
+        </div>
+        <div class="row"><label id="t_dynTime">动态时间</label>
+          <button id="btn_dynTime" class="tglbtn on" type="button" aria-pressed="true"><span class="tgl"><i></i></span></button>
+          <span class="hint" id="t_dynTimeHint">自动分配每手思考时间：总时限充裕时用满设定，接近用光才提前收手，不会算超时</span>
+        </div>
+        <div class="row"><label id="t_rule">规则</label>
+          <select id="sel_rule">
+            <option value="0">无禁手</option>
+            <option value="1">无禁手 · 长连不赢</option>
+            <option value="2">连珠（有禁手）</option>
+          </select>
+        </div>
+        <div class="row"><span class="hint" id="ruleHint">无禁手：连成五子（含长连）即胜。最自由。</span></div>
+          </div>
+        </div>
+        <div class="sec" data-sec="engine">
+          <div class="sec-h"><span class="sec-t" id="t_secEngine">引擎</span></div>
+          <div class="sec-b">
+        <div class="row"><span class="hint" id="sysInfo"><div class="ab-sys"><div class="ab-sys-c"><div class="ab-sys-t">处理器</div><div class="ab-sys-v">AMD Ryzen 7 8845H w/ Radeon 780M Graphics</div><div class="ab-sys-s">8 核 16 线程 · 3.79GHz · L1 32KB · L2 1MB · L3 16MB</div></div><div class="ab-sys-c"><div class="ab-sys-t">指令集</div><div class="ab-sys-v">AVX2 ✓ · AVX-512 ✓ · VNNI ✓</div><div class="ab-sys-s">引擎变体 avx512vnni（原生引擎 · 实测最快）</div></div><div class="ab-sys-c"><div class="ab-sys-t">系统内存</div><div class="ab-sys-v">31.3 GB</div><div class="ab-sys-s">已用 49% · 可用 15.7 GB</div></div></div><div class="ab-lic">Windows 10 Pro for Workstations (build 28000) · 磁盘可用 269GB</div></span></div>
+        <div class="grp" id="powerGrp">
+        <div class="row"><label id="t_cores">线程数</label>
+          <select id="sel_cores"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8" selected="">8</option></select>
+          <span class="hint" id="coresHint">本机 16 线程 · 上限 8</span>
+        </div>
+        <div class="row"><label id="t_hash">哈希表</label>
+          <select id="sel_hash"><option value="128">128 MB</option><option value="256">256 MB</option><option value="512">512 MB</option><option value="1024" selected="">1024 MB</option><option value="1536">1536 MB</option><option value="2048">2048 MB</option><option value="2560">2560 MB</option><option value="3072">3072 MB</option><option value="3584">3584 MB</option><option value="4096">4096 MB</option></select>
+        </div>
+        </div>
+        <div class="grp" id="buildGrp">
+        <div class="row"><label id="t_variant">引擎变体</label>
+          <select id="sel_variant"><option value="" selected="" title="自动：按本机指令集 + 实测吞吐选最快（推荐）">自动（推荐）</option><option value="avx512vnni" title="AVX-512 VNNI：宽向量 + int8 点积，现代 CPU 通常最快">AVX-512 VNNI</option><option value="avx512" title="AVX-512：无 int8-VNNI 路径；Zen4 上与 VNNI 相当">AVX-512</option><option value="avx2" title="AVX2：无 512 位路径，本系列权重下明显偏慢（约 1/3 速度）">AVX2</option><option value="sse" title="SSE：最老兜底，仅应急">SSE</option></select>
+          <span class="hint" id="variantHint">自动：按本机指令集 + 实测吞吐选最快（推荐） · 本机实测最快：avx512vnni</span>
+        </div>
+        <div class="row"><label id="t_weights">引擎权重</label>
+          <select id="sel_weights"><option value="nnue" selected="">NNUE（准确）</option><option value="classic">传统估值（快）</option></select>
+          <span class="hint" id="weightsHint">NNUE 评估更准；传统估值更快，快棋更划算</span>
+        </div>
+        </div>
+        <div class="grp" id="searchGrp">
+        <div class="row"><label id="t_candRange">选点范围</label>
+          <select id="sel_candRange" title="越大越不容易漏点，同时间算得更浅"><option value="0">0 · 最窄（5×5）</option><option value="1">1 · 偏窄（5×5+3线）</option><option value="2">2 · 中性（7×7）</option><option value="3" selected="">3 · 推荐（7×7+4线）</option><option value="4">4 · 偏宽（9×9）</option><option value="5">5 · 最宽（全盘）</option></select>
+          <span class="hint" id="candRangeHint">越大越不容易漏点，同时间算得更浅</span>
+        </div>
+        <div class="row"><label id="t_multiPv">分析点数</label>
+          <select id="sel_multiPv"><option value="1">1 个点</option><option value="2">2 个点</option><option value="3" selected="">3 个点</option><option value="4">4 个点</option><option value="5">5 个点</option><option value="6">6 个点</option><option value="7">7 个点</option><option value="8">8 个点</option></select>
+          <span class="hint" id="multiPvHint">「分析计算」最多给出的点数（与分析面板同一设置）</span>
+        </div>
+        <div class="row"><label id="t_maxDepth">最大深度</label>
+          <span class="duo"><select id="sel_maxDepth" title="4 ~ 128 的整数，留空 = 不限"><option value="0">不限</option><option value="24">24</option><option value="32">32</option><option value="40">40</option><option value="48">48</option><option value="56">56</option><option value="64">64</option><option value="72">72</option><option value="88">88</option><option value="100" selected="">100</option></select><input id="inp_maxDepth" class="num-in" type="number" min="4" max="128" step="1" inputmode="numeric" placeholder="不限" title="4 ~ 128 的整数，留空 = 不限"></span>
+        </div>
+        <div class="row"><label id="t_maxNodes">最大节点</label>
+          <span class="duo"><select id="sel_maxNodes" title="0.1 ~ 4096（单位 M），留空 = 不限"><option value="0" selected="">不限</option><option value="16000000">16M</option><option value="64000000">64M</option><option value="128000000">128M</option><option value="256000000">256M</option><option value="512000000">512M</option><option value="768000000">768M</option><option value="1024000000">1024M</option></select><input id="inp_maxNodes" class="num-in" type="number" min="0.1" max="4096" step="0.1" inputmode="decimal" placeholder="不限" title="0.1 ~ 4096（单位 M），留空 = 不限"><span class="unit">M</span></span>
+        </div>
+        </div>
+        <div class="row"><span class="hint" id="hashInfo"><div class="si-r"><span class="si-k">独占</span><span class="si-v">整档 1024MB 给当前事件（落子 / 分析二选一）</span></div><div class="si-r"><span class="si-k">待机</span><span class="si-v">其余车道各 64MB 保活</span></div><div class="si-r"><span class="si-k">占用</span><span class="si-v">合计 1152MB · 系统内存 31.3GB · 可用 15.7GB · 占内存 3.6%</span></div></span></div>
+          </div>
+        </div>
+        <div class="sec" data-sec="view">
+          <div class="sec-h"><span class="sec-t" id="t_secView">棋盘显示</span></div>
+          <div class="sec-b">
+        <div class="row"><label id="t_showNum">显示序号</label>
+          <input id="chk_num" class="chk-dot" type="checkbox">
+          <span class="hint" id="t_showNumHint">棋子上标出第几手</span>
+        </div>
+        <div class="row"><label id="t_preview">预览框</label>
+          <input id="chk_preview" class="chk-dot" type="checkbox">
+          <span class="hint" id="t_previewHint">鼠标悬停时显示的圆角方框</span>
+        </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="card" data-id="analysis">
+      <div class="card-h">
+        <span class="ttl" id="t_analysis">计算评估</span>
+        <span class="grow"></span>
+        <span class="dash" data-tip="dragCard" title="按住标题栏可拖动换位；点击小横杠折叠 / 展开卡片"></span>
+        <button class="pinkey" data-tip="closeCard" data-pin="analysis" title="关闭卡片">固定</button>
+      </div>
+      <div class="card-b">
+        <div class="anbtns">
+          <button id="btn_an_calc" class="btn" title="">分析计算</button>
+          <button id="btn_an_defend" class="btn">扫描防守</button>
+          <span class="dashed-group">
+          <button id="btn_an_bal" class="btn" title="持续平衡搜索；再点一次自动落子">平衡点</button>
+          <span class="hint" data-i18n="anBalLabel">点数</span>
+          <select id="btn_an_baln" class="sel" title="平衡点数（1~6，空盘固定 3）"><option value="1">1</option><option value="2" selected="">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>
+          </span>
+          <button id="btn_fwd_clear" class="btn wide" data-i18n="fwdClear" title="清除计算 / 平衡点 / 扫描防守 / 前瞻 · VCF · VCT 留在棋盘上的所有标记（不动局面）">清除计算</button>
+        </div>
+        <div class="fwdbox" id="fwdBox">
+          <div class="fwd-h">
+            <button id="btn_fwd" class="btn fwdkey" data-i18n="fwd">前瞻</button>
+            <button id="btn_fwd_vcf" class="btn fwdkey fwdmini" data-i18n="fwdFindVcf">VCF</button>
+            <button id="btn_fwd_vct" class="btn fwdkey fwdmini" data-i18n="fwdFindVct">VCT</button>
+            <span class="grow"></span>
+            <button id="btn_fwd_prev" class="btn sq2">&lt;</button>
+            <button id="btn_fwd_next" class="btn sq2">&gt;</button>
+          </div>
+          <div class="fwd-h fwd-h2">
+            <span class="fwd-lg" id="fwdLg" title="进攻方指示框（不可点）：紫框 = 黑子，浅蓝框 = 白子；自动 = 轮走方（算杀题面 = 子多一方）">
+              <span class="lgr lgfr-b" id="fwdLgB"><em data-i18n="fwdBlack">黑子</em></span>
+              <span class="lgr lgfr-w" id="fwdLgW"><em data-i18n="fwdWhite">白子</em></span>
+            </span>
+            <span class="grow"></span>
+            <button id="btn_fwd_ok" class="btn fwdok" data-i18n="fwdOk">确定</button>
+          </div>
+          <div class="fwd-body" id="fwdBody"><span class="hint" id="fwdMsg">点「前瞻」，从当前残局自动推演到五子连珠</span></div>
+          <div class="fwd-seq" id="fwdSeq"></div>
+        </div>
+        <div class="row nbestRow"><label id="t_nbest">分析点数</label>
+          <input id="num_nbest" type="number" min="1" max="8" step="1" value="3">
+        </div>
+      </div>
+    </section>
+    
+  </div>
+</main>
+<div id="drawer" hidden="">
+  <div class="dr-head">
+    <div class="tabs">
+      <button class="tab on" data-tab="hist" id="t_history">历史</button>
+      <button class="tab" data-tab="saved" id="t_saved">保存历史</button>
+      <button id="dr_all" class="btn dr-allbtn">全部选中</button>
+    </div>
+    <span class="grow"></span>
+    <span class="hint" id="drCount">3 / 150</span>
+  </div>
+  <div class="dr-actions">
+    <button id="dr_open" class="btn">打开</button>
+    <button id="dr_save" class="btn accent">保存选中</button>
+    <button id="dr_del" class="btn danger">删除</button>
+    <button id="dr_imp" class="btn">导入</button>
+    <button id="dr_exp" class="btn">导出</button>
+    <button id="dr_close" class="btn">关闭</button>
+  </div>
+  <div class="dr-tip hint" id="t_drTip">勾选若干局，点「保存选中」→ 永久存入「保存历史」</div>
+  <div id="drList" class="dr-list"><div class="item" data-idx="2"><input type="checkbox"><span class="no">#3</span><span class="nm"></span><span class="src">本机</span><span>2026/11/2 19:07:30</span><span class="m">8 手</span></div><div class="item" data-idx="1"><input type="checkbox"><span class="no">#2</span><span class="nm"></span><span class="src">本机</span><span>2026/11/2 19:01:02</span><span class="m">12 手</span></div><div class="item" data-idx="0"><input type="checkbox"><span class="no">#1</span><span class="nm"></span><span class="src">本机</span><span>2026/11/2 18:58:20</span><span class="m">12 手</span></div></div>
+</div>
+<div id="about" class="modal" hidden="">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title" id="t_about">关于</span>
+      <span class="grow"></span>
+      <button id="ab_close" class="btn">关闭</button>
+    </div>
+    <div id="ab_body" class="modal-body"><div class="ab-app">Meter Gomoku</div><div class="ab-ver">版本 <b>v4.48</b></div><div id="abSys"><div class="ab-h2">系统信息</div><div class="ab-sys"><div class="ab-sys-c"><div class="ab-sys-t">处理器</div><div class="ab-sys-v">AMD Ryzen 7 8845H w/ Radeon 780M Graphics</div><div class="ab-sys-s">8 核 16 线程 · 3.79GHz · L1 32KB · L2 1MB · L3 16MB</div></div><div class="ab-sys-c"><div class="ab-sys-t">指令集</div><div class="ab-sys-v">AVX2 ✓ · AVX-512 ✓ · VNNI ✓</div><div class="ab-sys-s">引擎变体 avx512vnni（原生引擎 · 实测最快）</div></div><div class="ab-sys-c"><div class="ab-sys-t">系统内存</div><div class="ab-sys-v">31.3 GB</div><div class="ab-sys-s">已用 49% · 可用 15.7 GB</div></div></div><div class="ab-lic">Windows 10 Pro for Workstations (build 28000) · 磁盘可用 269GB</div></div><div class="ab-h2">使用方法</div><div class="ab-g-sec"><div class="ab-g-t">一、开始一盘棋</div><p class="ab-g-p">顶部「对局设置」里选模式：对弈（AI 自动应答）/ 摆盘（自由摆子，AI 完全不参与）/ 残局（自己摆一个局面来研究）。</p><p class="ab-g-p">「思考时间」= AI 每手思考多少秒（内部按毫秒交给引擎）；时间越长棋力越强，热力与指导视图的色档也随它变化。</p><p class="ab-g-p">「AI 执子」是两个独立开关：只开「AI 执黑」→ 你执白；只开「AI 执白」→ 你执黑并开第一手；两个都开 → AI 与 AI 自打；两个都关 → 没有 AI，黑白双方都由你自己下。</p><p class="ab-g-p">棋盘上直接点击落子。中间那颗 ▶ / ❚❚ 键：空闲时点它 = 让 AI 立刻替当前行棋方算一手并落下；AI 正在思考时点它 = 暂停。</p><p class="ab-g-p">「重新开始」先把当前这局自动存进历史再清盘；「保存局面」手动把当前盘面存入历史。</p></div><div class="ab-g-sec"><div class="ab-g-t">二、残局模式（自己摆一个局面来研究）</div><p class="ab-g-p">棋盘下方三个键：「确定」/「顺序摆盘」/「任意摆盘」。顺序摆盘 = 黑白轮流落子；任意摆盘 = 点开右边的圆角小框，选「黑子」或「白子」后可连续摆这一色，数量与顺序都不限（比如 30 个黑子 + 10 个白子）。</p><p class="ab-g-p">选中「黑子」键变浅紫、「白子」键变浅白蓝，一眼看得出正在摆哪一色。</p><p class="ab-g-p">摆好后点最左边的「确定」→ 残局定下来，键变浅绿并显示「已确定」；此后「重新开始」会回到这个局面，存进历史时它也是首帧。再点一次「已确定」即解除，可重新摆。</p><p class="ab-g-p">残局模式下 AI 全程不参与（辅助一手、热力、指导视图都停摆），交换手类规则自动变灰 —— 摆盘研究不需要换先。</p></div><div class="ab-g-sec"><div class="ab-g-t">三、计算评估</div><p class="ab-g-p">「计算」= 单路深搜当前局面并把最佳点标在棋盘上（再点一次 = 停止计算）；「多点分析」按「分析点数」一次给出 2~8 个候选，圆圈里是名次与评估分。</p><p class="ab-g-p">「平衡点」= 官方平衡搜索（引擎原生 YXBALANCETWO 成对，不是对弈引擎的搜索）按你选的「点数」给出黑白双方都没有明显优势的候选点，并把引擎给的评估分一并报出来（|评估| ≤ 50 才是官方平衡窗口内的「平」；评估刻度 ScalingFactor=200 ⇒ 胜率 = sigmoid(评估/200)）；「点数」可在 1~6 之间切换（空盘固定 3 个：黑 1 固定天元，白 2 / 黑 3 由一次成对平衡搜索联合给出 —— 成对搜索才是官方口径的「平」，单点搜索在近乎空盘上评估会到 −350~−470，那是「一眼看出谁占优」的根源）；点数为奇数时收尾那手也走成对搜索、只取这一对的第 1 手，所以报出的评估分同样在 0 附近；「扫描防守」= 引擎原生 YXSEARCHDEFEND（Rapfi 整合包同一算法）：先补一手 PASS 把行棋方让给对手，再对全盘候选点持续深算 —— 每个点的 % 就是「对手下在这里」的胜率，越高越要防；棋盘按危险度分五档：1 档最大圆环 + 半透明填充，2~4 档圆环依次减小、透明度依次升高（最小圆环 = 1 档的一半），5 档（边角 / 低危点）只铺一个数字、外围一圈更细的小环（大小与 4 档一致），像扫盘一样铺开；整套配色为天蓝色系（高危深、低危偏白）；搜索越算越深、越算越准，点「停止扫描」后最后一帧保留在棋盘上，落子或「清除计算」才消失。</p><p class="ab-g-p">「AI 视图」= AI 思考期间在棋盘上铺它的候选点（圆形、格内是评估分），AI 一落子就撤掉；「指导视图」= 轮到你时用方形四色提示最佳落点，你一落子就消失。</p><p class="ab-g-p">「分析计算」= 棋盘下方的开关型功能键：开启后在主车道持续深算当前局面，铺出引擎当前榜单（最佳点+候选，最多 8 个）；随搜索加深自然微变并收敛，用户落子 / 悔棋自动重开会话，仪表盘用时跨轮累加；再点一次 = 停止。摆盘 / 残局 / 双人手动对弈同样可用。</p><p class="ab-g-p">「清除计算」与「计算」并排：一键擦掉本卡里任意项目留在棋盘上的标记 —— 计算 / 多点分析 / 平衡点的徽标与评估分、扫描防守的五档圆环与百分比，以及前瞻 · VCF · VCT 的序号、虚线与代码链；只清标记，不动局面本身。</p><p class="ab-g-p">仪表盘同步给出深度、速度、节点、用时与评估分；下方评估曲线按黑 / 白两条记录整局走势（纵轴随分数自动进位）。</p></div><div class="ab-g-sec"><div class="ab-g-t">四、前瞻 / VCF / VCT</div><p class="ab-g-p">「前瞻」从当前局面逐手推演，一路走到盘面真的五子连珠才结束 —— 不凭引擎的胜负判断提前定性（最坏情况是铺满棋盘判和）。第一手会加强全局计算来找突破口，提示栏同时给出预计耗时区间。</p><p class="ab-g-p">「VCF」= 连续冲四必胜搜索；「VCT」= 冲四 + 活三连续威胁搜索。两者都跑本地算杀器（多线程并行 + 迭代加深），命中即给出必胜线；没命中会明确告知「所选进攻方不存在该强制杀」。选了 VCF / VCT 时边走边回探，一能接手就切进杀棋序列。</p><p class="ab-g-p">点「黑子 / 白子」框 = 指定算杀的进攻方（进攻训练选己方色，防守预判选对手色），再点一下取消。</p><p class="ab-g-p">推演子是半透明的：数字 = 第几手；悬浮代码链可预览到那一手，点击代码选中、「确定」把这一段落到棋盘（之后还能接着往下确定）。</p><p class="ab-g-p">推演每一步都做必应校验：能连五就连五、对手只差一手成五就必堵、对手活三而自己无四则必应 —— 防守方不会白白送掉杀棋。</p></div><div class="ab-g-sec"><div class="ab-g-t">五、复盘与历史</div><p class="ab-g-p">「历史」抽屉列出保存的局面：单击选中（↑↓ 移动、Enter 打开），右键菜单可打开复盘 / 重命名 / 导出这一局 / 存入「保存历史」/ 删除；支持 Ctrl / Shift 多选与 txt 导入导出。</p><p class="ab-g-p">顶栏「复盘」= 打开一个只有棋盘的独立窗口（不连 AI，也不参与主窗的其他功能）；从历史打开的一局可以用「背诵复盘 / 回顾复盘」逐手走。VC / 残局记录打开时以整盘为首帧，不必从第一手重放。</p></div><div class="ab-g-sec"><div class="ab-g-t">六、识图（Gomoku Vision）</div><p class="ab-g-p">「上传图片 / 截图」→ 选框自动贴住棋盘（并向外多留约棋盘 1/30 的余量，边缘棋子完整进图）→「识别」；结果同步成局面代码，可复制、也可载入练习。</p><p class="ab-g-p">「修改」= 人工微调：交换黑白子（点一黑一白即互换）、删除棋子、补充黑子 / 白子；Ctrl+Z 撤销。</p><p class="ab-g-p">「VC 模式」= 算杀题模式：黑白子数可以不等，补充黑 / 白子不限数量、删除棋子任意删，左侧提示栏逐条说明。载入练习后自动切成残局模式，只预设进攻方（子多的一方），算杀不会自动开 —— 点「VCF」或「VCT」由你自己决定。</p><p class="ab-g-p">「裁剪」可在识别前先框选图片区域；每次上传的图片自动进「图片抽屉」（超过 150 张清最老），支持多选、删除与复制。</p></div><div class="ab-g-sec"><div class="ab-g-t">七、规则与外观</div><p class="ab-g-p">规则：无禁手 / 无禁手 · 长连不赢 / 连珠（有禁手，黑方三三、四四、长连禁手）；前瞻与算杀都跟随所选规则。</p><p class="ab-g-p">「EN / 中」一键切换全界面语言（含识图截图框的按键与历史日期格式）；「主题」打开主题窗（20 套主题 + 自定义调色板）；右栏卡片可拖动换位、点小横杠折叠，布局自动记忆。</p></div><div class="ab-g-sec"><div class="ab-g-t">八、连线功能（对战平台 / 外部棋局）</div><p class="ab-g-p">打开与框选：顶部「连线」键打开连线窗 → 点「框选棋盘」在屏幕上拖出目标棋盘的范围 → 点窗栏的「识别」键。框由紫色变蓝绿色、四角出现 L 形角框与定位点 = 识别成功。识别全程静默在后台做（帧间像素差分：画面静止时零消耗，棋子一变才重新识别），框色不会来回闪。</p><p class="ab-g-p">分工：连线窗负责识别与 AI；主窗大棋盘只同步显示识别到的局面与执子设置，不参与评估、不落子 —— 所以不会出现两侧互相抢着算的情况。</p><p class="ab-g-p">AI 执子与思考时间：连线窗的「AI 执黑」/「AI 执白」二者互斥，选中会无条件同步到主窗「对局设置」里的执子；「思考时间」同样同步（两边一个口径）。</p><p class="ab-g-p">自动落子：打开后识别到对方落子即自动思考，并用三级模拟点击替你落子（先 PostMessage 直达目标窗口，无效升 SendInput，再不行用真实点击兜底），物理鼠标全程不受干扰；一局结束（五子连珠）自动关闭，下一局需重新打开。</p><p class="ab-g-p">交换平衡点：点它的同时会自动取消已选的 AI 执黑 / 执白（避免相互干扰）。空盘时走官方定式：先让引擎按当前规则吐官方开局（禁手用禁手公式、无禁手用无禁手公式，绝不混用），引擎不可用时退到本地公式表（无禁手 = 官方 Swap2 三手 9 组，禁手 = RIF 26 组，两张表都经引擎实测只留平衡定式、必胜定式一条都不加）；再不行才在中心区逐手取点。所以开局这三手是「官方平衡开局」，不是对弈引擎算出来的最强手。棋盘上已有棋子时（第 2 次交换，一黑一白），走原生 YXBALANCETWO 成对搜索给出这两手并报出评估分（|评估| ≤ 50 才算平）。黑紫白天蓝，可反复点击重新评估。评估完成引擎随即释放；你把相应子数下完（不管下哪），标记自动消失，也可点「清除标记」关闭。</p><p class="ab-g-p">交换平衡点 + 自动落子的顺序逻辑：先点交换平衡点、后打开自动落子 → 评估完成时若自动落子已开，就按顺序自动把这几个平衡点落下（与单机版五子棋助手完全一致）；若是评估完才打开自动落子，则打开的那一刻按序补摆。</p><p class="ab-g-p">交换评估：与交换平衡点相互独立的另一项功能，用于评估当前交换局面的优劣，判断是否值得交换。</p><p class="ab-g-p">盘中标记：推荐落点为天蓝圈；平衡标记为圆形 —— 上半中空显示落子序号、下半半透明填充显示评估分，黑子紫、白子天蓝；全部直接画在识别框内的对应交点，位于截图识别不到的最上层（绝不会被误读成棋子）。</p><p class="ab-g-p">关闭：关掉连线窗后，主窗自动恢复你自己原来的模式与设置，对弈 / 计算等功能照常使用。</p></div><div class="ab-h2">功能</div><ul class="ab-ul"><li>三种模式：对弈（AI 执黑 / AI 执白可自由开关，两个都开即 AI 自打）/ 自由摆盘 / 残局（自摆局面 + 「确定」定盘，重新开始回到该局面）</li><li>前瞻推演：一路走到盘面真的五子连珠；VCF / VCT 本地算杀（多线程并行 + 迭代加深）</li><li>计算评估：计算 / 清除计算 / 多点分析 / 平衡点 / 点数 / 扫描防守，另配 AI 视图与指导视图</li><li>评估曲线：纵轴随分数动态进位，最大可到 ±1200；仪表盘给出深度 / 速度 / 节点 / 用时</li><li>三种规则：无禁手 / 无禁手 · 长连不赢 / 连珠（有禁手）</li><li>识图：截图或上传自动贴盘识别，VC 算杀题模式，人工修改（换色 / 删子 / 补子 / 裁剪）与图片抽屉</li><li>历史与复盘：txt 导入导出、重命名、右键菜单、独立复盘窗口（背诵 / 回顾，VC 记录整盘首帧）</li></ul><div class="ab-h2">开源组件</div><table class="ab-tb"><tbody><tr><td class="ab-n">Rapfi</td><td class="ab-d">五子棋 / 连珠引擎内核（原生引擎 rapfi-native，随本软件分发）</td><td class="ab-l">GPL-3.0</td></tr><tr><td class="ab-n">OpenCV</td><td class="ab-d">棋盘与棋子识别（静态链入 GomokuVision.exe，不额外分发 DLL）</td><td class="ab-l">Apache-2.0</td></tr><tr><td class="ab-n">Microsoft WebView2 Runtime</td><td class="ab-d">桌面界面运行时（由 Windows / Edge 提供，本软件不分发）</td><td class="ab-l">专有</td></tr></tbody></table><div class="ab-lic">说明：上表只列随本软件分发、或运行时必需的第三方组件。开发期用来对拍的脚本与其依赖（NumPy、Pillow 等）只在本机跑，不随本软件分发，因此不在此列。</div><div class="ab-h2">许可</div><div class="ab-lic">本软件自身的界面与配套代码以 MIT 许可发布。棋力内核 Rapfi 以 GPL-3.0 发布，本软件以独立进程的方式调用它（本地管道，不监听任何端口），双方只通过消息与本地文件句柄通信，不与其合并为同一作品；随本软件分发 Rapfi 时，须一并保留它的许可证与源码获取方式（可从其上游仓库 dhbloo/rapfi 取得对应源码）。识别所用的 OpenCV 以 Apache-2.0 静态链入 GomokuVision.exe。界面运行时 Microsoft WebView2 由 Windows / Edge 提供，按其自身条款使用，不随本软件分发。以上各组件的著作权与许可均归各自作者所有。</div><div class="ab-h2">最近更新</div><div class="ab-vtag">v4.48</div><ul class="ab-ul ab-news"><li>棋子新增「玉石」材质（层状浅杂色 + 玻璃光泽），仿真棋子也有落盘微阴影；棋盘改为 2 倍超采样，棋子、序号、网格线全部变清</li><li>「对局」新增「动态时间」开关：简单局面少算、难局多算（最多 +15%），见杀局面只用 40%，省下的时间存进时间池供后续调用；关闭后严格按设定秒数思考</li><li>修复必胜 / 必败局面偶尔长时间无响应、进度一直停在深度 0 的问题（mate 后空迭代 24 次、START_DEPTH 跳层两条原因）</li><li>设置窗选项标题改为天蓝色（背景为天蓝时自动转为黑 / 白）；顶部三个卡片开关新增「窗口功能卡片展示」框</li><li>「字体 → 棋子」一行在「适中 / 较大」字号下不再挤出，按钮组刚好填满整行；棋子序号三档字号整体收小</li></ul><div class="ab-vtag">v4.47</div><ul class="ab-ul ab-news"><li>设置窗成为独立主控窗：常驻置顶、固定比例（宽:高 = 1:1.618）随屏幕自适应、启动预热点开即现、最小化直接进任务栏并拥有独立任务栏入口；加载画面只显示 Gomoku Settings</li><li>主窗与设置窗双向实时联动：在设置窗里改 AI 执子会立即让引擎行棋，线程 / 哈希 / 选点范围 / 分析点数 / 主题 / 语言全部即时同步到所有窗口；打开连线窗不再收纳主窗卡片、也不再写独立的连线存档 —— 连线里的 AI 参数初始一律听从主窗当前设置</li><li>棋盘下方「设置」键移除，顶栏「设置」为唯一入口；「恢复默认」配色键不再换行</li><li>棋盘标线 / 坐标按设备像素对齐（近黑深灰高清），局面代码框并入引擎仪表盘日志下方，棋子默认显示手数序号（思源宋体）</li><li>「分析计算」统一为一个开关（棋盘下方与计算评估卡同一状态），平衡点改为一次不间断的持续搜索并实时标记成对落点，再次点击自动落子</li></ul><div class="ab-vtag">v4.46</div><ul class="ab-ul ab-news"><li>识别参数真正生效：5 项阈值（灰度 / 黑白偏移、黑 / 白百分比）任意一项偏离默认值就切换到严格判定 —— 结果按你设的参数出，底层的「松阈值重判 / 自制读子 / 局部对比」整条兜底链不再静默改写；只有全部保持默认时才启用兜底</li><li>后台思考重做：改用引擎原生 pondering（与官方整合包同一套节奏）—— 开着时对手思考期间引擎就在算我方应对，你一落子它已就绪；关着时引擎落子后立刻停，不再空转（CPU 常年高占用的一大来源）</li><li>对局设置新增「style（谨慎度）」六档：0 最激进（5×5 候选）… 5 最谨慎（全盘），默认 3（官方推荐档），带方向说明；同一板块新增「多主变」行（1~8，默认 3）</li><li>「分析点数」与「多主变」共用同一份值、两端双向同步，并接通多点分析、前瞻深算（下限放到 1~2）与扫描防守的候选上限</li><li>引擎变体自动基准修正：auto-bench 之前会把 avx2 误判成最快，现在按实测 nps 选出真实最快的变体</li><li>候选点去重下沉到引擎回执层：同一个点只出现一次，不再出现重复名次</li><li>对局设置卡片分组：只有「引擎」板块（选点范围 / 分析点数 / 线程 / 哈希）用虚线框，其余板块不加框</li><li>英文界面补齐全部占位符（{n} / {p} 等不再原样露出）；修复日志并发写偶发丢行</li></ul><div class="ab-vtag">v4.43</div><ul class="ab-ul ab-news"><li>扫描防守改用引擎原生 YXSEARCHDEFEND：先补一手 PASS 把行棋方让给对手，每个点的 % 就是对手下在那里的胜率；按危险度分五档画环（1 档最大圆环 + 半透明填充，2~4 档依次缩小变淡，5 档边角点只铺数字 + 细环）扫盘，偏白天蓝色系；按钮变「停止扫描」，停止后最后一帧留在棋盘上，「清除标记」改名「清除计算」</li><li>识图图片适应性大升级：深色 / 浅色主题、旋转截图、拍屏照片、低对比与模糊图都能读 —— 新增「局部对比读子」第三套判别器、找盘阶梯（3×3 高斯 → CLAHE 均衡 → 1.5× 放大），以及网格对不上时的几何校验兜底</li><li>识图「识别参数」面板：打开即自动收起棋盘代码框，提示行改成固定高度的虚线文本框 —— 拖滑动条时整列不再上下抖</li><li>界面资源合并为单一 ui.pak（不再是一堆 .enc 文件）：避免被杀毒软件当成「加密文档」误删导致窗口白屏；真缺文件时会显示一张诊断页（告诉你加白名单后重装），而不是一片空白</li></ul></div>
+  </div>
+</div>
+<div id="vcxPop" class="modal" hidden="">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title" id="t_vcxPop">算杀结果</span>
+      <span class="grow"></span>
+      <button id="vcxPop_close" class="btn">关闭</button>
+    </div>
+    <div id="vcxPopBody" class="modal-body"></div>
+  </div>
+</div>
+<div id="colorPop" class="modal" hidden="">
+  <div class="modal-card cp-card">
+    <div class="modal-head">
+      <span class="modal-title" id="t_color">主题</span>
+      <span class="grow"></span>
+      <button id="cp_close" class="btn">关闭</button>
+    </div>
+    <div class="modal-body cp-body">
+      <div class="cp-view cp-themes-view" id="cpThemesView">
+        <div class="cp-themes" id="cp_theme_presets"><button type="button" data-thm="light" title="浅色" class="on"><span class="cp-th-sw" style="background:#f6f6f4"><i style="background:#d9b878"></i><b style="background:#2f86d6"></b></span><span class="cp-th-nm">浅色</span></button><button type="button" data-thm="dark" title="深色"><span class="cp-th-sw" style="background:#26272a"><i style="background:#d9b878"></i><b style="background:#2e6da4"></b></span><span class="cp-th-nm">深色</span></button><button type="button" data-thm="paper" title="宣纸"><span class="cp-th-sw" style="background:#f7f6f2"><i style="background:#d2c5b3"></i><b style="background:#86694a"></b></span><span class="cp-th-nm">宣纸</span></button><button type="button" data-thm="celadon" title="青瓷"><span class="cp-th-sw" style="background:#f2f5f3"><i style="background:#c4d0c7"></i><b style="background:#5a7c68"></b></span><span class="cp-th-nm">青瓷</span></button><button type="button" data-thm="mist" title="雾蓝"><span class="cp-th-sw" style="background:#f3f6f9"><i style="background:#c1ced8"></i><b style="background:#4f7592"></b></span><span class="cp-th-nm">雾蓝</span></button><button type="button" data-thm="bluegray" title="蓝灰"><span class="cp-th-sw" style="background:#f0f2f4"><i style="background:#b2bbc2"></i><b style="background:#465c6b"></b></span><span class="cp-th-nm">蓝灰</span></button><button type="button" data-thm="dune" title="沙丘"><span class="cp-th-sw" style="background:#f6f0e7"><i style="background:#beab91"></i><b style="background:#795a34"></b></span><span class="cp-th-nm">沙丘</span></button><button type="button" data-thm="tundra" title="苔原"><span class="cp-th-sw" style="background:#f3f5ee"><i style="background:#b6bead"></i><b style="background:#596b4c"></b></span><span class="cp-th-nm">苔原</span></button><button type="button" data-thm="dusk" title="暮蓝"><span class="cp-th-sw" style="background:#2d343d"><i style="background:#6c7782"></i><b style="background:#aec4d8"></b></span><span class="cp-th-nm">暮蓝</span></button><button type="button" data-thm="walnut" title="炭棕"><span class="cp-th-sw" style="background:#312c2b"><i style="background:#807061"></i><b style="background:#c9ab87"></b></span><span class="cp-th-nm">炭棕</span></button><button type="button" data-thm="pine" title="深青"><span class="cp-th-sw" style="background:#293432"><i style="background:#617e77"></i><b style="background:#9cc3b5"></b></span><span class="cp-th-nm">深青</span></button><button type="button" data-thm="wine" title="酒褐"><span class="cp-th-sw" style="background:#352c2f"><i style="background:#7f6569"></i><b style="background:#cda3a8"></b></span><span class="cp-th-nm">酒褐</span></button><button type="button" data-thm="ink" title="夜墨"><span class="cp-th-sw" style="background:#24272d"><i style="background:#545e6c"></i><b style="background:#9db1c8"></b></span><span class="cp-th-nm">夜墨</span></button><button type="button" data-thm="mauve" title="夜紫"><span class="cp-th-sw" style="background:#2f2a36"><i style="background:#746980"></i><b style="background:#c1afd5"></b></span><span class="cp-th-nm">夜紫</span></button><button type="button" data-thm="slate" title="石青"><span class="cp-th-sw" style="background:#eff3f4"><i style="background:#9cb0b5"></i><b style="background:#336168"></b></span><span class="cp-th-nm">石青</span></button><button type="button" data-thm="navy" title="夜蓝"><span class="cp-th-sw" style="background:#252d3b"><i style="background:#515d70"></i><b style="background:#94aed1"></b></span><span class="cp-th-nm">夜蓝</span></button><button type="button" data-thm="silver" title="银灰"><span class="cp-th-sw" style="background:#f5f5f4"><i style="background:#c7c8c7"></i><b style="background:#5c6265"></b></span><span class="cp-th-nm">银灰</span></button><button type="button" data-thm="graphite" title="石墨"><span class="cp-th-sw" style="background:#2b2c2e"><i style="background:#66686b"></i><b style="background:#a8aeb3"></b></span><span class="cp-th-nm">石墨</span></button><button type="button" data-thm="dawn" title="晨霞"><span class="cp-th-sw" style="background:#f9f4f3"><i style="background:#cbbbbf"></i><b style="background:#a26770"></b></span><span class="cp-th-nm">晨霞</span></button><button type="button" data-thm="aurora" title="极光"><span class="cp-th-sw" style="background:#263034"><i style="background:#5d8083"></i><b style="background:#d6ab6c"></b></span><span class="cp-th-nm">极光</span></button><button type="button" data-thm="latte" title="奶咖"><span class="cp-th-sw" style="background:#f6f3f0"><i style="background:#c8bdb1"></i><b style="background:#7a5c3e"></b></span><span class="cp-th-nm">奶咖</span></button><button type="button" data-thm="bamboo" title="竹青"><span class="cp-th-sw" style="background:#f1f5f2"><i style="background:#b4c5b6"></i><b style="background:#4f6b4a"></b></span><span class="cp-th-nm">竹青</span></button><button type="button" data-thm="lotus" title="藕荷"><span class="cp-th-sw" style="background:#f5f1f3"><i style="background:#c4b5bc"></i><b style="background:#8c5f72"></b></span><span class="cp-th-nm">藕荷</span></button><button type="button" data-thm="lavender" title="薰衣"><span class="cp-th-sw" style="background:#f3f1f5"><i style="background:#bbb4c5"></i><b style="background:#6b5f8a"></b></span><span class="cp-th-nm">薰衣</span></button><button type="button" data-thm="apricot" title="杏色"><span class="cp-th-sw" style="background:#f7f3f0"><i style="background:#cabbb0"></i><b style="background:#8a6136"></b></span><span class="cp-th-nm">杏色</span></button><button type="button" data-thm="jade" title="青玉"><span class="cp-th-sw" style="background:#f1f5f5"><i style="background:#b4c5c2"></i><b style="background:#3f6f63"></b></span><span class="cp-th-nm">青玉</span></button><button type="button" data-thm="clay" title="陶土"><span class="cp-th-sw" style="background:#f6f2f1"><i style="background:#c6b9b3"></i><b style="background:#7d5a44"></b></span><span class="cp-th-nm">陶土</span></button><button type="button" data-thm="fog" title="雾灰"><span class="cp-th-sw" style="background:#f2f3f4"><i style="background:#babdc0"></i><b style="background:#5a6268"></b></span><span class="cp-th-nm">雾灰</span></button><button type="button" data-thm="glacier" title="冰川"><span class="cp-th-sw" style="background:#f1f4f6"><i style="background:#b3c0c7"></i><b style="background:#3c627a"></b></span><span class="cp-th-nm">冰川</span></button><button type="button" data-thm="wheat" title="麦黄"><span class="cp-th-sw" style="background:#f6f5f0"><i style="background:#c8c2b1"></i><b style="background:#7a6329"></b></span><span class="cp-th-nm">麦黄</span></button><button type="button" data-thm="plum" title="梅子"><span class="cp-th-sw" style="background:#2a2126"><i style="background:#6c5b66"></i><b style="background:#c6aab8"></b></span><span class="cp-th-nm">梅子</span></button><button type="button" data-thm="forest" title="松林"><span class="cp-th-sw" style="background:#202a24"><i style="background:#5a6d60"></i><b style="background:#a6bfa9"></b></span><span class="cp-th-nm">松林</span></button><button type="button" data-thm="indigo" title="靛蓝"><span class="cp-th-sw" style="background:#1e202c"><i style="background:#575a70"></i><b style="background:#9fadd2"></b></span><span class="cp-th-nm">靛蓝</span></button><button type="button" data-thm="cocoa" title="可可"><span class="cp-th-sw" style="background:#2b2420"><i style="background:#6e6159"></i><b style="background:#c4a98c"></b></span><span class="cp-th-nm">可可</span></button><button type="button" data-thm="rosewood" title="花梨"><span class="cp-th-sw" style="background:#2c211e"><i style="background:#705c57"></i><b style="background:#cda396"></b></span><span class="cp-th-nm">花梨</span></button><button type="button" data-thm="ocean" title="深海"><span class="cp-th-sw" style="background:#1c2a2f"><i style="background:#526c75"></i><b style="background:#96bccd"></b></span><span class="cp-th-nm">深海</span></button></div>
+        <button id="cp_custom" type="button" class="btn cp-custom">自定义</button>
+      </div>
+      <div class="cp-view cp-custom-view" id="cpCustomView" hidden="">
+        <div class="cp-cush">
+          <button id="cp_custom_back" type="button" class="btn sq2" title="返回主题" aria-label="返回主题">‹</button>
+          <span class="cp-cus-ttl" id="t_cpCustom">自定义</span>
+        </div>
+        <div class="cp-row"><label id="t_cpTarget">调色对象</label>
+          <div class="seg s2" id="cp_target">
+            <button data-tg="board" class="on">棋盘</button>
+            <button data-tg="page">背景</button>
+          </div>
+        </div>
+        <div class="cp-picker">
+          <canvas id="cp_sv" width="288" height="150"></canvas>
+          <canvas id="cp_hue" width="288" height="16"></canvas>
+        </div>
+        <div class="cp-sliders">
+          <label>R</label><input id="cp_rn" type="number" min="0" max="255" step="1">
+          <label>G</label><input id="cp_gn" type="number" min="0" max="255" step="1">
+          <label>B</label><input id="cp_bn" type="number" min="0" max="255" step="1">
+        </div>
+        <div class="cp-row"><label id="t_cpHex">RGB 代码</label>
+          <input id="cp_hex" spellcheck="false" placeholder="#d9b878">
+        </div>
+        <div class="cp-row" id="cpPresetRow"><label id="t_cpPreset">预制色</label>
+          <div class="cp-presets" id="cp_presets"><button type="button" data-c="#d9b878" style="background:#d9b878" title="#d9b878"></button><button type="button" data-c="#e3be6f" style="background:#e3be6f" title="#e3be6f"></button><button type="button" data-c="#ecdcbb" style="background:#ecdcbb" title="#ecdcbb"></button><button type="button" data-c="#c3cbb4" style="background:#c3cbb4" title="#c3cbb4"></button><button type="button" data-c="#a5804e" style="background:#a5804e" title="#a5804e"></button></div>
+        </div>
+        <div class="cp-foot">
+          <span class="cp-prev" id="cp_prev"></span>
+          <span class="hint" id="cp_hint">调的是棋盘底色；网格线、星位、坐标轴会自动跟着深浅变化</span>
+          <span class="grow"></span>
+          <button id="cp_reset" class="btn">恢复默认</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="ctxMenu" class="ctx" hidden=""></div>
+<input id="file_imp" type="file" accept=".txt,text/plain" hidden="">
+<input id="file_vis" type="file" accept="image/*" multiple="" hidden="">
+
+
+
+
+</body></html>

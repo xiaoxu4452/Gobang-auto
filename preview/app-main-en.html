@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>main</title><link rel="stylesheet" href="app.css">
+<style>html,body{margin:0;padding:0;overflow:hidden;pointer-events:none;user-select:none;-webkit-user-select:none}
+*{animation:none!important;transition:none!important;cursor:default!important}</style></head>
+<body data-theme="light" class="" style="--font: "Source Han Sans SC","Source Han Sans CN","Noto Sans SC","思源黑体","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif; --fontweight: 400; --fontstyle: normal; --logfont: "Source Han Sans SC","Source Han Sans CN","Noto Sans SC","思源黑体","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif; --logweight: 400; --logstyle: normal; --lbl-accent: rgb(47,154,224);">
+
+
+
+
+<header id="hdr">
+  <div class="brand">
+    <span id="t_title">Meter Gomoku</span><span class="ver" id="t_ver">v4.48</span>
+  </div>
+  <div class="hdr-actions">
+    <button id="btn_link" class="btn">Link</button>
+    <button id="btn_vis" class="btn">Image</button>
+    <button id="btn_review" class="btn">Review</button>
+    <button id="btn_history" class="btn">History</button>
+    <button id="btn_about" class="btn" data-tip="aboutTip" title="Version, how to use, features and open-source licences">About</button>
+    <button id="btn_settings" class="btn" title="Settings">Settings</button>
+  </div>
+</header>
+<main id="stage">
+  <div id="dockL" class="dock has" data-dock="L"><section class="card" data-id="engine">
+      <div class="card-h">
+        <span class="ttl" id="t_engine">Engine</span>
+        <span class="grow"></span>
+        <span class="dash" data-tip="dragCard" title="Drag the title bar to move it; click the bar to fold / unfold the card"></span>
+        <button class="pinkey" data-tip="closeCard" data-pin="engine" title="Close card">✕</button>
+      </div>
+      <div class="card-b">
+        <div class="grid2">
+          <div class="stat"><span class="k" id="t_depth">Depth</span><span class="v" id="st_depth">18</span></div>
+          <div class="stat"><span class="k" id="t_speed">Speed</span><span class="v" id="st_speed">2949129</span></div>
+          <div class="stat"><span class="k" id="t_nodes">Nodes</span><span class="v" id="st_nodes">548538</span></div>
+          <div class="stat"><span class="k" id="t_time">Time</span><span class="v" id="st_time">0.353 s</span></div>
+          <div class="stat"><span class="k" id="t_eval" title="">Eval</span><span class="v"><span id="st_eval">+405</span></span></div>
+          <div class="stat"><span class="k" id="t_best">Best</span><span class="v" id="st_best">i4</span></div>
+        </div>
+        <div class="curve-head"><span id="t_curveTtl">Eval curve</span></div>
+        <div id="curveWrap">
+          <canvas id="curveAxis" style="width: 30px; height: 216px; background-image: url(&quot;assets/main-en-c0.png&quot;); background-size: 100% 100%; background-repeat: no-repeat;"></canvas>
+          <div id="curveScroll"><canvas id="curve" style="width: 208px; height: 216px; background-image: url(&quot;assets/main-en-c1.png&quot;); background-size: 100% 100%; background-repeat: no-repeat;"></canvas><div id="curveHover" style="display: none;"></div></div>
+        </div>
+        <div class="curve-info" id="curveInfo">
+          <div class="ci cb" style="--wr: 88.34%;">
+            <span class="cih" id="t_blackCurve">Black</span>
+            <span class="cir"><span class="k ci-score">Score</span><span class="v" id="ci_b_score">+405</span></span>
+            <span class="cir"><span class="k ci-win">Win rate</span><span class="v" id="ci_b_win">88%</span></span>
+          </div>
+          <div class="ci cw" style="--wr: 11.66%;">
+            <span class="cih" id="t_whiteCurve">White</span>
+            <span class="cir"><span class="k ci-score">Score</span><span class="v" id="ci_w_score">-405</span></span>
+            <span class="cir"><span class="k ci-win">Win rate</span><span class="v" id="ci_w_win">12%</span></span>
+          </div>
+        </div>
+        <div class="eng-msg" id="engMsg">
+          <div class="line" id="st_line"></div>
+          <div class="pv-box" id="pvBox"><span class="pv-mv best" data-x="8" data-y="11" data-i="0" data-seq="1">i4</span><span class="pv-mv" data-x="8" data-y="10" data-i="1" data-seq="2">i5</span><span class="pv-mv" data-x="6" data-y="10" data-i="2" data-seq="3">g5</span><span class="pv-mv" data-x="9" data-y="9" data-i="3" data-seq="4">j6</span><span class="pv-mv" data-x="8" data-y="8" data-i="4" data-seq="5">i7</span><span class="pv-mv" data-x="9" data-y="7" data-i="5" data-seq="6">j8</span><span class="pv-mv" data-x="9" data-y="8" data-i="6" data-seq="7">j7</span><span class="pv-mv" data-x="10" data-y="8" data-i="7" data-seq="8">k7</span><span class="pv-mv" data-x="11" data-y="7" data-i="8" data-seq="9">l8</span><span class="pv-mv" data-x="11" data-y="9" data-i="9" data-seq="10">l6</span><span class="pv-mv" data-x="12" data-y="10" data-i="10" data-seq="11">m5</span><span class="pv-mv" data-x="6" data-y="5" data-i="11" data-seq="12">g10</span><span class="pv-mv" data-x="8" data-y="5" data-i="12" data-seq="13">i10</span><span class="pv-mv" data-x="5" data-y="4" data-i="13" data-seq="14">f11</span><span class="pv-mv" data-x="3" data-y="6" data-i="14" data-seq="15">d9</span><span class="pv-mv" data-x="10" data-y="9" data-i="15" data-seq="16">k6</span><span class="pv-mv" data-x="12" data-y="9" data-i="16" data-seq="17">m6</span><span class="pv-mv" data-x="7" data-y="4" data-i="17" data-seq="18">h11</span><span class="pv-mv" data-x="7" data-y="5" data-i="18" data-seq="19">h10</span><span class="pv-mv" data-x="8" data-y="3" data-i="19" data-seq="20">i12</span><span class="pv-mv" data-x="5" data-y="6" data-i="20" data-seq="21">f9</span><span class="pv-mv" data-x="10" data-y="7" data-i="21" data-seq="22">k8</span></div>
+        </div>
+        <div class="row col codeRow" id="codeRow">
+          <div class="codeHead">
+            <label id="t_code">Position code</label>
+            <span class="grow"></span>
+            <button id="btn_copy" class="btn sq2 sym" title="Copy" aria-label="Copy"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.4" y="5.4" width="8.2" height="8.2" rx="1.5"></rect><path d="M10.6 5.4V3.8a1.5 1.5 0 0 0-1.5-1.5H3.8a1.5 1.5 0 0 0-1.5 1.5v5.3a1.5 1.5 0 0 0 1.5 1.5h1.6"></path></svg></button>
+            <button id="btn_paste" class="btn sq2 sym" title="Paste and load (Enter also loads)" aria-label="Paste and load (Enter also loads)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.2" y="3.4" width="9.6" height="10.8" rx="1.6"></rect><path d="M6.1 3.4V2.7c0-.6.5-1.1 1.1-1.1h1.6c.6 0 1.1.5 1.1 1.1v.7"></path></svg></button>
+          </div>
+          <textarea id="inp_code" rows="4" spellcheck="false" placeholder="h8h9g7…" data-tip="codeTip" title="Position code: lowercase column letter + row, moves concatenated (same format as gomocalc.com)"></textarea>
+        </div>
+      </div>
+    </section></div>
+  <aside id="visPane" hidden="">
+    <div class="vis-view" id="visView">
+      <div class="vis-imgbar">
+        <button id="btn_vis_upload" class="btn">Upload images</button>
+        <button id="btn_vis_shot" class="btn">Screenshot</button>
+        <button id="btn_vis_crop" class="btn">Crop</button>
+        <button id="btn_vis_prev" class="btn sq">&lt;</button>
+        <button id="visPos" class="pill vis-pill" title="Open the picture drawer (pick / remove)">0 / 0</button>
+        <button id="btn_vis_next" class="btn sq">&gt;</button>
+      </div>
+      <div class="vis-box" id="visBox">
+        <img id="visImg" alt="" hidden="">
+        <textarea id="visInput" spellcheck="false" wrap="soft"></textarea>
+        <button id="btn_vis_del" class="btn sq vis-del" title="Remove current" hidden="">✕</button>
+      </div>
+      <div class="vis-acts">
+        <button id="btn_vis_rec" class="btn accent">Re-recognize</button>
+        <button id="btn_vis_rc" class="btn" title="Recog params">Recog params</button>
+        <button id="btn_vis_load" class="btn">Load to practice</button>
+        <button id="btn_vis_vc" class="btn" title="Mate-puzzle mode: unbalanced stone counts may be saved/loaded (VCF/VCT diagrams often have far more black than white); loading only presets the attacker - you start the mate search yourself with VCF / VCT">VC Mode</button>
+        <button id="btn_vis_edit" class="btn">Edit</button>
+      </div>
+      <div class="vis-rcbox" id="visRcBox" hidden=""></div>
+      <div class="vis-codebar" id="visCodeBar" hidden="">
+        <span class="hint vcl" id="t_visCode">Board code</span>
+        <textarea id="visCode" spellcheck="false" wrap="soft" readonly=""></textarea>
+        <button id="btn_vis_codecopy" class="btn vd-mini">Copy</button>
+      </div>
+      <div class="vis-msg hint" id="visMsg"></div>
+    </div>
+    <div id="visCrop" class="crop-mask" hidden="">
+      <div class="crop-panel" id="cropPanel">
+        <div class="crop-head">
+          <span class="ttl" id="t_visCropTitle">Crop image</span>
+          <span class="hint" id="t_visCropHint">Drag to select the region to keep</span>
+          <span class="grow"></span>
+          <span class="hint" id="t_visCropSize"></span>
+        </div>
+        <div class="crop-stage" id="cropStage">
+          <canvas id="cropCanvas"></canvas>
+        </div>
+        <div class="crop-acts">
+          <button id="btn_crop_reset" class="btn">Reset</button>
+          <span class="grow"></span>
+          <button id="btn_crop_cancel" class="btn">Cancel</button>
+          <button id="btn_crop_ok" class="btn accent">OK</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <aside id="visDrawer" hidden="">
+    <div class="vd-head">
+      <span class="ttl" id="t_visDrawer">Pictures</span>
+      <span class="hint" id="vdCount">0</span>
+      <span class="grow"></span>
+      <button id="btn_vd_sel" class="btn vd-mini">Select</button>
+      <button id="btn_vd_all" class="btn vd-mini">All</button>
+      <button id="btn_vd_del" class="btn vd-mini danger">Delete</button>
+      <button id="btn_vd_close" class="btn sq" data-tip="visDrawerClose" title="Close drawer">✕</button>
+    </div>
+    <div id="vdList" class="vd-list"></div>
+    <div class="vd-tip hint" id="t_vdTip">Click a thumbnail to select · ✕ removes · click blank to upload</div>
+  </aside>
+  <section id="boardCol">
+    <div id="boardWrap"><canvas id="board" style="width: 753.332px; height: 753.332px; background-image: url(&quot;assets/main-en-c3.png&quot;); background-size: 100% 100%; background-repeat: no-repeat;"></canvas></div>
+    <div id="visEditBar" hidden="">
+      <div class="ve-row">
+        <button id="btn_ve_swap" class="btn">Swap B/W</button>
+        <button id="btn_ve_del" class="btn">Remove stones</button>
+        <button id="btn_ve_fillb" class="btn">Add black</button>
+        <button id="btn_ve_fillw" class="btn">Add white</button>
+        <button id="btn_ve_add" class="btn">Add stones</button>
+        <span id="veAddKeys" class="ve-pop" hidden="">
+          <button id="btn_ve_addb" class="btn">Black first</button>
+          <button id="btn_ve_addw" class="btn">White first</button>
+        </span>
+        <button id="btn_ve_undo" class="btn">Undo</button>
+      </div>
+    </div>
+    <div id="boardFoot">
+      <div class="bf-side bf-l">
+        <button id="btn_live" class="btn bfkey" title="">Analyze</button>
+      </div>
+      <div id="boardBtns">
+        <span class="bgroup nav-group">
+          <button id="btn_prev" class="btn ico" title="Back">←</button>
+          <button id="btn_next" class="btn ico" title="Forward" disabled="">→</button>
+        </span>
+        <button id="btn_reset" class="btn">Restart</button>
+        <button id="btn_pause" class="btn ico" title="Click: AI computes and plays one move for you">▶</button>
+        <button id="btn_save" class="btn">Save position</button>
+        <span class="bgroup lay-group">
+          <button id="btn_rot" class="btn ico" title="Rotate stones 90° clockwise (axes stay put)">↻</button>
+          <button id="btn_mirror" class="btn ico" title="Flip stone layout">⇄</button>
+          <button id="btn_shift" class="btn ico" title="Shift position (move all stones by one cell)">✥</button>
+        </span>
+      </div>
+      <div id="mirrorPop" hidden="">
+        <span class="sp-ttl" id="t_mirrorTtl">Flip stone layout</span>
+        <span class="sp-btns">
+          <button id="btn_mv_fv" class="btn" title="Flip left-right">L·R</button>
+          <button id="btn_mv_fh" class="btn" title="Flip up-down">U·D</button>
+          <button id="btn_mv_d1" class="btn" title="Diagonal flip (top-left↔bottom-right)">╲</button>
+          <button id="btn_mv_d2" class="btn" title="Diagonal flip (top-right↔bottom-left)">╱</button>
+          <button id="btn_mv_close" class="btn ico" title="Close">✕</button>
+        </span>
+      </div>
+      <div id="shiftPop" hidden="">
+        <span class="sp-ttl" id="t_shiftTtl">Shift position</span>
+        <span class="sp-btns">
+          <button id="btn_mv_left" class="btn ico" title="Shift all stones left by one cell">←</button>
+          <button id="btn_mv_up" class="btn ico" title="Shift all stones up by one cell">↑</button>
+          <button id="btn_mv_down" class="btn ico" title="Shift all stones down by one cell">↓</button>
+          <button id="btn_mv_right" class="btn ico" title="Shift all stones right by one cell">→</button>
+          <button id="btn_shift_close" class="btn ico" title="Close">✕</button>
+        </span>
+      </div>
+      <div id="aiSidePop" hidden="">
+        <span class="ai-grp">
+          <button id="ai_side_b" data-ai="b" class="tglbtn"><span class="tgl"><i></i></span><span class="tgl-txt">AI Black</span></button>
+          <button id="ai_side_w" data-ai="w" class="tglbtn"><span class="tgl"><i></i></span><span class="tgl-txt">AI White</span></button>
+        </span>
+        <span class="ai-grp">
+          <span class="ai-turn" id="t_aiTurn">Think time</span>
+          <span class="numbox ainum">
+            <input id="num_turn2" type="number" min="0.2" max="300" step="0.1" value="2">
+            <span class="unit">s</span>
+          </span>
+        </span>
+        <button id="btn_ai_close" class="btn ico" title="关闭">✕</button>
+      </div>
+      <div class="bf-side bf-r">
+        <button id="btn_aiside" class="btn bfkey">AI side</button>
+      </div>
+    </div>
+    <div id="openBar" hidden=""><span class="hint" id="openHint"></span>
+      <button id="btn_ten" class="btn" hidden="">Ten-call (10 candidates)</button><button id="btn_balcall" class="btn" hidden="" title="Auto-call picks via the official balance search (YXBALANCE)">Balance picks</button><span id="yamaDecl" hidden=""><button class="btn">1</button><button class="btn">2</button><button class="btn">3</button><button class="btn">4</button><button class="btn">5</button><button class="btn">6</button><button class="btn">7</button><button class="btn">8</button><button class="btn">9</button><button class="btn">10</button></span><span id="taraSwap" hidden=""><button id="btn_tara_yes" class="btn">Swap</button><button id="btn_tara_no" class="btn">Play on</button></span></div>
+    <div id="egBar" hidden="">
+      <button id="btn_eg_ok" class="btn">Confirm</button>
+      <button id="btn_eg_seq" class="btn">Sequential</button>
+      <button id="btn_eg_free" class="btn">Free color</button>
+      <span id="egKeys" hidden="">
+        <button id="btn_eg_b" class="btn">Black</button>
+        <button id="btn_eg_w" class="btn">White</button>
+      </span>
+    </div>
+    <div id="swapPop" class="swappop" hidden="">
+      <span class="sp-ttl" id="t_swapTtl">Swap finished · pick first or second</span>
+      <span class="sp-btns">
+        <button id="btn_swap_first" class="btn">先手 · 执黑</button>
+        <button id="btn_swap_second" class="btn">后手 · 执白</button>
+      </span>
+    </div>
+    <div id="rvBar" hidden="">
+      <span id="rvGroup" hidden="">
+        <button id="btn_recite" class="btn">Recite</button>
+        <button id="btn_replay" class="btn">Replay</button>
+        <span id="rvMiss" class="missbox">背错 0</span>
+        <button id="btn_rv_prev" class="btn sq" data-tip="prev" hidden="" title="Back">◀</button>
+        <span class="pill" id="rvPos" hidden="">0 / 0</span>
+        <button id="btn_rv_next" class="btn sq" data-tip="next" hidden="" title="Forward">▶</button>
+        <button id="btn_rv_play" class="btn sq" hidden="">播放</button>
+        <select id="rvSpeed" hidden="" data-tip="rvSpeedTtl" title="Step interval 0.5–5 s">
+          <option value="0.5">0.5s</option>
+          <option value="1">1s</option>
+          <option value="1.5">1.5s</option>
+          <option value="2">2s</option>
+          <option value="3">3s</option>
+          <option value="4">4s</option>
+          <option value="5">5s</option>
+        </select>
+        <button id="btn_rv_exit" class="btn" hidden="">Exit review</button>
+      </span>
+      <button id="btn_rv_num" class="btn" title="Mark each stone with its move number · Ctrl+Z previous · Ctrl+R restart">Numbers</button>
+      <button id="btn_redo_rv" class="btn">Redo</button>
+      <button id="btn_save_rv" class="btn">Save position</button>
+      <button id="btn_rv_hist" class="btn">History</button>
+    </div>
+  </section>
+  <div id="dockR" class="dock has" data-dock="R">
+    <section class="card" data-id="setup">
+      <div class="card-h">
+        <span class="ttl" id="t_setup">Game setup</span>
+        <span class="grow"></span>
+        <span class="dash" data-tip="dragCard" title="Drag the title bar to move it; click the bar to fold / unfold the card"></span>
+        <button class="pinkey" data-tip="closeCard" data-pin="setup" title="Close card">Pin</button>
+      </div>
+      <div class="card-b">
+        <div class="sec" data-sec="game">
+          <div class="sec-h"><span class="sec-t" id="t_secGame">Game</span></div>
+          <div class="sec-b">
+        <div id="modeGrp">
+          <div class="row head"><label id="t_mode">Mode</label>
+            <div class="seg s3" id="seg_mode">
+              <button data-mode="pve" class="on">Play</button>
+              <span class="subseg">
+                <button data-mode="place">Free</button>
+                <button data-mode="endgame">Endgame</button>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div id="sideGrp">
+          <div class="row head"><label id="t_side">AI plays</label>
+            <div class="seg s2" id="seg_side">
+              <button data-ai="b" class="tglbtn" aria-pressed="false"><span class="tgl"><i></i></span><span class="tgl-txt">AI plays Black</span></button>
+              <button data-ai="w" class="tglbtn" aria-pressed="false"><span class="tgl"><i></i></span><span class="tgl-txt">AI plays White</span></button>
+            </div>
+          </div>
+          <div class="row"><span class="hint" id="sideHint">Both off: no AI — you play both colours yourself</span></div>
+        </div>
+        <div class="row" id="turnRow"><label id="t_turn">Think time</label>
+          <span class="field">
+            <span class="numbox">
+              <input id="num_turn" type="number" min="0.2" max="300" step="0.1" value="2">
+              <span class="unit">s</span>
+            </span>
+          </span>
+        </div>
+        <div class="row"><label id="t_bgThink">Background thinking</label>
+          <button id="btn_bgThink" class="tglbtn" type="button" aria-pressed="false"><span class="tgl"><i></i></span></button>
+          <span class="hint" id="t_bgThinkHint" data-base="While you think about your move, the engine keeps analysing in the background so it can reply faster once you play">While you think about your move, the engine keeps analysing in the background so it can reply faster once you play</span>
+        </div>
+        <div class="row"><label id="t_dynTime">Dynamic time</label>
+          <button id="btn_dynTime" class="tglbtn on" type="button" aria-pressed="true"><span class="tgl"><i></i></span></button>
+          <span class="hint" id="t_dynTimeHint">Adjusts thinking time automatically: use the full per-move time while the match clock is ample, and stop a little earlier as it runs low</span>
+        </div>
+        <div class="row"><label id="t_rule">Rules</label>
+          <select id="sel_rule">
+            <option value="0">Freestyle</option>
+            <option value="1">Freestyle · overline loses</option>
+            <option value="2">Renju (forbidden)</option>
+          </select>
+        </div>
+        <div class="row"><span class="hint" id="ruleHint">Freestyle: five or more in a row wins.</span></div>
+          </div>
+        </div>
+        <div class="sec" data-sec="engine">
+          <div class="sec-h"><span class="sec-t" id="t_secEngine">Engine</span></div>
+          <div class="sec-b">
+        <div class="row"><span class="hint" id="sysInfo"><div class="ab-sys"><div class="ab-sys-c"><div class="ab-sys-t">CPU</div><div class="ab-sys-v">AMD Ryzen 7 8845H w/ Radeon 780M Graphics</div><div class="ab-sys-s">8C 16T · 3.79GHz · L1 32KB · L2 1MB · L3 16MB</div></div><div class="ab-sys-c"><div class="ab-sys-t">ISA</div><div class="ab-sys-v">AVX2 ✓ · AVX-512 ✓ · VNNI ✓</div><div class="ab-sys-s">Engine build avx512vnni（Native · measured fastest）</div></div><div class="ab-sys-c"><div class="ab-sys-t">Memory</div><div class="ab-sys-v">31.3 GB</div><div class="ab-sys-s">49% used · 15.7 GB free</div></div></div><div class="ab-lic">Windows 10 Pro for Workstations (build 28000) · disk free 269GB</div></span></div>
+        <div class="grp" id="powerGrp">
+        <div class="row"><label id="t_cores">Threads</label>
+          <select id="sel_cores"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8" selected="">8</option></select>
+          <span class="hint" id="coresHint">16 threads on this PC · max 8</span>
+        </div>
+        <div class="row"><label id="t_hash">Hash</label>
+          <select id="sel_hash"><option value="128">128 MB</option><option value="256">256 MB</option><option value="512">512 MB</option><option value="1024" selected="">1024 MB</option><option value="1536">1536 MB</option><option value="2048">2048 MB</option><option value="2560">2560 MB</option><option value="3072">3072 MB</option><option value="3584">3584 MB</option><option value="4096">4096 MB</option></select>
+        </div>
+        </div>
+        <div class="grp" id="buildGrp">
+        <div class="row"><label id="t_variant">Engine variant</label>
+          <select id="sel_variant"><option value="" selected="" title="自动：按本机指令集 + 实测吞吐选最快（推荐）">自动（推荐）</option><option value="avx512vnni" title="AVX-512 VNNI：宽向量 + int8 点积，现代 CPU 通常最快">AVX-512 VNNI</option><option value="avx512" title="AVX-512：无 int8-VNNI 路径；Zen4 上与 VNNI 相当">AVX-512</option><option value="avx2" title="AVX2：无 512 位路径，本系列权重下明显偏慢（约 1/3 速度）">AVX2</option><option value="sse" title="SSE：最老兜底，仅应急">SSE</option></select>
+          <span class="hint" id="variantHint">自动：按本机指令集 + 实测吞吐选最快（推荐） · 本机实测最快：avx512vnni</span>
+        </div>
+        <div class="row"><label id="t_weights">Weights</label>
+          <select id="sel_weights"><option value="nnue" selected="">NNUE（准确）</option><option value="classic">传统估值（快）</option></select>
+          <span class="hint" id="weightsHint">NNUE is sharper; classical is faster (better in fast games)</span>
+        </div>
+        </div>
+        <div class="grp" id="searchGrp">
+        <div class="row"><label id="t_candRange">Candidate range</label>
+          <select id="sel_candRange" title="Wider never misses a point but searches shallower in the same time"><option value="0">0 · 最窄（5×5）</option><option value="1">1 · 偏窄（5×5+3线）</option><option value="2">2 · 中性（7×7）</option><option value="3" selected="">3 · 推荐（7×7+4线）</option><option value="4">4 · 偏宽（9×9）</option><option value="5">5 · 最宽（全盘）</option></select>
+          <span class="hint" id="candRangeHint">Wider never misses a point but searches shallower in the same time</span>
+        </div>
+        <div class="row"><label id="t_multiPv">Analysis points</label>
+          <select id="sel_multiPv"><option value="1">1 pts</option><option value="2">2 pts</option><option value="3" selected="">3 pts</option><option value="4">4 pts</option><option value="5">5 pts</option><option value="6">6 pts</option><option value="7">7 pts</option><option value="8">8 pts</option></select>
+          <span class="hint" id="multiPvHint">Max points shown by Analyze (same setting as the panel)</span>
+        </div>
+        <div class="row"><label id="t_maxDepth">Max depth</label>
+          <span class="duo"><select id="sel_maxDepth" title="Integer 4 ~ 128, empty = no limit"><option value="0">不限</option><option value="24">24</option><option value="32">32</option><option value="40">40</option><option value="48">48</option><option value="56">56</option><option value="64">64</option><option value="72">72</option><option value="88">88</option><option value="100" selected="">100</option></select><input id="inp_maxDepth" class="num-in" type="number" min="4" max="128" step="1" inputmode="numeric" placeholder="No limit" title="Integer 4 ~ 128, empty = no limit"></span>
+        </div>
+        <div class="row"><label id="t_maxNodes">Max nodes</label>
+          <span class="duo"><select id="sel_maxNodes" title="0.1 ~ 4096 (in M), empty = no limit"><option value="0" selected="">不限</option><option value="16000000">16M</option><option value="64000000">64M</option><option value="128000000">128M</option><option value="256000000">256M</option><option value="512000000">512M</option><option value="768000000">768M</option><option value="1024000000">1024M</option></select><input id="inp_maxNodes" class="num-in" type="number" min="0.1" max="4096" step="0.1" inputmode="decimal" placeholder="No limit" title="0.1 ~ 4096 (in M), empty = no limit"><span class="unit">M</span></span>
+        </div>
+        </div>
+        <div class="row"><span class="hint" id="hashInfo"><div class="si-r"><span class="si-k">Active</span><span class="si-v">the whole 1024MB goes to the running event (move / analysis)</span></div><div class="si-r"><span class="si-k">Idle</span><span class="si-v">other lanes keep 64MB each</span></div><div class="si-r"><span class="si-k">Usage</span><span class="si-v">Total 1152MB · Memory 31.3GB · free 15.7GB · of RAM 3.6%</span></div></span></div>
+          </div>
+        </div>
+        <div class="sec" data-sec="view">
+          <div class="sec-h"><span class="sec-t" id="t_secView">Board display</span></div>
+          <div class="sec-b">
+        <div class="row"><label id="t_showNum">Move numbers</label>
+          <input id="chk_num" class="chk-dot" type="checkbox">
+          <span class="hint" id="t_showNumHint">Mark each stone with its move number</span>
+        </div>
+        <div class="row"><label id="t_preview">Hover box</label>
+          <input id="chk_preview" class="chk-dot" type="checkbox">
+          <span class="hint" id="t_previewHint">Rounded box shown when hovering the board</span>
+        </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="card" data-id="analysis">
+      <div class="card-h">
+        <span class="ttl" id="t_analysis">Analysis</span>
+        <span class="grow"></span>
+        <span class="dash" data-tip="dragCard" title="Drag the title bar to move it; click the bar to fold / unfold the card"></span>
+        <button class="pinkey" data-tip="closeCard" data-pin="analysis" title="Close card">Pin</button>
+      </div>
+      <div class="card-b">
+        <div class="anbtns">
+          <button id="btn_an_calc" class="btn" title="">Analyze</button>
+          <button id="btn_an_defend" class="btn">Defend scan</button>
+          <span class="dashed-group">
+          <button id="btn_an_bal" class="btn" title="持续平衡搜索；再点一次自动落子">Balance picks</button>
+          <span class="hint" data-i18n="anBalLabel">Points</span>
+          <select id="btn_an_baln" class="sel" title="Balance point count (1-6, 3 fixed on empty board)"><option value="1">1</option><option value="2" selected="">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>
+          </span>
+          <button id="btn_fwd_clear" class="btn wide" data-i18n="fwdClear" title="清除计算 / 平衡点 / 扫描防守 / 前瞻 · VCF · VCT 留在棋盘上的所有标记（不动局面）">Clear calc</button>
+        </div>
+        <div class="fwdbox" id="fwdBox">
+          <div class="fwd-h">
+            <button id="btn_fwd" class="btn fwdkey" data-i18n="fwd">Look-ahead</button>
+            <button id="btn_fwd_vcf" class="btn fwdkey fwdmini" data-i18n="fwdFindVcf">VCF</button>
+            <button id="btn_fwd_vct" class="btn fwdkey fwdmini" data-i18n="fwdFindVct">VCT</button>
+            <span class="grow"></span>
+            <button id="btn_fwd_prev" class="btn sq2">&lt;</button>
+            <button id="btn_fwd_next" class="btn sq2">&gt;</button>
+          </div>
+          <div class="fwd-h fwd-h2">
+            <span class="fwd-lg" id="fwdLg" title="Attacker indicators (not clickable): purple = black, light blue = white; auto = side to move (majority side in mate puzzles)">
+              <span class="lgr lgfr-b" id="fwdLgB"><em data-i18n="fwdBlack">Black</em></span>
+              <span class="lgr lgfr-w" id="fwdLgW"><em data-i18n="fwdWhite">White</em></span>
+            </span>
+            <span class="grow"></span>
+            <button id="btn_fwd_ok" class="btn fwdok" data-i18n="fwdOk">Commit</button>
+          </div>
+          <div class="fwd-body" id="fwdBody"><span class="hint" id="fwdMsg">Press "Look-ahead" to auto-play from this position to five-in-a-row</span></div>
+          <div class="fwd-seq" id="fwdSeq"></div>
+        </div>
+        <div class="row nbestRow"><label id="t_nbest">Points</label>
+          <input id="num_nbest" type="number" min="1" max="8" step="1" value="3">
+        </div>
+      </div>
+    </section>
+    
+  </div>
+</main>
+<div id="drawer" hidden="">
+  <div class="dr-head">
+    <div class="tabs">
+      <button class="tab on" data-tab="hist" id="t_history">History</button>
+      <button class="tab" data-tab="saved" id="t_saved">Saved</button>
+      <button id="dr_all" class="btn dr-allbtn">Select all</button>
+    </div>
+    <span class="grow"></span>
+    <span class="hint" id="drCount">3 / 150</span>
+  </div>
+  <div class="dr-actions">
+    <button id="dr_open" class="btn">Open</button>
+    <button id="dr_save" class="btn accent">Save selected</button>
+    <button id="dr_del" class="btn danger">Delete</button>
+    <button id="dr_imp" class="btn">Import</button>
+    <button id="dr_exp" class="btn">Export</button>
+    <button id="dr_close" class="btn">Close</button>
+  </div>
+  <div class="dr-tip hint" id="t_drTip">Tick some games, then "Save selected" -&gt; they live forever under "Saved"</div>
+  <div id="drList" class="dr-list"><div class="item" data-idx="2"><input type="checkbox"><span class="no">#3</span><span class="nm"></span><span class="src">Local</span><span>11/2/2026, 7:07:30 PM</span><span class="m">8 moves</span></div><div class="item" data-idx="1"><input type="checkbox"><span class="no">#2</span><span class="nm"></span><span class="src">Local</span><span>11/2/2026, 7:01:02 PM</span><span class="m">12 moves</span></div><div class="item" data-idx="0"><input type="checkbox"><span class="no">#1</span><span class="nm"></span><span class="src">Local</span><span>11/2/2026, 6:58:20 PM</span><span class="m">12 moves</span></div></div>
+</div>
+<div id="about" class="modal" hidden="">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title" id="t_about">About</span>
+      <span class="grow"></span>
+      <button id="ab_close" class="btn">Close</button>
+    </div>
+    <div id="ab_body" class="modal-body"><div class="ab-app">Meter Gomoku</div><div class="ab-ver">Version <b>v4.48</b></div><div id="abSys"><div class="ab-h2">System</div><div class="ab-sys"><div class="ab-sys-c"><div class="ab-sys-t">CPU</div><div class="ab-sys-v">AMD Ryzen 7 8845H w/ Radeon 780M Graphics</div><div class="ab-sys-s">8C 16T · 3.79GHz · L1 32KB · L2 1MB · L3 16MB</div></div><div class="ab-sys-c"><div class="ab-sys-t">ISA</div><div class="ab-sys-v">AVX2 ✓ · AVX-512 ✓ · VNNI ✓</div><div class="ab-sys-s">Engine build avx512vnni（Native · measured fastest）</div></div><div class="ab-sys-c"><div class="ab-sys-t">Memory</div><div class="ab-sys-v">31.3 GB</div><div class="ab-sys-s">49% used · 15.7 GB free</div></div></div><div class="ab-lic">Windows 10 Pro for Workstations (build 28000) · disk free 269GB</div></div><div class="ab-h2">How to Use</div><div class="ab-g-sec"><div class="ab-g-t">1. Start a game</div><p class="ab-g-p">Pick a mode in Game Setup: AI (the engine replies) / Free setup (you place stones, no AI at all) / Endgame (set up a position and study it).</p><p class="ab-g-p">Thinking time = how many seconds the AI gets per move (sent to the engine in milliseconds). Longer time means a stronger move; the heat and coach views also widen with it.</p><p class="ab-g-p">Two independent switches choose the AI sides: only "AI plays Black" -&gt; you play White; only "AI plays White" -&gt; you play Black and open the game; both on -&gt; AI vs AI; both off -&gt; no AI at all, you play both colours yourself.</p><p class="ab-g-p">Click the board to place a stone. The centre button: when idle it asks the AI to play one move for whoever is on turn; while the AI is thinking it pauses.</p><p class="ab-g-p">"Restart" auto-saves the current game into History first, then clears the board; "Save" stores the position into History by hand.</p></div><div class="ab-g-sec"><div class="ab-g-t">2. Endgame mode (set up a position and study it)</div><p class="ab-g-p">Three keys appear under the board: Confirm / Sequential / Free colour. Sequential = black and white alternate; Free colour = open the rounded box, pick Black or White and keep placing that colour - any count, any order (e.g. 30 black + 10 white).</p><p class="ab-g-p">The picked colour key lights up: Black turns light purple, White turns light blue-white.</p><p class="ab-g-p">Press Confirm (leftmost) to lock the position in: the key turns light green and reads "Confirmed"; from then on Restart returns to this position, and it is the first frame when saved to History. Press it again to release and re-place.</p><p class="ab-g-p">The AI never joins endgame mode (assist, heat and coach views are all off), and swap-style rules are greyed out - a set-up position needs no swap.</p></div><div class="ab-g-sec"><div class="ab-g-t">3. Evaluation</div><p class="ab-g-p">"Compute" deep-searches the position and marks the best point (press again to stop); "Multi-point" returns 2-8 candidates with rank and score in each badge.</p><p class="ab-g-p">"Balanced 1" picks the candidate whose evaluation is closest to zero; "Balanced 2" plays each candidate out and reads the reply before choosing; "Defense scan" runs the engine-native YXSEARCHDEFEND (the same algorithm as the Rapfi bundle): a pass is inserted so the opponent is to move, then every candidate point is searched continuously - each point's % is the opponent's win rate there, so higher = more urgent. Points are drawn in five tiers: tier 1 is the largest ring with a translucent fill, tiers 2-4 shrink and fade (the smallest ring is half the largest), and tier 5 (edges / low risk) shows just a number inside a thinner ring of the same size as tier 4, sweeping the board; the whole palette is sky blue (deeper = more urgent, paler = low risk). The search keeps deepening; "Stop scan" keeps the last frame on the board until you play or press "Clear calc".</p><p class="ab-g-p">"AI view" shows the AI candidates (circles with scores) only while it thinks, and clears the moment it moves; "Coach view" hints your best move in four colours and disappears as soon as you play.</p><p class="ab-g-p">"Clear calc" sits next to "Compute": one press wipes whatever any card item left on the board - badges and scores from Compute / Multi-point / Balanced 1 / Balanced 2, the five-tier rings and percentages of Defense scan, and the numbers, dashed lines and code chain of Look-ahead / VCF / VCT. It clears marks only, never the position.</p><p class="ab-g-p">The dashboard shows depth, speed, nodes, time and evaluation; the curve below tracks the whole game for both colours (the axis rescales itself).</p></div><div class="ab-g-sec"><div class="ab-g-t">4. Look-ahead / VCF / VCT</div><p class="ab-g-p">"Look-ahead" derives move by move and only ends when a real five-in-a-row appears - it never stops early on the engine verdict (worst case: the board fills up as a draw). The first move gets a deeper global search to find the breakthrough, and the hint shows an expected duration range.</p><p class="ab-g-p">"VCF" = continuous-four mate search; "VCT" = four + open-three threat search. Both run the local solver (multi-worker, iterative deepening): a hit gives a forced win line, a miss says plainly that no such forced mate exists. With VCF/VCT selected it re-probes at every step and switches into the kill sequence as soon as one exists.</p><p class="ab-g-p">Click the Black / White badge to force the attacker (your colour for attack training, the opponent for defence drills); click again to cancel.</p><p class="ab-g-p">Preview stones are translucent and numbered; hover the code chain to preview up to that move, click a code to select it, then OK commits that stretch onto the board.</p><p class="ab-g-p">Every derived move passes a must-answer check: complete a five if one exists, block the opponent five, and answer an open three when you have no four of your own - the defence never hands you a free win.</p></div><div class="ab-g-sec"><div class="ab-g-t">5. Review &amp; history</div><p class="ab-g-p">The History drawer lists saved positions: click to select (arrow keys move, Enter opens), right-click for open-review / rename / export / store into Saved / delete; Ctrl/Shift multi-select and txt import/export are supported.</p><p class="ab-g-p">The "Review" button opens a separate board-only window (no AI, no other main-window features). A game opened from History can be walked through with "Recite" / "Replay". VC and endgame records open with the whole board as the first frame instead of replaying from move one.</p></div><div class="ab-g-sec"><div class="ab-g-t">6. Vision (Gomoku Vision)</div><p class="ab-g-p">Upload or screenshot - the frame snaps to the board automatically, leaving a ~1/30 board margin so edge stones stay inside - then Recognize; the result is mirrored into a board code you can copy or load into practice.</p><p class="ab-g-p">"Edit" fine-tunes by hand: swap B/W (click one black + one white), remove stones, fill black/white; Ctrl+Z undoes.</p><p class="ab-g-p">"VC Mode" = mate-puzzle mode: unbalanced black/white counts are allowed, filling is unlimited and removal is free, with every rule spelled out in the left hint bar. Loading into practice switches to Endgame and only presets the attacker (the majority side) - the mate search never starts by itself, you press VCF or VCT.</p><p class="ab-g-p">"Crop" lets you frame the picture before recognition; every upload is auto-saved into the picture drawer (oldest dropped past 150), with multi-select, delete and copy.</p></div><div class="ab-g-sec"><div class="ab-g-t">7. Rules &amp; appearance</div><p class="ab-g-p">Rules: free-style (no forbidden), overline does not win, Renju (double-three / double-four / overline forbidden), Swap-1, Yamaguchi and Taraguchi-10; look-ahead and mates follow the chosen rule. Swap-style rules open a small popup to pick first or second.</p><p class="ab-g-p">"EN / 中" switches the whole UI (including the screenshot-box buttons and the date format in History); "Themes" opens the theme page (20 themes plus a custom palette); right-side cards can be dragged to reorder and folded with the dash, and the layout is remembered.</p></div><div class="ab-g-sec"><div class="ab-g-t">8. Link mode (play in another app)</div><p class="ab-g-p">Open and select: press "Link" on the top bar to open the Link window, click "Select board" and drag a rectangle over the target board, then press "Recognize" on its title bar. The box turning teal with L-shaped corner brackets and anchors means success. Recognition runs silently in the background (inter-frame pixel diff: no work at all while the board is still, re-read only when something changes), so the frame colour never flickers.</p><p class="ab-g-p">Who does what: the Link window owns recognition and the AI; the main board only mirrors the recognised position and the AI-side settings - it never evaluates and never drops a stone, so the two windows can never fight over the same search.</p><p class="ab-g-p">AI side and thinking time: "AI plays Black" / "AI plays White" are mutually exclusive, and the choice is mirrored unconditionally into Game Setup in the main window; Thinking time is mirrored the same way.</p><p class="ab-g-p">Auto drop: with it on, the app thinks as soon as the opponent moves and plays for you through a three-stage simulated click (PostMessage straight to the target window, then SendInput, then a real click as the last resort). Your physical mouse is never touched. It switches off when the game ends (five in a row).</p><p class="ab-g-p">Swap balance: pressing it automatically cancels any selected AI side first (they would interfere). On an empty board it gives three points (two Black, one White); with stones present it gives two (one Black, one White). The markers stay in the recognition frame and the balance engine is released immediately afterwards. They disappear once you have played those stones.</p><p class="ab-g-p">Swap balance + Auto drop in order: if you press Swap balance first and Auto drop is on when the evaluation finishes, the points are played automatically in order (exactly like the standalone assistant). If Auto drop is switched on later, they are played in order the moment it is switched on.</p><p class="ab-g-p">Swap evaluation: a separate feature from Swap balance; it scores the current swap position so you can judge whether to swap.</p><p class="ab-g-p">On-board marks: the suggested move is a sky-blue ring; swap balance points are purple (Black) / blue (White) rings numbered 1, 2, 3. All of them are drawn inside the recognition frame at the matching intersections and are excluded from screen capture, so they are never misread as stones.</p><p class="ab-g-p">Closing: closing the Link window restores your own mode and settings in the main window; play, computation and everything else keep working as before.</p></div><div class="ab-h2">Features</div><ul class="ab-ul"><li>Three modes: play the AI / free placement / endgame (set up a position and Confirm it; Restart returns to it)</li><li>Look-ahead that runs to a real five-in-a-row; local VCF / VCT mate solver (multi-worker, iterative deepening)</li><li>Evaluation: Compute / Clear calc / Multi-point / Balanced 1 / Balanced 2 / Defense scan, plus AI view and Coach view</li><li>Eval curve with a self-rescaling axis up to +/-1200; dashboard with depth / speed / nodes / time</li><li>Three rules: freestyle / overline-loses / Renju (forbidden moves)</li><li>Vision: screenshot or upload with auto board snapping, VC mate-puzzle mode, manual editing (swap / remove / fill / crop) and a picture drawer</li><li>History &amp; review: txt import/export, rename, right-click menu, separate review window (recite / replay, VC records open on the full board)</li></ul><div class="ab-h2">Open-source components</div><table class="ab-tb"><tbody><tr><td class="ab-n">Rapfi</td><td class="ab-d">Gomoku / Renju engine core (native build, rapfi-native, shipped with this app)</td><td class="ab-l">GPL-3.0</td></tr><tr><td class="ab-n">OpenCV</td><td class="ab-d">Board and stone recognition (statically linked into GomokuVision.exe, no extra DLL)</td><td class="ab-l">Apache-2.0</td></tr><tr><td class="ab-n">Microsoft WebView2 Runtime</td><td class="ab-d">Desktop UI runtime (provided by Windows / Edge, not distributed with this app)</td><td class="ab-l">Proprietary</td></tr></tbody></table><div class="ab-lic">Note: the table lists only third-party components that ship with this app or are required at runtime. Development-only scripts and their dependencies (NumPy, Pillow, ...) run on the build machine and are not distributed with this app, so they are not listed here.</div><div class="ab-h2">Licence</div><div class="ab-lic">The interface and companion code of this app are released under the MIT licence. The playing core Rapfi is released under GPL-3.0; this app calls it as a separate process over a local pipe (no port is opened), communicating only through messages, and is not merged with it into a single work. When redistributing Rapfi together with this app you must keep its licence and the way to obtain its source (available from its upstream repository, dhbloo/rapfi). OpenCV, used for recognition, is statically linked into GomokuVision.exe under Apache-2.0. The Microsoft WebView2 Runtime is provided by Windows / Edge under its own terms and is not distributed with this app. Copyright and licensing of each component above remain with its respective authors.</div><div class="ab-h2">Recent updates</div><div class="ab-vtag">v4.48</div><ul class="ab-ul ab-news"><li>New "Jade" stone material (layered pale tints with a glass-like sheen); realistic stones also cast a soft contact shadow. The board renders at 2x supersampling, so stones, move counters and grid lines are visibly sharper</li><li>New "Dynamic time" switch under Game: trivial positions get less time, hard ones up to +15%, forced wins only 40% - the saved seconds go into a time bank for later moves. Turn it off to think exactly the configured number of seconds</li><li>Fixed forced-win / forced-loss positions that sometimes took very long while the depth display stayed at 0 (24 empty iterations after a mate, and START_DEPTH resuming above what the hash could support)</li><li>Option labels in the settings window are sky blue now (they fall back to black or white when the page colour is close to it); the three window-card switches gained a titled "Window cards" frame</li><li>The Font -&gt; stones row no longer overflows at the Medium / Large font sizes - the button groups now fill the row exactly; move-counter sizes were reduced by one step</li></ul><div class="ab-vtag">v4.47</div><ul class="ab-ul ab-news"><li>The settings window is now a standalone master panel: always on top, fixed 1:1.618 ratio that scales with the screen, pre-created at boot (opens instantly), minimizes straight into its own taskbar entry; the splash shows only Gomoku Settings</li><li>Two-way live sync between the main and settings windows: switching AI sides there makes the engine move immediately; threads / hash / candidate range / analysis points / theme / language apply to every window at once. Opening a link session no longer reshapes the main window and no longer keeps its own settings archive - link AI parameters start from the main window's current settings</li><li>The board-foot settings button is gone (the top-bar key is the only entry); the colour reset key no longer wraps</li><li>Board lines / coordinates are device-pixel aligned (crisp near-black), the position-code box moved under the engine dashboard log, move numbers on by default (Noto Serif SC)</li><li>Analysis is one single toggle (the board-foot key and the analysis card share state); the balance point now runs one continuous search with live paired marks - tap again to play them out</li></ul><div class="ab-vtag">v4.46</div><ul class="ab-ul ab-news"><li>Recognition params now really take effect: if any of the five thresholds (grey level, black / white offset, black / white percentage) differs from its default, the strict path is used - results follow exactly what you set, and the whole fallback chain (relaxed re-read, home-grown reader, local-contrast pass) no longer silently overrides it; the fallbacks only run while every value is still at its default</li><li>Background thinking rebuilt on the engine-native pondering used by the official bundle - while it is on, the engine is already working out your reply during the opponent turn; while it is off the engine stops the moment it moves instead of spinning idle (a major source of constant high CPU)</li><li>New "style (caution)" selector in Game settings with six steps: 0 most aggressive (5x5 candidate range) ... 5 most cautious (whole board), default 3 (the officially recommended step), each step explained; a "Multi-PV" row (1-8, default 3) joins it in the same card</li><li>The analysis-point count and Multi-PV share one value and stay in sync both ways; it now also feeds multi-point analysis, look-ahead deep search (floor lowered to 1-2) and the candidate cap of the defence scan</li><li>Engine variant auto-bench fixed: it used to pick avx2 as fastest by mistake and now picks the genuinely fastest variant from measured nps</li><li>Candidate de-duplication moved down to the engine reply layer: each point appears once, duplicate ranks are gone</li><li>Game settings cards are grouped: only the Engine section (candidate range / analysis points / threads / hash) uses the dashed frame</li><li>All placeholders filled in for the English UI ({n} / {p} no longer leak); fixed occasional lost lines in concurrent logging</li></ul><div class="ab-vtag">v4.43</div><ul class="ab-ul ab-news"><li>Defense scan now uses the engine-native YXSEARCHDEFEND: a PASS hands the move to the opponent, so each percentage is the opponent win rate at that point; danger is drawn in five tiers (tier 1 is the largest ring with a translucent fill, tiers 2-4 shrink and fade, tier 5 edge points show only a number in a thin ring), in a pale sky-blue ramp; the key becomes "Stop scan" and the last frame stays on the board; "Clear marks" is renamed "Clear calc"</li><li>Vision adapts far better to real pictures: dark and light board themes, rotated screenshots, photos of a screen, low-contrast and blurry images all read now - a third "local contrast" reader judges each intersection against its own background, board search climbs a ladder (3x3 blur, CLAHE equalisation, 1.5x upscale), and a geometry check takes over when the grid does not line up</li><li>Vision "Recognition params": opening the panel hides the position-code box automatically, and the hint line is a fixed-height dashed box - dragging the sliders no longer makes the column jump</li><li>UI assets are now one ui.pak instead of many .enc files - antivirus products no longer mistake the encrypted documents for ransomware and delete them (which used to leave a blank window); if the file really is missing, a diagnostic page explains how to whitelist and reinstall</li></ul></div>
+  </div>
+</div>
+<div id="vcxPop" class="modal" hidden="">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title" id="t_vcxPop">Solver result</span>
+      <span class="grow"></span>
+      <button id="vcxPop_close" class="btn">Close</button>
+    </div>
+    <div id="vcxPopBody" class="modal-body"></div>
+  </div>
+</div>
+<div id="colorPop" class="modal" hidden="">
+  <div class="modal-card cp-card">
+    <div class="modal-head">
+      <span class="modal-title" id="t_color">Themes</span>
+      <span class="grow"></span>
+      <button id="cp_close" class="btn">Close</button>
+    </div>
+    <div class="modal-body cp-body">
+      <div class="cp-view cp-themes-view" id="cpThemesView">
+        <div class="cp-themes" id="cp_theme_presets"><button type="button" data-thm="light" title="Light" class="on"><span class="cp-th-sw" style="background:#f6f6f4"><i style="background:#d9b878"></i><b style="background:#2f86d6"></b></span><span class="cp-th-nm">Light</span></button><button type="button" data-thm="dark" title="Dark"><span class="cp-th-sw" style="background:#26272a"><i style="background:#d9b878"></i><b style="background:#2e6da4"></b></span><span class="cp-th-nm">Dark</span></button><button type="button" data-thm="paper" title="Paper"><span class="cp-th-sw" style="background:#f7f6f2"><i style="background:#d2c5b3"></i><b style="background:#86694a"></b></span><span class="cp-th-nm">Paper</span></button><button type="button" data-thm="celadon" title="Celadon"><span class="cp-th-sw" style="background:#f2f5f3"><i style="background:#c4d0c7"></i><b style="background:#5a7c68"></b></span><span class="cp-th-nm">Celadon</span></button><button type="button" data-thm="mist" title="Mist"><span class="cp-th-sw" style="background:#f3f6f9"><i style="background:#c1ced8"></i><b style="background:#4f7592"></b></span><span class="cp-th-nm">Mist</span></button><button type="button" data-thm="bluegray" title="Blue Gray"><span class="cp-th-sw" style="background:#f0f2f4"><i style="background:#b2bbc2"></i><b style="background:#465c6b"></b></span><span class="cp-th-nm">Blue Gray</span></button><button type="button" data-thm="dune" title="Dune"><span class="cp-th-sw" style="background:#f6f0e7"><i style="background:#beab91"></i><b style="background:#795a34"></b></span><span class="cp-th-nm">Dune</span></button><button type="button" data-thm="tundra" title="Tundra"><span class="cp-th-sw" style="background:#f3f5ee"><i style="background:#b6bead"></i><b style="background:#596b4c"></b></span><span class="cp-th-nm">Tundra</span></button><button type="button" data-thm="dusk" title="Dusk"><span class="cp-th-sw" style="background:#2d343d"><i style="background:#6c7782"></i><b style="background:#aec4d8"></b></span><span class="cp-th-nm">Dusk</span></button><button type="button" data-thm="walnut" title="Walnut"><span class="cp-th-sw" style="background:#312c2b"><i style="background:#807061"></i><b style="background:#c9ab87"></b></span><span class="cp-th-nm">Walnut</span></button><button type="button" data-thm="pine" title="Pine"><span class="cp-th-sw" style="background:#293432"><i style="background:#617e77"></i><b style="background:#9cc3b5"></b></span><span class="cp-th-nm">Pine</span></button><button type="button" data-thm="wine" title="Wine"><span class="cp-th-sw" style="background:#352c2f"><i style="background:#7f6569"></i><b style="background:#cda3a8"></b></span><span class="cp-th-nm">Wine</span></button><button type="button" data-thm="ink" title="Ink"><span class="cp-th-sw" style="background:#24272d"><i style="background:#545e6c"></i><b style="background:#9db1c8"></b></span><span class="cp-th-nm">Ink</span></button><button type="button" data-thm="mauve" title="Mauve"><span class="cp-th-sw" style="background:#2f2a36"><i style="background:#746980"></i><b style="background:#c1afd5"></b></span><span class="cp-th-nm">Mauve</span></button><button type="button" data-thm="slate" title="Slate"><span class="cp-th-sw" style="background:#eff3f4"><i style="background:#9cb0b5"></i><b style="background:#336168"></b></span><span class="cp-th-nm">Slate</span></button><button type="button" data-thm="navy" title="Navy"><span class="cp-th-sw" style="background:#252d3b"><i style="background:#515d70"></i><b style="background:#94aed1"></b></span><span class="cp-th-nm">Navy</span></button><button type="button" data-thm="silver" title="Silver"><span class="cp-th-sw" style="background:#f5f5f4"><i style="background:#c7c8c7"></i><b style="background:#5c6265"></b></span><span class="cp-th-nm">Silver</span></button><button type="button" data-thm="graphite" title="Graphite"><span class="cp-th-sw" style="background:#2b2c2e"><i style="background:#66686b"></i><b style="background:#a8aeb3"></b></span><span class="cp-th-nm">Graphite</span></button><button type="button" data-thm="dawn" title="Dawn"><span class="cp-th-sw" style="background:#f9f4f3"><i style="background:#cbbbbf"></i><b style="background:#a26770"></b></span><span class="cp-th-nm">Dawn</span></button><button type="button" data-thm="aurora" title="Aurora"><span class="cp-th-sw" style="background:#263034"><i style="background:#5d8083"></i><b style="background:#d6ab6c"></b></span><span class="cp-th-nm">Aurora</span></button><button type="button" data-thm="latte" title="Latte"><span class="cp-th-sw" style="background:#f6f3f0"><i style="background:#c8bdb1"></i><b style="background:#7a5c3e"></b></span><span class="cp-th-nm">Latte</span></button><button type="button" data-thm="bamboo" title="Bamboo"><span class="cp-th-sw" style="background:#f1f5f2"><i style="background:#b4c5b6"></i><b style="background:#4f6b4a"></b></span><span class="cp-th-nm">Bamboo</span></button><button type="button" data-thm="lotus" title="Lotus"><span class="cp-th-sw" style="background:#f5f1f3"><i style="background:#c4b5bc"></i><b style="background:#8c5f72"></b></span><span class="cp-th-nm">Lotus</span></button><button type="button" data-thm="lavender" title="Lavender"><span class="cp-th-sw" style="background:#f3f1f5"><i style="background:#bbb4c5"></i><b style="background:#6b5f8a"></b></span><span class="cp-th-nm">Lavender</span></button><button type="button" data-thm="apricot" title="Apricot"><span class="cp-th-sw" style="background:#f7f3f0"><i style="background:#cabbb0"></i><b style="background:#8a6136"></b></span><span class="cp-th-nm">Apricot</span></button><button type="button" data-thm="jade" title="Jade"><span class="cp-th-sw" style="background:#f1f5f5"><i style="background:#b4c5c2"></i><b style="background:#3f6f63"></b></span><span class="cp-th-nm">Jade</span></button><button type="button" data-thm="clay" title="Clay"><span class="cp-th-sw" style="background:#f6f2f1"><i style="background:#c6b9b3"></i><b style="background:#7d5a44"></b></span><span class="cp-th-nm">Clay</span></button><button type="button" data-thm="fog" title="Fog"><span class="cp-th-sw" style="background:#f2f3f4"><i style="background:#babdc0"></i><b style="background:#5a6268"></b></span><span class="cp-th-nm">Fog</span></button><button type="button" data-thm="glacier" title="Glacier"><span class="cp-th-sw" style="background:#f1f4f6"><i style="background:#b3c0c7"></i><b style="background:#3c627a"></b></span><span class="cp-th-nm">Glacier</span></button><button type="button" data-thm="wheat" title="Wheat"><span class="cp-th-sw" style="background:#f6f5f0"><i style="background:#c8c2b1"></i><b style="background:#7a6329"></b></span><span class="cp-th-nm">Wheat</span></button><button type="button" data-thm="plum" title="Plum"><span class="cp-th-sw" style="background:#2a2126"><i style="background:#6c5b66"></i><b style="background:#c6aab8"></b></span><span class="cp-th-nm">Plum</span></button><button type="button" data-thm="forest" title="Forest"><span class="cp-th-sw" style="background:#202a24"><i style="background:#5a6d60"></i><b style="background:#a6bfa9"></b></span><span class="cp-th-nm">Forest</span></button><button type="button" data-thm="indigo" title="Indigo"><span class="cp-th-sw" style="background:#1e202c"><i style="background:#575a70"></i><b style="background:#9fadd2"></b></span><span class="cp-th-nm">Indigo</span></button><button type="button" data-thm="cocoa" title="Cocoa"><span class="cp-th-sw" style="background:#2b2420"><i style="background:#6e6159"></i><b style="background:#c4a98c"></b></span><span class="cp-th-nm">Cocoa</span></button><button type="button" data-thm="rosewood" title="Rosewood"><span class="cp-th-sw" style="background:#2c211e"><i style="background:#705c57"></i><b style="background:#cda396"></b></span><span class="cp-th-nm">Rosewood</span></button><button type="button" data-thm="ocean" title="Ocean"><span class="cp-th-sw" style="background:#1c2a2f"><i style="background:#526c75"></i><b style="background:#96bccd"></b></span><span class="cp-th-nm">Ocean</span></button></div>
+        <button id="cp_custom" type="button" class="btn cp-custom">Custom</button>
+      </div>
+      <div class="cp-view cp-custom-view" id="cpCustomView" hidden="">
+        <div class="cp-cush">
+          <button id="cp_custom_back" type="button" class="btn sq2" title="Back to themes" aria-label="Back to themes">‹</button>
+          <span class="cp-cus-ttl" id="t_cpCustom">Custom</span>
+        </div>
+        <div class="cp-row"><label id="t_cpTarget">Apply to</label>
+          <div class="seg s2" id="cp_target">
+            <button data-tg="board" class="on">Board</button>
+            <button data-tg="page">Background</button>
+          </div>
+        </div>
+        <div class="cp-picker">
+          <canvas id="cp_sv" width="288" height="150"></canvas>
+          <canvas id="cp_hue" width="288" height="16"></canvas>
+        </div>
+        <div class="cp-sliders">
+          <label>R</label><input id="cp_rn" type="number" min="0" max="255" step="1">
+          <label>G</label><input id="cp_gn" type="number" min="0" max="255" step="1">
+          <label>B</label><input id="cp_bn" type="number" min="0" max="255" step="1">
+        </div>
+        <div class="cp-row"><label id="t_cpHex">RGB code</label>
+          <input id="cp_hex" spellcheck="false" placeholder="#d9b878">
+        </div>
+        <div class="cp-row" id="cpPresetRow"><label id="t_cpPreset">Presets</label>
+          <div class="cp-presets" id="cp_presets"><button type="button" data-c="#d9b878" style="background:#d9b878" title="#d9b878"></button><button type="button" data-c="#e3be6f" style="background:#e3be6f" title="#e3be6f"></button><button type="button" data-c="#ecdcbb" style="background:#ecdcbb" title="#ecdcbb"></button><button type="button" data-c="#c3cbb4" style="background:#c3cbb4" title="#c3cbb4"></button><button type="button" data-c="#a5804e" style="background:#a5804e" title="#a5804e"></button></div>
+        </div>
+        <div class="cp-foot">
+          <span class="cp-prev" id="cp_prev"></span>
+          <span class="hint" id="cp_hint">Tuning the board colour; grid, star points and axes follow automatically</span>
+          <span class="grow"></span>
+          <button id="cp_reset" class="btn">Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="ctxMenu" class="ctx" hidden=""></div>
+<input id="file_imp" type="file" accept=".txt,text/plain" hidden="">
+<input id="file_vis" type="file" accept="image/*" multiple="" hidden="">
+
+
+
+
+</body></html>

@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2f6fb0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232f6fb0'/><path d='M17 8v48M32 8v48M47 8v48M8 17h48M8 32h48M8 47h48' stroke='white' stroke-width='2' opacity='.55'/><circle cx='32' cy='32' r='7' fill='white'/><circle cx='47' cy='47' r='7' fill='%23171b21'/></svg>">
+<title>Meter Gomoku · 五子棋 AI 训练器</title>
+<meta name="description" content="Meter Gomoku — 基于 Rapfi 引擎的 Windows 五子棋训练与对弈软件：对弈、摆盘、残局、计算分析、平衡点、扫描防守、复盘、识图、连线。">
+<meta property="og:title" content="Meter Gomoku · 五子棋 AI 训练器">
+<meta property="og:description" content="Rapfi NNUE 引擎驱动 · 对弈 / 分析 / 复盘 / 识图 / 连线">
+<style>
+/* ============================================================ base */
+*{box-sizing:border-box}
+:root{
+  --ink:#171b21; --sub:#5c6774; --mute:#8792a0;
+  --line:#e3e8ef; --line-2:#eef2f7;
+  --accent:#2f6fb0; --accent-d:#1e4e80; --accent-l:#eaf3fc;
+  --paper:#fff; --bg:#edf1f6;
+  --zebra:#f3f7fc; --zebra-hover:#eaf3fc;
+  --serif:"Source Han Serif SC","Songti SC",Georgia,"Times New Roman",serif;
+  --sans:"Source Han Sans SC","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Code",Consolas,"SF Mono",Menlo,monospace;
+  --r:14px;
+  --s1:6px; --s2:10px; --s3:14px; --s4:18px; --s5:24px; --s6:32px; --s7:44px;
+  --r-sm:8px; --r-md:12px; --r-lg:16px;
+}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:
+    radial-gradient(1100px 600px at 78% -8%, #dfeaf7 0%, transparent 62%),
+    radial-gradient(900px 560px at 8% 8%, #e7eef8 0%, transparent 58%),
+    var(--bg);
+  color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.8;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+img,svg{max-width:100%}
+a{color:var(--accent); text-decoration:none}
+a:hover{text-decoration:underline}
+button{font:inherit}
+a:focus-visible,button:focus-visible,.btnline:focus-visible,.copy:focus-visible{
+  outline:2px solid var(--accent); outline-offset:3px; border-radius:4px;
+}
+.sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0 0 0 0); white-space:nowrap; border:0}
+
+/* ============================================================ layout */
+.wrap{display:grid; grid-template-columns:252px minmax(0,1fr); align-items:start}
+.side{
+  position:sticky; top:0; height:100vh; overflow:auto; padding:26px 16px 40px;
+  border-right:1px solid var(--line); background:rgba(255,255,255,.72);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); z-index:40;
+}
+.side .brand{font-weight:800; letter-spacing:.2px; font-size:17px; color:var(--accent-d); padding:0 10px}
+.side .brand small{display:block; font-weight:500; font-size:11.5px; color:var(--mute); letter-spacing:.06em; margin-top:3px}
+.side nav{margin-top:18px}
+.side a.nav{
+  display:flex; gap:9px; align-items:baseline; padding:7px 10px; border-radius:9px;
+  color:var(--ink); font-size:13.4px; line-height:1.35; transition:.16s;
+}
+.side a.nav span.n{font-family:var(--mono); font-size:11px; color:var(--mute); min-width:16px}
+.side a.nav:hover{background:#f2f6fb; text-decoration:none; color:var(--accent-d)}
+.side a.nav.on{background:var(--accent-l); color:var(--accent-d); font-weight:600}
+.side a.nav.on span.n{color:var(--accent)}
+
+.main{min-width:0; padding:34px 40px 90px}
+.sheet{
+  max-width:1000px; margin:0 auto 26px; background:var(--paper); border:1px solid var(--line);
+  border-radius:var(--r); padding:40px 46px 46px;
+  box-shadow:0 26px 60px -46px rgba(16,40,72,.55), 0 2px 6px rgba(16,40,72,.04);
+}
+/* mobile title bar — only shown when the sidebar is hidden */
+.mbrand{
+  display:none; position:sticky; top:0; z-index:50;
+  align-items:center; justify-content:center; gap:8px;
+  padding:13px 16px calc(13px + env(safe-area-inset-top,0px));
+  background:rgba(255,255,255,.88); border-bottom:1px solid var(--line);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  color:var(--accent); font-size:17px; font-weight:800; letter-spacing:.01em;
+}
+@media (max-width:1080px){
+  .wrap{grid-template-columns:1fr}
+  .side{display:none}
+  .mbrand{display:flex}
+  .main{padding:18px 14px 60px}
+  .sheet{padding:26px 20px 30px; scroll-margin-top:64px}
+  .hero{padding:26px 20px 30px}
+}
+
+/* ============================================================ type */
+h1{font-family:var(--sans); font-size:clamp(30px,4.4vw,46px); line-height:1.15; margin:0 0 10px; letter-spacing:-.02em}
+h1 .thin{font-weight:300; color:var(--accent-d)}
+h2{font-size:24px; line-height:1.3; margin:0 0 12px; letter-spacing:-.01em}
+h2 .num{font-family:var(--mono); font-size:12px; color:var(--accent); letter-spacing:.14em; display:block; margin-bottom:7px; font-weight:600}
+h3{font-size:16.5px; line-height:1.4; margin:var(--s6) 0 var(--s2); color:var(--accent-d)}
+h4{font-size:14.5px; line-height:1.5; margin:var(--s5) 0 var(--s1)}
+p{margin:0 0 12px; color:#2b333c; overflow-wrap:break-word}
+li{overflow-wrap:anywhere}
+.lead{font-size:16.5px; color:var(--sub); line-height:1.9}
+.sub{color:var(--sub)}
+.mono{font-family:var(--mono); font-size:13px}
+code{font-family:var(--mono); font-size:12.8px; background:#f3f6fa; border:1px solid var(--line-2);
+  padding:1px 6px; border-radius:5px; color:var(--accent-d)}
+hr.sep{height:1px; background:var(--line); border:0; margin:30px 0}
+.rule-top{border-top:1px solid var(--line); margin-top:34px; padding-top:26px}
+
+/* ============================================================ bits */
+.chip{display:inline-flex; align-items:center; gap:6px; padding:3px 11px; border-radius:999px;
+  font-size:12.5px; font-weight:600; background:var(--accent-l); color:var(--accent-d); border:1px solid #d6e6f7}
+.chip.gray{background:#f3f5f8; color:var(--sub); border-color:var(--line)}
+.btnline{display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 18px;
+  border-radius:11px; max-width:100%; white-space:normal; overflow-wrap:anywhere; line-height:1.35;
+  border:1px solid var(--line); background:#fff; color:var(--ink); font-weight:600; font-size:14px; transition:.16s}
+.btnline:hover{border-color:#c9d7e6; text-decoration:none; transform:translateY(-1px)}
+.btnline.primary{background:linear-gradient(180deg,#3579bd,#2b62a0); border-color:#2b62a0; color:#fff;
+  box-shadow:0 10px 22px -12px rgba(47,111,176,.9)}
+.btnline.primary:hover{filter:brightness(1.05)}
+
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+.grid2>*,.grid3>*{min-width:0}
+@media (max-width:820px){ .grid2,.grid3{grid-template-columns:1fr} }
+.setgrid{grid-template-columns:352px minmax(0,1fr); gap:26px}
+@media (max-width:820px){ .setgrid{grid-template-columns:1fr} }
+
+.card{border:1px solid var(--line); border-radius:12px; padding:16px 18px; background:#fcfdfe}
+.card:hover{border-color:#d5e2f0; background:#fff}
+.card .k{font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mute); font-weight:700}
+.card .v{font-size:19px; font-weight:700; color:var(--accent-d); margin-top:2px}
+.card p{font-size:13.4px; color:var(--sub); margin:6px 0 0}
+
+table{width:100%; margin:16px 0 10px; font-size:14px}
+.tbl,.ftable{border-collapse:separate; border-spacing:0}
+.tbl{border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden; background:#fff}
+.tbl thead th{text-align:left; padding:10px 18px; font-size:11.5px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--mute); font-weight:700; background:#f7fafd;
+  border-bottom:1px solid var(--line)}
+.tbl tbody td{text-align:left; padding:12px 18px; border-top:1px solid var(--line-2);
+  vertical-align:top; line-height:1.7; overflow-wrap:anywhere}
+.tbl tbody tr:first-child td{border-top:0}
+.tbl tbody tr:nth-child(even) td{background:#fafcff}
+.tbl tbody tr:hover td{background:var(--zebra-hover)}
+.tbl td:first-child{width:170px}
+.tbl td b{color:var(--ink)}
+
+/* single-column feature table (zebra rows) */
+.ftable{width:100%; margin:18px 0 6px; border:1px solid var(--line); border-radius:var(--r-md);
+  overflow:hidden; background:#fff; box-shadow:0 1px 2px rgba(20,40,70,.03)}
+.ftable td{width:100%; padding:0; border:0; vertical-align:top}
+.ftable tbody tr{background:#fff; transition:background .16s}
+.ftable tbody tr:nth-child(even){background:var(--zebra)}
+.ftable tbody tr:hover{background:var(--zebra-hover)}
+.ftable tbody tr+tr td{border-top:1px solid var(--line)}
+.ft-cell{display:flex; align-items:flex-start; gap:14px; padding:16px 20px}
+.ft-no{flex:0 0 auto; width:30px; height:30px; display:grid; place-items:center;
+  font-family:var(--mono); font-size:12px; font-weight:700; color:var(--accent);
+  background:#fff; border:1px solid #cfe1f2; border-radius:50%}
+.ft-body{flex:1; min-width:0}
+.ft-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 10px}
+.ft-title{font-size:15.5px; font-weight:700; color:var(--ink); letter-spacing:-.01em; line-height:1.4}
+.ft-sub{font-family:var(--mono); font-size:11.5px; letter-spacing:.05em; color:var(--accent); line-height:1.4}
+.ft-desc{margin:4px 0 0; font-size:13.6px; line-height:1.72; color:var(--sub)}
+.ft-desc b{color:var(--ink)}
+
+ul,ol{margin:10px 0 14px; padding-left:22px; color:#2b333c}
+li{margin:6px 0}
+li::marker{color:var(--accent)}
+ul.tight li{margin:3px 0}
+
+.note{border-left:3px solid var(--accent); background:linear-gradient(90deg,#f4f9ff,#fbfdff);
+  padding:12px 16px; border-radius:0 10px 10px 0; margin:18px 0; font-size:13.8px; color:#31404f}
+.note b{color:var(--accent-d)}
+
+/* ============================================================ hero */
+.hero{padding:44px 46px 40px}
+.hero .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:.22em; color:var(--accent); font-weight:700}
+.hero .tag{font-size:16px; color:var(--sub); margin:6px 0 22px}
+.hero .cta{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:22px 0 8px}
+.hero .meta{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px}
+.dl{border:1px dashed #bcd4ea; background:#f7fbff; border-radius:12px; padding:14px 16px; margin-top:20px;
+  display:flex; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between}
+.dl .l{font-size:13.4px; color:var(--sub)}
+.dl .pw{font-family:var(--mono); font-weight:700; color:var(--accent-d); background:#fff; border:1px solid #cfe1f2;
+  padding:2px 10px; border-radius:7px; letter-spacing:.12em}
+.copy{cursor:pointer; border:1px solid var(--line); background:#fff; border-radius:8px; padding:4px 10px;
+  font-size:12px; color:var(--sub); font-family:var(--sans)}
+.copy:hover{border-color:#c9d7e6; color:var(--accent-d)}
+
+/* ============================================================ figure */
+figure.shot{margin:20px 0 8px; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#fff}
+.shot-bar{display:flex; align-items:center; gap:8px; padding:8px 12px; background:linear-gradient(#fbfcfe,#f2f5f9);
+  border-bottom:1px solid var(--line)}
+.shot-bar i{width:9px; height:9px; border-radius:50%; background:#d6dde6; display:inline-block}
+.shot-bar i:nth-child(1){background:#ff5f57}.shot-bar i:nth-child(2){background:#febc2e}.shot-bar i:nth-child(3){background:#28c840}
+.shot-bar span{font-size:11.5px; color:var(--mute); font-family:var(--mono); margin-left:6px}
+.shot-box{position:relative; width:100%; overflow:hidden; background:#fff}
+.shot-box iframe{position:absolute; top:0; left:0; border:0; transform-origin:0 0; pointer-events:none;
+  user-select:none; -webkit-user-select:none}
+figcaption{font-size:12.8px; color:var(--sub); padding:10px 2px 0; line-height:1.7}
+figcaption b{color:var(--ink)}
+
+/* ============================================================ bilingual */
+.en{display:none}
+body.lang-en .zh{display:none}
+body.lang-en .en{display:revert}
+
+/* lang switch */
+.lang{position:fixed; right:18px; bottom:18px; z-index:60; display:flex; gap:4px; padding:4px;
+  background:rgba(255,255,255,.9); border:1px solid var(--line); border-radius:999px; box-shadow:0 8px 20px -14px rgba(20,40,70,.6)}
+.lang button{border:0; background:transparent; padding:6px 14px; border-radius:999px; font:inherit; font-size:12.5px;
+  font-weight:600; color:var(--sub); cursor:pointer}
+.lang button.on{background:var(--accent); color:#fff}
+@media (max-width:1080px){ .lang{bottom:12px; right:12px} }
+
+footer.foot{max-width:1000px; margin:0 auto; padding:8px 4px 40px; color:var(--mute); font-size:12.5px; text-align:center; line-height:1.8}
+
+/* ============================================================ small screens */
+@media (max-width:640px){
+  body{font-size:14.6px; line-height:1.8}
+  .main{padding:12px 10px 78px}
+  .sheet{padding:22px 16px 26px; border-radius:12px; margin-bottom:16px}
+  .hero{padding:24px 16px 24px}
+  .mbrand{font-size:16.5px; padding:16px 16px calc(16px + env(safe-area-inset-top,0px))}
+  h1{font-size:clamp(27px,8.4vw,36px)}
+  h2{font-size:21px}
+  h3{font-size:16px; margin-top:26px}
+  .lead{font-size:15.5px; line-height:1.85}
+  .hero .eyebrow{letter-spacing:.12em; font-size:10.8px}
+  .hero .tag{font-size:15px; margin-bottom:18px}
+  .hero .cta{flex-direction:column; align-items:stretch; gap:9px}
+  .hero .cta .btnline{width:100%; min-height:44px}
+  .dl{flex-direction:column; align-items:stretch; gap:10px}
+  .dl .l{line-height:1.75}
+  .copy{min-height:40px; font-size:12.5px}
+  .meta{gap:6px}
+  .chip{font-size:12px; padding:3px 10px}
+  .shot-bar span{max-width:calc(100% - 40px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  figcaption{padding-top:8px; font-size:12.4px}
+  code{overflow-wrap:anywhere}
+  .note{padding:11px 13px; font-size:13.2px}
+  .card{padding:14px 15px}
+  .grid2,.grid3{gap:12px}
+  ul,ol{padding-left:19px}
+
+  /* 「设置 | 说明」两列表格 → 上下两行 */
+  .tbl{display:block; border:0; background:transparent; margin:14px 0 6px; overflow:visible}
+  .tbl thead{display:none}
+  .tbl tbody{display:block}
+  .tbl tbody tr{display:block; background:#fff; border:1px solid var(--line);
+    border-radius:12px; padding:12px 14px; margin:0 0 10px}
+  .tbl tbody tr:nth-child(even){background:var(--zebra)}
+  .tbl tbody tr:last-child{margin-bottom:0}
+  .tbl tbody td{display:block; width:auto!important; padding:0; border:0;
+    background:transparent!important; line-height:1.72}
+  .tbl tbody td:first-child{font-size:14.5px; margin-bottom:3px}
+  .tbl tbody td+td{color:var(--sub); font-size:13.6px}
+  .tbl tbody tr:hover{background:var(--zebra-hover)}
+  .tbl tbody tr:hover td{background:transparent!important}
+
+  .ft-cell{padding:14px 15px; gap:11px}
+  .ft-no{width:27px; height:27px; font-size:11px}
+  .ft-title{font-size:14.8px}
+  .ft-sub{font-size:10.8px}
+  .ft-desc{font-size:13.2px}
+
+  .lang{top:calc(4px + env(safe-area-inset-top,0px)); bottom:auto; right:9px;
+    background:rgba(255,255,255,.92); border:1px solid var(--line);
+    box-shadow:0 4px 14px -10px rgba(16,40,72,.5)}
+  .lang button{min-height:40px; padding:8px 10px; font-size:12.5px}
+  .btnline{min-height:44px}
+  footer.foot{padding-bottom:40px; font-size:12px}
+}
+@media (max-width:380px){
+  .mbrand{font-size:15.5px; padding-left:12px; padding-right:12px}
+  .lang button{padding:8px 8px; font-size:12px}
+  .main{padding-left:8px; padding-right:8px}
+  .sheet{padding:20px 13px 24px}
+  .hero{padding:22px 13px 22px}
+  .ft-cell{padding:13px 12px; gap:9px}
+  .ft-no{width:25px; height:25px}
+  .ft-title{font-size:14.2px}
+}
+
+/* print / PDF */
+@media print{
+  body{background:#fff}
+  .side,.lang,.copy,.mbrand{display:none!important}
+  .wrap{display:block}
+  .main{padding:0}
+  .sheet{box-shadow:none; border:0; margin:0; padding:24mm 18mm; page-break-after:always}
+  .shot-box{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<div class="mbrand" aria-label="Meter Gomoku"><span>Meter Gomoku</span></div>
+
+<div class="lang">
+  <button id="lg-zh" class="on" type="button" aria-pressed="true">ZH</button>
+  <button id="lg-en" type="button" aria-pressed="false">EN</button>
+</div>
+
+<div class="wrap">
+<aside class="side">
+  <div class="brand">Meter Gomoku<small>v4.48 · GOMOKU AI TRAINER</small></div>
+  <nav id="toc">
+    <a class="nav" href="#s1"><span class="n">01</span><span class="zh">概览</span><span class="en">Overview</span></a>
+    <a class="nav" href="#s2"><span class="n">02</span><span class="zh">下载与安装</span><span class="en">Install</span></a>
+    <a class="nav" href="#s3"><span class="n">03</span><span class="zh">界面导览</span><span class="en">Interface</span></a>
+    <a class="nav" href="#s4"><span class="n">04</span><span class="zh">对局与使用</span><span class="en">Play &amp; guide</span></a>
+    <a class="nav" href="#s5"><span class="n">05</span><span class="zh">计算与分析</span><span class="en">Analysis</span></a>
+    <a class="nav" href="#s6"><span class="n">06</span><span class="zh">棋盘与局面</span><span class="en">Board</span></a>
+    <a class="nav" href="#s7"><span class="n">07</span><span class="zh">复盘</span><span class="en">Review</span></a>
+    <a class="nav" href="#s8"><span class="n">08</span><span class="zh">识图</span><span class="en">Vision</span></a>
+    <a class="nav" href="#s9"><span class="n">09</span><span class="zh">连线</span><span class="en">Link</span></a>
+    <a class="nav" href="#s10"><span class="n">10</span><span class="zh">引擎与硬件</span><span class="en">Engine</span></a>
+    <a class="nav" href="#s11"><span class="n">11</span><span class="zh">设置与主题</span><span class="en">Settings</span></a>
+    <a class="nav" href="#s12"><span class="n">12</span><span class="zh">常见问题</span><span class="en">FAQ</span></a>
+    <a class="nav" href="#s13"><span class="n">13</span><span class="zh">网页版计算器</span><span class="en">Web calculator</span></a>
+  </nav>
+</aside>
+
+<main class="main">
+
+<!-- ================================================================ HERO -->
+<section class="sheet hero" id="top">
+  <div class="eyebrow">RAPFI NNUE · WINDOWS DESKTOP</div>
+  <h1>Meter Gomoku</h1>
+  <div class="tag zh">五子棋 AI 训练器 —— 对弈、摆盘、残局、计算分析、平衡点、扫描防守、复盘、识图、连线</div>
+  <div class="tag en">Gomoku AI trainer — play, compose, endgame, analysis, balance points, defence scan, review, vision, screen link</div>
+
+  <p class="lead zh">棋盘是 15×15 的真实对局盘，棋力来自官方 <b>Rapfi</b> 引擎与官方 NNUE 权重。所有分析、评分、胜率、深度、节点都直接取自引擎输出，不做任何二次美化。</p>
+  <p class="lead en">The board is a real 15×15 grid, and the strength comes from the official <b>Rapfi</b> engine with official NNUE weights. Every number shown — score, win rate, depth, nodes — is taken straight from the engine, never post-processed.</p>
+
+  <div class="cta">
+    <a class="btnline primary" href="https://wwbbj.lanzn.com/b016l49aqj" target="_blank" rel="noopener">
+      <span class="zh">下载 Meter Gomoku</span><span class="en">Download Meter Gomoku</span>
+    </a>
+    <a class="btnline" href="https://www.gomocalc.com/#/" target="_blank" rel="noopener"><span class="zh">网页版计算器</span><span class="en">Web calculator</span></a>
+    <a class="btnline" href="https://github.com/xiaoxu4452/Gobang-auto" target="_blank" rel="noopener">GitHub</a>
+  </div>
+
+  <div class="dl">
+    <div class="l zh">蓝奏云 <b>wwbbj.lanzn.com/b016l49aqj</b> · 访问密码 <span class="pw">15</span></div>
+    <div class="l en">Lanzou cloud <b>wwbbj.lanzn.com/b016l49aqj</b> · access password <span class="pw">15</span></div>
+    <button class="copy" id="copyPw" type="button"><span class="zh">复制密码</span><span class="en">Copy password</span></button>
+  </div>
+
+  <div class="meta">
+    <span class="chip">v4.48</span>
+    <span class="chip gray">Rapfi 0.44.01</span>
+    <span class="chip gray">NNUE 260809</span>
+    <span class="chip gray">Windows 10 / 11 x64</span>
+  </div>
+
+  <figure class="shot" style="margin-top:26px">
+    <div class="shot-bar"><i></i><i></i><i></i><span>Meter Gomoku · v4.48</span></div>
+    <div class="shot-box" data-w="1320" data-h="1120">
+      <iframe src="preview/app-main-zh.html" data-zh="preview/app-main-zh.html" data-en="preview/app-main-en.html"
+              scrolling="no" tabindex="-1" aria-hidden="true" title="Meter Gomoku main window"></iframe>
+    </div>
+  </figure>
+</section>
+
+<!-- ================================================================ 01 -->
+<section class="sheet" id="s1">
+  <h2><span class="num">01</span><span class="zh">概览</span><span class="en">Overview</span></h2>
+  <p class="zh">Meter Gomoku 是一个把「强引擎」和「能看清引擎在想什么」放在一起的五子棋工作台。它不只让你和 AI 下棋，更把引擎的搜索过程完整摊开：深度、节点、每秒节点、用时、评估分、胜率、候选点排名，都实时画在棋盘与仪表盘上。</p>
+  <p class="en">Meter Gomoku pairs a strong engine with full visibility into what that engine is doing. It is not only a place to play — it exposes the whole search: depth, nodes, nodes per second, elapsed time, score, win rate and ranked candidate points, live on the board and dashboard.</p>
+
+  <div class="grid3">
+    <div class="card"><div class="k">Engine</div><div class="v">Rapfi 0.44.01</div><p class="zh">官方引擎 + 官方 NNUE 权重，五档指令集变体自动匹配</p><p class="en">Official engine + official NNUE weights, five ISA variants auto-matched</p></div>
+    <div class="card"><div class="k">Modes</div><div class="v zh">对弈 · 摆盘 · 残局</div><div class="v en">Play · Compose · Endgame</div><p class="zh">另有复盘、识图、连线三类独立窗口</p><p class="en">Plus separate Review, Vision and Link windows</p></div>
+    <div class="card"><div class="k">Rules</div><div class="v zh">无禁手 · 连珠</div><div class="v en">Freestyle · Renju</div><p class="zh">禁手判定由引擎完成，与官方口径一致</p><p class="en">Forbidden-move logic handled by the engine itself</p></div>
+  </div>
+
+  <h3><span class="zh">它适合谁</span><span class="en">Who it is for</span></h3>
+  <ul class="zh tight">
+    <li><b>想变强的棋手</b>：每一步都能看到引擎的候选点与评分，知道自己差在哪里。</li>
+    <li><b>做死活题 / 算杀的人</b>：VCF / VCT 前瞻把连续冲四、连续活三的杀法逐手推给你看。</li>
+    <li><b>开局研究</b>：平衡点用官方成对搜索给出「双方都能接受」的开局点。</li>
+    <li><b>看别人的棋</b>：识图从截图里读盘，连线则直接盯着屏幕上的对战平台自动应手。</li>
+  </ul>
+  <ul class="en tight">
+    <li><b>Players who want to improve</b> — every move shows the engine's candidates and scores, so you can see exactly where you went wrong.</li>
+    <li><b>Puzzle and killing-sequence practice</b> — VCF / VCT look-ahead walks the whole forced win, move by move.</li>
+    <li><b>Opening study</b> — balance points come from the official paired search, giving openings both sides can live with.</li>
+    <li><b>Watching other games</b> — Vision reads a board from a screenshot; Link watches an on-screen client and answers automatically.</li>
+  </ul>
+</section>
+
+<!-- ================================================================ 02 -->
+<section class="sheet" id="s2">
+  <h2><span class="num">02</span><span class="zh">下载与安装</span><span class="en">Download &amp; Install</span></h2>
+
+  <ol class="zh">
+    <li>下载压缩包后解压到<b>英文路径</b>（例如 <code>D:\MeterGomoku</code>）。路径里有中文或空格时，个别系统的引擎子进程可能起不来。</li>
+    <li>双击 <code>Desktop GomokuTrainer.exe</code>。首次启动会解压 NNUE 权重并分配置换表，大约 1～3 秒，之后每次启动都在 1 秒内。</li>
+    <li>目录里必须有 <code>rapfi-native</code> 文件夹（引擎与权重）和 <code>calc\ui.pak</code>（界面）。<b>不要只拷 exe</b>。</li>
+    <li>如果杀毒软件拦截 <code>RapfiEngine-*.exe</code>，请放行一次；引擎是标准控制台程序，通过管道通信。</li>
+  </ol>
+  <ol class="en">
+    <li>Unzip into an <b>ASCII path</b> such as <code>D:\MeterGomoku</code>. Non-ASCII characters or spaces in the path can prevent the engine subprocess from starting on some systems.</li>
+    <li>Run <code>Desktop GomokuTrainer.exe</code>. The first launch unpacks the NNUE weights and allocates the hash table (1–3 s); later launches are under a second.</li>
+    <li>Keep the <code>rapfi-native</code> folder (engine + weights) and <code>calc\ui.pak</code> (UI) next to the exe. <b>Do not copy the exe alone.</b></li>
+    <li>If antivirus flags <code>RapfiEngine-*.exe</code>, allow it once — it is a plain console program talking over pipes.</li>
+  </ol>
+
+  <div class="note zh"><b>绿色软件</b>：没有安装程序、不写注册表。删掉文件夹就是卸载；配置存在程序目录内的浏览器配置里。</div>
+  <div class="note en"><b>Portable</b>: no installer, no registry. Deleting the folder uninstalls it; settings live in the bundled browser profile.</div>
+</section>
+
+<!-- ================================================================ 03 -->
+<section class="sheet" id="s3">
+  <h2><span class="num">03</span><span class="zh">界面导览</span><span class="en">Interface tour</span></h2>
+  <figure class="shot">
+    <div class="shot-bar"><i></i><i></i><i></i><span>Meter Gomoku · v4.48</span></div>
+    <div class="shot-box" data-w="1320" data-h="1120">
+      <iframe src="preview/app-main-zh.html" data-zh="preview/app-main-zh.html" data-en="preview/app-main-en.html"
+              scrolling="no" tabindex="-1" aria-hidden="true" title="Meter Gomoku main window"></iframe>
+    </div>
+  </figure>
+  <figcaption>
+    <span class="zh"><b>图 1</b> 主界面：左＝引擎仪表盘，中＝棋盘，右＝对局设置。</span>
+    <span class="en"><b>Fig. 1</b> Main window: engine dashboard (left), board (centre), match settings (right).</span>
+  </figcaption>
+
+  <table class="ftable">
+    <caption class="sr-only">
+      <span class="zh">主界面区域说明</span><span class="en">Main window areas</span>
+    </caption>
+    <tbody>
+      <tr><td><div class="ft-cell"><span class="ft-no">01</span><div class="ft-body">
+        <div class="ft-head"><span class="ft-title">顶栏</span><span class="ft-sub">Top bar</span></div>
+        <p class="ft-desc zh">连线 / 识图 / 复盘 / 历史 / 关于 / 设置，六个入口各开独立窗口或抽屉。</p>
+        <p class="ft-desc en">Link / Vision / Review / History / About / Settings — six entries, each opening its own window or drawer.</p>
+      </div></div></td></tr>
+      <tr><td><div class="ft-cell"><span class="ft-no">02</span><div class="ft-body">
+        <div class="ft-head"><span class="ft-title">棋盘</span><span class="ft-sub">Board</span></div>
+        <p class="ft-desc zh">15×15 交叉点；棋子默认显示手数，分析、防守、平衡与前瞻标记直接画在交点上。</p>
+        <p class="ft-desc en">15×15 intersections; stones show move numbers, and analysis, defence, balance and look-ahead marks draw straight on the points.</p>
+      </div></div></td></tr>
+      <tr><td><div class="ft-cell"><span class="ft-no">03</span><div class="ft-body">
+        <div class="ft-head"><span class="ft-title">棋盘下方工具栏</span><span class="ft-sub">Board toolbar</span></div>
+        <p class="ft-desc zh">分析计算 · 上一步 / 下一步 · 重新开始 · AI 落一子 · 保存局面 · 旋转 / 翻转 / 平移 · AI 执子。</p>
+        <p class="ft-desc en">Analyse · step ← → · reset · AI move · save · rotate / flip / shift · AI side.</p>
+      </div></div></td></tr>
+      <tr><td><div class="ft-cell"><span class="ft-no">04</span><div class="ft-body">
+        <div class="ft-head"><span class="ft-title">对局设置卡</span><span class="ft-sub">Match card</span></div>
+        <p class="ft-desc zh">模式、AI 执子、思考时间、后台思考、动态时间、规则，以及线程、哈希、选点范围等引擎信息。</p>
+        <p class="ft-desc en">Mode, AI side, think time, background thinking, dynamic time and rules, plus threads, hash, candidate range and other engine info.</p>
+      </div></div></td></tr>
+      <tr><td><div class="ft-cell"><span class="ft-no">05</span><div class="ft-body">
+        <div class="ft-head"><span class="ft-title">引擎仪表盘</span><span class="ft-sub">Dashboard</span></div>
+        <p class="ft-desc zh">深度 / 速度 / 节点 / 用时 / 评估 / 最佳，下方是评估曲线、黑白两栏与引擎日志。</p>
+        <p class="ft-desc en">Depth / speed / nodes / time / eval / best, followed by the eval curve, the black and white rows and the engine log.</p>
+      </div></div></td></tr>
+      <tr><td><div class="ft-cell"><span class="ft-no">06</span><div class="ft-body">
+        <div class="ft-head"><span class="ft-title">卡片可拖动</span><span class="ft-sub">Cards are draggable</span></div>
+        <p class="ft-desc zh">三张卡可以拖到任意一侧、点小横杠折叠、关闭，布局会自动记住。</p>
+        <p class="ft-desc en">All three cards can be dragged to either dock, collapsed with the dash or closed; the layout is remembered.</p>
+      </div></div></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================================================================ 04 -->
+<section class="sheet" id="s4">
+  <h2><span class="num">04</span><span class="zh">对局与使用方法</span><span class="en">Play &amp; how to use it</span></h2>
+  <p class="zh">默认进入对弈模式（空盘）。点任意交叉点落子；AI 执黑或执白时会自动应手。下面从开始一局、逐项设置到暂停键，把对局流程说明清楚。</p>
+  <p class="en">The app opens in Play mode on an empty board. Click any intersection to place a stone; the AI answers whenever it owns Black or White. The guide below covers starting a game, every setting and the pause key.</p>
+
+  <h3><span class="zh">快速开始</span><span class="en">Quick start</span></h3>
+  <ol class="zh">
+    <li>在右侧<b>对局设置卡</b>选择<b>模式</b>：对弈 / 摆盘 / 残局。</li>
+    <li>按需要打开<b>AI 执黑</b>或<b>AI 执白</b>；两个都不开＝黑白双方都由你自己下，两个都开＝AI 与 AI 自打。</li>
+    <li>设定<b>思考时间</b>（0.2～300 秒），这是 AI 每手的思考预算；时间越长棋力越强，CPU 占用也越高。</li>
+    <li>在棋盘交叉点点下第一子开始行棋；棋盘下方的<b>AI 执子</b>可以随时改执子方并立即行棋。</li>
+    <li>要清盘就点<b>重新开始</b>（当前这局会先自动存进历史）；要保存当前盘面就点<b>保存局面</b>。</li>
+  </ol>
+  <ol class="en">
+    <li>Pick a <b>mode</b> in the <b>match card</b> on the right: Play / Compose / Endgame.</li>
+    <li>Turn on <b>AI plays Black</b> and/or <b>AI plays White</b>. Both off = you play both sides; both on = AI versus AI.</li>
+    <li>Set the <b>think time</b> (0.2–300 s): the budget for each AI move. Longer is stronger, at the cost of CPU load.</li>
+    <li>Click an intersection to start. The <b>AI side</b> button under the board switches sides on the fly and moves at once.</li>
+    <li>Use <b>Reset</b> to clear the board (the current game is saved to History first), or <b>Save</b> to store the position.</li>
+  </ol>
+
+  <h3><span class="zh">对局设置逐项</span><span class="en">Every match setting</span></h3>
+  <table class="tbl">
+    <thead><tr><th scope="col"><span class="zh">设置</span><span class="en">Setting</span></th><th scope="col"><span class="zh">说明</span><span class="en">What it does</span></th></tr></thead>
+    <tbody>
+    <tr><td><b class="zh">模式</b><b class="en">Mode</b></td>
+      <td><span class="zh"><b>对弈</b>：AI 自动应答。<b>摆盘</b>：自由摆子，AI 完全不参与。<b>残局</b>：自己摆一个局面来研究；摆好后点「确定」定盘，之后「重新开始」会回到这个局面。</span><span class="en"><b>Play</b>: the AI answers automatically. <b>Compose</b>: free placement, with no AI involvement. <b>Endgame</b>: build a position to study; confirm it and Reset will return to that position.</span></td></tr>
+    <tr><td><b class="zh">AI 执子</b><b class="en">AI side</b></td>
+      <td><span class="zh">两个独立开关：只开<b>AI 执黑</b>＝你执白；只开<b>AI 执白</b>＝你执黑并开第一手；两个都开＝AI 自打；两个都关＝没有 AI。棋盘下方还有一颗「AI 执子」，点开可快速改执子与思考时间，并立即行棋。</span><span class="en">Two independent toggles. Black only = you play White; White only = you play Black and move first; both on = AI self-play; both off = no AI. The “AI side” button under the board reopens the same choice plus think time, and moves immediately.</span></td></tr>
+    <tr><td><b class="zh">思考时间</b><b class="en">Think time</b></td>
+      <td><span class="zh">0.2～300 秒，内部按毫秒交给引擎。时间越长棋力越强，也会把 CPU 线程吃得更满。</span><span class="en">0.2–300 s, handed to the engine in milliseconds. Longer is stronger and keeps the CPU threads busier.</span></td></tr>
+    <tr><td><b class="zh">后台思考</b><b class="en">Background thinking</b></td>
+      <td><span class="zh">轮到你思考时，引擎在后台继续深算这一局面；你一落子，它就能更快给出应手。关掉后引擎落子即停，不再空转。</span><span class="en">While you think, the engine keeps deepening this position, so your move is answered faster and deeper. Turn it off and the engine stops right after its move instead of idling.</span></td></tr>
+    <tr><td><b class="zh">动态时间</b><b class="en">Dynamic time</b></td>
+      <td><span class="zh">开启后不再严格按设定秒数：简单局面提前收手，难局最多多用 15%，见杀局面只用 40%；省下的时间存进时间池，供后续几手调用。关闭后每手严格按设定秒数思考。</span><span class="en">When on, the engine stops early on simple positions, can spend up to 15% more on hard ones and only 40% on a proven mate; the saved time goes into a pool for later moves. Turn it off to search exactly the set time on every move.</span></td></tr>
+    <tr><td><b class="zh">规则</b><b class="en">Rules</b></td>
+      <td><span class="zh"><b>无禁手</b>：连成五子（含长连）即胜。<b>无禁手 · 长连不赢</b>：正好五子才算胜。<b>连珠（有禁手）</b>：黑方三三、四四、长连均为禁手，判定由引擎完成。换规则会自动重置引擎状态，前瞻与算杀也跟随所选规则。</span><span class="en"><b>Freestyle</b>: five or more in a row wins. <b>Freestyle, overline loses</b>: exactly five wins. <b>Renju</b>: double-three, double-four and overline are forbidden for Black, judged by the engine. Switching rules resets the engine; look-ahead and VCF/VCT follow the chosen rule.</span></td></tr>
+    <tr><td><b class="zh">暂停键</b><b class="en">Pause key</b></td>
+      <td><span class="zh">棋盘下方中间的 ▶ / ❚❚ 键在三态间循环：<b>AI 走一手</b>＝空闲时点它，引擎立刻替当前行棋方算一手并落下；<b>暂停</b>＝AI 正在思考时点它，立刻停住；<b>自动对弈</b>＝让 AI 连续行棋。</span><span class="en">The ▶ / ❚❚ key under the board cycles through three states: <b>AI moves once</b> (when idle, search now and play one move), <b>Pause</b> (stop the running search), and <b>Auto-play</b> (let the AI keep moving).</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note zh"><b>怎么选模式</b>：想和 AI 下棋选「对弈」；只想摆一个局面做研究选「残局」（摆完点「确定」，之后「重新开始」回到它）；只想随意摆子、不让 AI 参与选「摆盘」。</div>
+  <div class="note en"><b>Which mode?</b> Choose Play to face the AI, Endgame to build and confirm a position you can return to with Reset, or Compose for free placement with no AI involved.</div>
+</section>
+
+<!-- ================================================================ 05 -->
+<section class="sheet" id="s5">
+  <h2><span class="num">05</span><span class="zh">计算与分析</span><span class="en">Analysis</span></h2>
+  <p class="zh">「计算评估」卡片里是全部的分析工具。它们共用一台引擎、一个队列 —— 同一时刻只跑一个任务，落子优先于后台分析，所以你不会看到「算一半被切断」的假分数。</p>
+  <p class="en">The analysis card holds every tool. They share one engine and one queue — only one job runs at a time, and a real move always pre-empts background analysis, so you never see scores from a half-finished search.</p>
+
+  <figure class="shot">
+    <div class="shot-bar"><i></i><i></i><i></i><span>Meter Gomoku · analysis</span></div>
+    <div class="shot-box" data-w="1320" data-h="1120">
+      <iframe src="preview/app-analysis-zh.html" data-zh="preview/app-analysis-zh.html" data-en="preview/app-analysis-en.html"
+              scrolling="no" tabindex="-1" aria-hidden="true" title="Meter Gomoku analysis"></iframe>
+    </div>
+  </figure>
+  <figcaption>
+    <span class="zh"><b>图 2</b> 多点分析：棋盘上三个候选点带排名与评分，仪表盘给出深度 20 / 1064 万节点 / 用时 5.2 s。</span>
+    <span class="en"><b>Fig. 2</b> Multi-PV analysis: three ranked candidates with scores; the dashboard reads depth 20 / 10.6 M nodes / 5.2 s.</span>
+  </figcaption>
+
+  <table class="tbl">
+    <thead><tr><th scope="col"><span class="zh">按钮</span><span class="en">Button</span></th><th scope="col"><span class="zh">作用</span><span class="en">What it does</span></th></tr></thead>
+    <tbody>
+    <tr><td><b class="zh">分析计算</b><b class="en">Analyse</b></td>
+      <td><span class="zh">对当前局面持续深算，把「分析点数」个候选按名次画在棋盘上（圈内是名次与评分）。再点一次＝停止分析，标记保留。</span><span class="en">Keeps deepening the position and draws the top-N candidates ranked on the board (rank and score inside the circle). Click again to stop; markers stay.</span></td></tr>
+    <tr><td><b class="zh">扫描防守</b><b class="en">Defence scan</b></td>
+      <td><span class="zh">用引擎原生 <code>YXSEARCHDEFEND</code>：假设对手先下，对全盘每个点给出「对手下这里有多危险」，按五档危险度铺成圆环。找急所、找唯一防点非常直观。</span><span class="en">Native <code>YXSEARCHDEFEND</code>: for every point it reports how dangerous it would be if the opponent played there, drawn as five tiers of rings. Ideal for finding urgent defensive points.</span></td></tr>
+    <tr><td><b class="zh">平衡点</b><b class="en">Balance points</b></td>
+      <td><span class="zh">官方成对平衡搜索（<code>YXBALANCETWO</code>），给出 1～6 个黑方或白方都不吃亏的开局点；空盘固定 3 个（第一手天元）。判「平」的门槛是 |评分| ≤ 50。</span><span class="en">Official paired balance search (<code>YXBALANCETWO</code>) returning 1–6 opening points neither side can object to; three on an empty board (first move at centre). "Balanced" means |score| ≤ 50.</span></td></tr>
+    <tr><td><b class="zh">前瞻 / VCF / VCT</b><b class="en">Look-ahead / VCF / VCT</b></td>
+      <td><span class="zh">把这之后的一串强制着法摆出来：VCF＝连续冲四取胜，VCT＝冲四加活三的连续威胁。推演子按手数标号，可点代码链预览，确认无误点「确定」落到棋盘。</span><span class="en">Lays out the forced sequence: VCF wins by continuous fours, VCT by continuous threats mixing fours and open threes. Stones are numbered, code links preview each move, and Confirm plays the line.</span></td></tr>
+    <tr><td><b class="zh">AI 视图</b><b class="en">AI view</b></td>
+      <td><span class="zh">AI 思考期间在棋盘上铺出它的候选点（圆形，格内是评估分）；AI 一落子就撤掉。</span><span class="en">While the AI thinks, its candidate points appear on the board (circles with the score inside) and vanish as soon as it moves.</span></td></tr>
+    <tr><td><b class="zh">指导视图</b><b class="en">Guidance view</b></td>
+      <td><span class="zh">轮到你时用方形四色提示最佳落点，你一落子就消失。</span><span class="en">On your turn, coloured squares suggest the best point; they disappear when you move.</span></td></tr>
+    <tr><td><b class="zh">清除计算</b><b class="en">Clear markers</b></td>
+      <td><span class="zh">只擦掉棋盘上的标记（分析 / 防守 / 平衡 / 前瞻 / VCF / VCT），不动局面本身。</span><span class="en">Erases every marker (analysis, defence, balance, look-ahead, VCF/VCT) without touching the position.</span></td></tr>
+    <tr><td><b class="zh">分析点数</b><b class="en">Analysis points</b></td>
+      <td><span class="zh">1～8。多点会略慢一点，但能一次看清所有候选；它与对局设置里的「多主变」共用同一份值。</span><span class="en">1–8. More points is slightly slower but shows every candidate at once; it shares one value with “Multi-PV” in the match settings.</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="zh">怎么读仪表盘</span><span class="en">Reading the dashboard</span></h3>
+  <table class="tbl">
+    <thead><tr><th scope="col"><span class="zh">项目</span><span class="en">Item</span></th><th scope="col"><span class="zh">含义</span><span class="en">Meaning</span></th></tr></thead>
+    <tbody>
+    <tr><td><b class="zh">深度</b><b class="en">Depth</b></td>
+      <td><span class="zh">当前完成的搜索层数。同一局面、同一硬件下越深越准。</span><span class="en">Search plies completed so far. Deeper is more accurate on the same position and hardware.</span></td></tr>
+    <tr><td><b class="zh">速度</b><b class="en">Speed</b></td>
+      <td><span class="zh">每秒节点数（nps），反映线程、指令集与当前局面的实际吞吐。</span><span class="en">Nodes per second (nps), reflecting threads, instruction set and the position’s real throughput.</span></td></tr>
+    <tr><td><b class="zh">节点</b><b class="en">Nodes</b></td>
+      <td><span class="zh">本次搜索累计访问的节点数。</span><span class="en">Total nodes visited in this search.</span></td></tr>
+    <tr><td><b class="zh">用时</b><b class="en">Time</b></td>
+      <td><span class="zh">本次搜索已用的时间；「分析计算」跨轮会累加显示。</span><span class="en">Elapsed time for this search; Analyse accumulates it across rounds.</span></td></tr>
+    <tr><td><b class="zh">评估</b><b class="en">Eval</b></td>
+      <td><span class="zh">正＝黑优，负＝白优。<code>+M12</code> 表示黑方 12 手内必胜，<code>-M9</code> 表示白方 9 手内必胜。</span><span class="en">Positive favours Black, negative favours White. <code>+M12</code> means Black mates in 12; <code>-M9</code> means White mates in 9.</span></td></tr>
+    <tr><td><b class="zh">最佳</b><b class="en">Best</b></td>
+      <td><span class="zh">引擎当前的首选落点（棋盘坐标）。</span><span class="en">The engine’s current first choice, as a board coordinate.</span></td></tr>
+    <tr><td><b class="zh">胜率</b><b class="en">Win rate</b></td>
+      <td><span class="zh">由评估分换算：胜率 ＝ sigmoid(评估 ÷ 200)。黑方 88% 与白方 12% 是同一局面的两面。</span><span class="en">Derived from the score: win rate = sigmoid(eval ÷ 200). Black 88% and White 12% are the two sides of one position.</span></td></tr>
+    <tr><td><b class="zh">评估曲线</b><b class="en">Eval curve</b></td>
+      <td><span class="zh">整局评分走势：黑线黑方、蓝线白方，纵轴随分值自动进位（最大 ±1200）；浮到曲线上可读每一手的分数。</span><span class="en">Score history for the game: black line for Black, blue for White, with the axis scaling automatically (up to ±1200). Hover a point to read that move’s score.</span></td></tr>
+    <tr><td><b class="zh">黑 / 白两栏</b><b class="en">Black / White rows</b></td>
+      <td><span class="zh">分别给出该方的分数与胜率，方便对照同一局的两种视角。</span><span class="en">Score and win rate for each side, so both views of the same position can be read together.</span></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================================================================ 06 -->
+<section class="sheet" id="s6">
+  <h2><span class="num">06</span><span class="zh">棋盘与局面</span><span class="en">Board &amp; position</span></h2>
+
+  <table class="tbl">
+    <thead><tr><th scope="col"><span class="zh">操作</span><span class="en">Control</span></th><th scope="col"><span class="zh">说明</span><span class="en">Detail</span></th></tr></thead>
+    <tbody>
+    <tr><td><b>← / →</b></td><td><span class="zh">回看上一手 / 下一手。回看时引擎状态不变，回来还是原来的局面。</span><span class="en">Step back / forward. Stepping does not disturb the engine.</span></td></tr>
+    <tr><td><b class="zh">重新开始</b><b class="en">Reset</b></td><td><span class="zh">清空棋盘并保留所有设置；清盘前会先把当前这局自动存进历史。残局模式下定过盘，则回到那个已确定的局面。</span><span class="en">Clears the board and keeps every setting; the current game is auto-saved to History first. In Endgame mode it returns to the confirmed position.</span></td></tr>
+    <tr><td><b class="zh">保存局面</b><b class="en">Save</b></td><td><span class="zh">存进「历史」，可多选、可导入导出、可标记为永久。</span><span class="en">Stores into History — multi-select, import/export, mark as permanent.</span></td></tr>
+    <tr><td><b class="zh">AI 落一子 / 暂停</b><b class="en">AI move / pause</b></td><td><span class="zh">棋盘下方中间的 ▶ / ❚❚ 键：空闲时让引擎替当前行棋方算一手并落下，AI 思考中则暂停；三态循环见第 04 节。</span><span class="en">The ▶ / ❚❚ key under the board: when idle it makes the engine search and play one move for the side to move; while thinking it pauses. See section 04 for the three-state cycle.</span></td></tr>
+    <tr><td><b>↻ ⇄ ✥</b></td><td><span class="zh">整体旋转 90°／左右·上下·对角翻转／整局平移一格。坐标轴不动，方便对照棋谱。</span><span class="en">Rotate 90°, mirror horizontally / vertically / diagonally, or shift the whole position one cell. The axes stay put so coordinates remain comparable.</span></td></tr>
+    <tr><td><b class="zh">局面代码</b><b class="en">Position code</b></td><td><span class="zh">与 gomocalc 同格式：每手两个字符，列字母 + 行号，例如 <code>h8h9g7f7i8</code>。可粘贴载入，也可复制分享。</span><span class="en">gomocalc-compatible: two characters per move, column letter + row number, e.g. <code>h8h9g7f7i8</code>. Paste to load, copy to share.</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="zh">摆盘 / 残局模式</span><span class="en">Compose &amp; endgame</span></h3>
+  <p class="zh">摆盘模式自由摆子，AI 完全不参与。残局模式用于「自己摆一个局面来研究」，棋盘下方会出现「确定 / 顺序摆盘 / 任意摆盘」：顺序摆盘＝黑白轮流落子；任意摆盘＝先选「黑子」或「白子」，再连续摆这一色，数量与顺序都不限。摆好后点「确定」定盘，按键变绿并显示「已确定」；再点一次解除，可以重新摆。残局模式下 AI 全程不参与，交换手类规则自动变灰。</p>
+  <p class="en">Compose mode is free placement with no AI at all. Endgame mode is for building a position to study: the board toolbar gains Confirm / Sequential / Free. Sequential alternates Black and White; Free lets you pick Black or White and place that colour any number of times in any order. Confirm locks the position (the key turns green and reads “Confirmed”); press it again to release and keep editing. The AI stays out of Endgame mode, and swap-related rules are greyed out.</p>
+</section>
+
+<!-- ================================================================ 07 -->
+<section class="sheet" id="s7">
+  <h2><span class="num">07</span><span class="zh">复盘</span><span class="en">Review</span></h2>
+  <p class="zh">顶栏「复盘」打开独立的复盘窗口，专为「把一盘棋读透」设计：</p>
+  <p class="en">The Review window from the top bar is built for reading a game closely:</p>
+  <ul class="zh">
+    <li><b>背诵复盘</b>：隐藏后面的手，凭记忆一手一手摆出来。摆错会立刻标红并计数，可以随时「重来」。</li>
+    <li><b>回顾复盘</b>：以 1 秒/手自动播放，速度可调；可开「序号」看手数，也可以随时跳到任意一手。</li>
+    <li>复盘窗与主窗互不干扰：复盘只读局面，不会改动你正在下的棋。</li>
+  </ul>
+  <ul class="en">
+    <li><b>Recite</b>: later moves are hidden and you replay the game from memory. A wrong stone is flagged and counted; restart any time.</li>
+    <li><b>Replay</b>: auto-plays at one move per second (adjustable), with optional move numbers and jump-to-move.</li>
+    <li>The review window reads the position only — it never disturbs the game in the main window.</li>
+  </ul>
+</section>
+
+<!-- ================================================================ 08 -->
+<section class="sheet" id="s8">
+  <h2><span class="num">08</span><span class="zh">识图</span><span class="en">Vision</span></h2>
+  <p class="zh">顶栏「识图」把一张图片或一段屏幕画面变成可以继续下的局面。</p>
+  <p class="en">Vision turns a picture — or a piece of your screen — into a position you can keep playing.</p>
+  <ol class="zh">
+    <li><b>上传图片 / 屏幕截图</b>，然后<b>裁剪</b>到只剩棋盘。裁得越紧，识别越稳。</li>
+    <li>点<b>识别</b>，等待结果。识别参数（5 个阈值）在面板里可调，拖动即时生效并自动保存。</li>
+    <li>核对棋盘上的棋子，确认后<b>加载到练习</b>：局面直接进入摆盘模式，可以继续分析或对弈。</li>
+    <li><b>VC 模式</b>允许黑白子数不统一（残局、摆拍题常见），加载后自动跑一次 VCF/VCT。</li>
+  </ol>
+  <ol class="en">
+    <li><b>Upload</b> or <b>capture</b>, then <b>crop</b> to the board only. Tighter crops recognise more reliably.</li>
+    <li>Press <b>Recognise</b>. The five thresholds in the panel are live and auto-saved.</li>
+    <li>Check the stones, then <b>load into practice</b> — the position lands in Compose mode, ready to analyse or continue.</li>
+    <li><b>VC mode</b> accepts uneven stone counts (common in puzzles) and runs a VCF/VCT pass after loading.</li>
+  </ol>
+  <div class="note zh"><b>识别不准怎么办</b>：先裁剪、再调阈值；棋盘有透视变形时先把它转正；深色主题的棋盘建议把「棋子对比度」阈值调低一档。</div>
+  <div class="note en"><b>If recognition is off</b>: crop first, then tune thresholds; straighten a skewed board; for dark boards lower the stone-contrast threshold by one step.</div>
+</section>
+
+<!-- ================================================================ 09 -->
+<section class="sheet" id="s9">
+  <h2><span class="num">09</span><span class="zh">连线</span><span class="en">Link</span></h2>
+  <p class="zh">连线是「替你在别的程序里下棋」的功能：它不接管对方的程序，而是盯着屏幕。</p>
+  <p class="en">Link plays for you inside another program — not by hooking it, but by watching the screen.</p>
+  <ol class="zh">
+    <li>顶栏「连线」打开连线窗，点<b>框选棋盘</b>，在屏幕上拖出目标棋盘的范围。</li>
+    <li>点<b>识别</b>。框从紫色变成蓝绿色、四角出现 L 形角框＝识别成功。</li>
+    <li>选<b>AI 执黑</b>或<b>AI 执白</b>（互斥），设好思考时间。这些设置会同步回主窗。</li>
+    <li>识别在后台静默进行：画面静止时几乎零开销，棋子一变才重新读盘，读到你的回合就自动落子。</li>
+  </ol>
+  <ol class="en">
+    <li>Open <b>Link</b>, press <b>Select board</b>, drag a rectangle over the target board.</li>
+    <li>Press <b>Recognise</b>. The frame turns from purple to teal with L-shaped corners = locked on.</li>
+    <li>Pick <b>AI plays Black</b> or <b>AI plays White</b> (mutually exclusive) and a think time; both sync back to the main window.</li>
+    <li>Recognition runs silently: nothing when the image is static, a re-read only when a stone appears, and a move as soon as it is the AI's turn.</li>
+  </ol>
+  <div class="note zh"><b>分工</b>：连线窗负责识别与行棋，主窗大棋盘只同步显示局面，不参与评估、不落子 —— 两侧不会互相抢引擎。关掉连线窗，主窗自动恢复原来的模式与设置。</div>
+  <div class="note en"><b>Division of labour</b>: the Link window recognises and moves; the main board only mirrors the position and never evaluates or plays, so the two never fight over the engine. Closing Link restores your previous mode.</div>
+</section>
+
+<!-- ================================================================ 10 -->
+<section class="sheet" id="s10">
+  <h2><span class="num">10</span><span class="zh">引擎与硬件</span><span class="en">Engine &amp; hardware</span></h2>
+  <p class="zh">棋力全部来自 Rapfi。软件把「能调的」和「不该动的」分开了：线程数、哈希、变体、权重、选点范围可以调；搜索的核心参数一律采用官方配置。</p>
+  <p class="en">All strength comes from Rapfi. The app separates what you may tune from what should be left alone: threads, hash, variant, weights and candidate range are yours; the core search parameters stay at the official values.</p>
+
+  <table class="tbl">
+    <thead><tr><th scope="col"><span class="zh">项</span><span class="en">Item</span></th><th scope="col"><span class="zh">说明</span><span class="en">Detail</span></th></tr></thead>
+    <tbody>
+    <tr><td><b class="zh">线程数</b><b class="en">Threads</b></td>
+      <td><span class="zh">默认＝物理核数（本机 8 核 → 8 线程）。物理核跑满比超线程更稳，评测抖动更小。</span><span class="en">Defaults to the physical core count (8 on an 8-core machine). Filling physical cores is steadier than over-subscribing with SMT.</span></td></tr>
+    <tr><td><b class="zh">哈希表</b><b class="en">Hash</b></td>
+      <td><span class="zh">置换表大小，越大越省重复搜索。默认按内存自适应，32 GB 机器给 1～2 GB 都合理。</span><span class="en">Transposition table size; bigger avoids re-searching. It adapts to your RAM by default; 1–2 GB is reasonable on 32 GB.</span></td></tr>
+    <tr><td><b class="zh">变体</b><b class="en">Variant</b></td>
+      <td><span class="zh">sse / avx2 / avx512 / avx512vnni / avxvnni 五个二进制，启动时按 CPU 指令集自动挑，启动日志里会写「本机实测最快」。</span><span class="en">Five binaries (sse / avx2 / avx512 / avx512vnni / avxvnni), picked at startup from your CPU features; the log states which one was chosen.</span></td></tr>
+    <tr><td><b class="zh">权重</b><b class="en">Weights</b></td>
+      <td><span class="zh">NNUE（默认，判断力强）或传统估值（更省算力）。</span><span class="en">NNUE (default, strongest judgement) or the classical evaluator (cheaper).</span></td></tr>
+    <tr><td><b class="zh">选点范围</b><b class="en">Candidate range</b></td>
+      <td><span class="zh">0 最窄（5×5）～ 5 全盘。窄＝同时间算得更深；宽＝不容易漏点。默认 3（7×7+4 线）是官方推荐档。</span><span class="en">0 (5×5) … 5 (whole board). Narrower searches deeper in the same time; wider misses fewer points. Default 3 (7×7 + 4 lines) is the recommended step.</span></td></tr>
+    <tr><td><b class="zh">最大深度 / 节点</b><b class="en">Max depth / nodes</b></td>
+      <td><span class="zh">上限保护：最大深度 4～128，最大节点 0.1～4096 M。留空＝由思考时间决定。</span><span class="en">Safety caps: max depth 4–128, max nodes 0.1–4096 M. Leave them empty to let think time decide.</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note zh"><b>关于 CPU 占用</b>：搜索期间吃满线程数是正常的 —— 深度就是这么换来的。想安静一点，先把线程数降到一半，或缩短思考时间，而不是把引擎参数改散。</div>
+  <div class="note en"><b>About CPU load</b>: saturating the threads during a search is normal — that is where depth comes from. To keep things quiet, halve the threads or shorten think time rather than scattering engine parameters.</div>
+</section>
+
+<!-- ================================================================ 11 -->
+<section class="sheet" id="s11">
+  <h2><span class="num">11</span><span class="zh">设置与主题</span><span class="en">Settings &amp; themes</span></h2>
+  <p class="zh">顶栏「设置」打开独立的设置窗，它与主窗<b>双向实时联动</b>：改线程、哈希、选点范围、分析点数、主题、语言，所有窗口立刻跟着变。</p>
+  <p class="en">The Settings window is a separate window that stays <b>in sync both ways</b>: threads, hash, candidate range, analysis points, theme and language apply to every window immediately.</p>
+
+  <div class="grid2 setgrid" style="align-items:start; margin-top:8px">
+    <figure class="shot" style="margin:0">
+      <div class="shot-bar"><i></i><i></i><i></i><span>Settings</span></div>
+      <div class="shot-box" data-w="430" data-h="840">
+        <iframe src="preview/app-settings-zh.html" data-zh="preview/app-settings-zh.html" data-en="preview/app-settings-en.html"
+                scrolling="no" tabindex="-1" aria-hidden="true" title="Meter Gomoku settings window"></iframe>
+      </div>
+      <figcaption style="padding-left:0"><span class="zh"><b>图 3</b> 设置窗（长页面，此处显示首屏）。</span><span class="en"><b>Fig. 3</b> Settings window (long page; first screen shown).</span></figcaption>
+    </figure>
+    <div>
+      <h4><span class="zh">主题</span><span class="en">Themes</span></h4>
+      <p class="zh">20 套预设（浅色、深色 + 18 套色系），或「自定义」：棋盘与背景分别调色，HSV 色板、RGB 数值、预制色、一键恢复默认。</p>
+      <p class="en">20 presets (light, dark and 18 colourways) or a custom mode: board and page background coloured separately with an HSV pad, RGB fields, presets and a reset.</p>
+      <h4><span class="zh">字体</span><span class="en">Fonts</span></h4>
+      <p class="zh">界面字体、引擎日志字体、棋子数字字体分别可选，字号也可缩放。字体列表带实时预览。</p>
+      <p class="en">UI font, engine-log font and the stone-number font are chosen separately, with scalable sizes and live previews.</p>
+      <h4><span class="zh">语言</span><span class="en">Language</span></h4>
+      <p class="zh">中文 / English 一键切换，所有窗口同步，下次启动保持。</p>
+      <p class="en">Chinese / English with one click, applied to every window and remembered next launch.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 12 -->
+<section class="sheet" id="s12">
+  <h2><span class="num">12</span><span class="zh">常见问题</span><span class="en">FAQ</span></h2>
+
+  <h4><span class="zh">分数为什么和别的软件不一样？</span><span class="en">Why does the score differ from another program?</span></h4>
+  <p class="zh">评估分是「相对当前行棋方」的原始分，不同引擎、不同阈值、不同搜索深度都会不同。判断强弱看<b>胜率</b>和<b>最佳点</b>更可靠；分数每次刷新略有跳动也正常，那是搜索还没收敛。</p>
+  <p class="en">The score is a raw value relative to the side to move, so different engines, thresholds and depths all differ. <b>Win rate</b> and the <b>best point</b> are more reliable; small jitter between refreshes is normal before the search converges.</p>
+
+  <h4><span class="zh">引擎没反应 / 一直「引擎还没就绪」</span><span class="en">Engine unresponsive / "engine not ready"</span></h4>
+  <p class="zh">确认 <code>rapfi-native</code> 与权重文件还在 exe 旁边；路径不要有中文；被杀毒拦过就先放行再重启；内存吃紧时把哈希调小一档。</p>
+  <p class="en">Check that <code>rapfi-native</code> and the weights still sit next to the exe; avoid non-ASCII paths; whitelist it if antivirus interfered; drop the hash one step if RAM is tight.</p>
+
+  <h4><span class="zh">风扇很响、CPU 一直 100%</span><span class="en">Loud fans, CPU pinned at 100%</span></h4>
+  <p class="zh">只要还有搜索在跑，引擎就会占满线程。关掉「分析计算」就恢复空闲；对弈只在 AI 回合搜索。</p>
+  <p class="en">As long as a search is running the engine fills its threads. Turn off Analyse and it idles; during a game it only searches on the AI's turn.</p>
+
+  <h4><span class="zh">换规则 / 开新局后评分很怪</span><span class="en">Odd score after switching rules or starting over</span></h4>
+  <p class="zh">换规则会自动清空置换表并重置引擎；如果仍有异常，点一次「重新开始」，让第一手在干净状态下重新算。</p>
+  <p class="en">Switching rules clears the hash and resets the engine. If something still looks off, hit Reset so the first move is searched from a clean state.</p>
+
+  <h4><span class="zh">为什么有的候选点胜率都是 100%？</span><span class="en">Why are some candidates all at 100%?</span></h4>
+  <p class="zh">说明引擎已经确认了必胜或必败（评分显示 <code>+M12</code> 这种杀棋值）。这时排名意义不大，看杀棋手数就行。</p>
+  <p class="en">The engine has proven a forced win or loss (the score shows a mate value such as <code>+M12</code>). Ranking matters less then — read the mate distance instead.</p>
+</section>
+
+
+<!-- ================================================================ 13 -->
+<section class="sheet" id="s13">
+  <h2><span class="num">13</span><span class="zh">网页版计算器</span><span class="en">Web calculator</span></h2>
+  <p class="zh">不装软件也能算：<b>gomocalc</b> 是 Rapfi 作者维护的在线计算器，把同一颗引擎编译成 <b>WebAssembly</b> 跑在浏览器里，打开就能摆盘、分析、看候选与主变。手机与电脑都适配，不用注册，也不用上传局面。</p>
+  <p class="en">You can analyse without installing anything: <b>gomocalc</b> is the online calculator maintained by the Rapfi author. The same engine is compiled to <b>WebAssembly</b> and runs in your browser, so you can compose a position, analyse it and read the candidates and principal variation straight away. It works on phones and desktops, with no account and no upload.</p>
+
+  <div class="grid3" style="margin-top:14px">
+    <div class="card"><div class="k">Engine</div><div class="v">Rapfi · WASM</div>
+      <p class="zh">与桌面版同源的 Rapfi 引擎，权重随页面下发，浏览器本地推理</p>
+      <p class="en">The same Rapfi engine family as the desktop app; weights ship with the page and inference runs locally</p></div>
+    <div class="card"><div class="k">Install</div><div class="v zh">无需安装</div><div class="v en">No install</div>
+      <p class="zh">一个网址就是全部，换设备不丢；手机浏览器直接打开</p>
+      <p class="en">One URL is all you need — switch devices freely, open it in a phone browser</p></div>
+    <div class="card"><div class="k">Scope</div><div class="v zh">纯分析</div><div class="v en">Analysis only</div>
+      <p class="zh">只有计算与对局设置；对弈、复盘、识图、连线属于桌面版</p>
+      <p class="en">Calculation and position settings only; play, review, vision and Link belong to the desktop app</p></div>
+  </div>
+
+  <div class="cta" style="margin-top:20px">
+    <a class="btnline primary" href="https://www.gomocalc.com/#/" target="_blank" rel="noopener"><span class="zh">打开 gomocalc</span><span class="en">Open gomocalc</span></a>
+  </div>
+
+  <div class="note zh"><b>和桌面版怎么分工</b>：网页版胜在随手可用——不用安装，换台机器打开就能看盘；桌面版能把更多线程和更大的置换表交给引擎，同样时间里算得更深，还带着完整的对弈、复盘、识图与连线。随手看盘用网页版，认真拆棋回桌面版。</div>
+  <div class="note en"><b>Which one to use</b>: the web calculator wins on convenience — nothing to install, open it on any machine and start reading the board. The desktop app can give the engine more threads and a larger hash, so it searches deeper in the same time, and it brings the full set of play, review, vision and Link tools. Quick checks on the web, serious analysis on the desktop.</div>
+</section>
+
+<!-- ================================================================ footer -->
+<section class="sheet" id="about">
+  <h2><span class="num">—</span><span class="zh">关于</span><span class="en">About</span></h2>
+  <p class="zh">Meter Gomoku 由个人开发与维护，界面与引擎调用层均为自研；棋力引擎与权重来自开源项目 Rapfi（作者 dhbloo / dotb1ue）。如果你发现界面或引擎调用上的问题，欢迎在 GitHub 提 issue。</p>
+  <p class="en">Meter Gomoku is an independently built and maintained desktop app; the UI and the engine-calling layer are original, while the engine and weights come from the open-source Rapfi project (dhbloo / dotb1ue). Bug reports are welcome on GitHub.</p>
+  <div class="cta" style="margin-top:18px">
+    <a class="btnline" href="https://github.com/xiaoxu4452/Gobang-auto" target="_blank" rel="noopener">GitHub · Meter-Gomoku-AI-trainer-Line-Version</a>
+    <a class="btnline" href="https://github.com/dotb1ue/rapfi" target="_blank" rel="noopener">Rapfi</a>
+    <a class="btnline" href="#top"><span class="zh">回到顶部</span><span class="en">Back to top</span></a>
+  </div>
+</section>
+
+<footer class="foot">
+  <span class="zh">Meter Gomoku v4.48 · 最后更新 2026-11-03</span>
+  <span class="en">Meter Gomoku v4.48 · updated 2026-11-03</span>
+</footer>
+
+</main>
+</div>
+
+<script>
+(function () {
+  /* ---------- language switch ---------- */
+  var bZh = document.getElementById('lg-zh'), bEn = document.getElementById('lg-en');
+  var TITLE = { zh: 'Meter Gomoku · 五子棋 AI 训练器', en: 'Meter Gomoku · Gomoku AI Trainer' };
+
+  function setLang(l) {
+    var en = l === 'en';
+    document.body.classList.toggle('lang-en', en);
+    document.documentElement.lang = en ? 'en' : 'zh-CN';
+    document.title = TITLE[en ? 'en' : 'zh'];
+    bZh.classList.toggle('on', !en); bEn.classList.toggle('on', en);
+    bZh.setAttribute('aria-pressed', String(!en)); bEn.setAttribute('aria-pressed', String(en));
+    [].forEach.call(document.querySelectorAll('iframe[data-zh]'), function (f) {
+      var src = f.getAttribute(en ? 'data-en' : 'data-zh');
+      if (src && f.getAttribute('src') !== src) f.setAttribute('src', src);
+    });
+    try { localStorage.setItem('mg.site.lang', l); } catch (e) {}
+  }
+  bZh.onclick = function () { setLang('zh'); };
+  bEn.onclick = function () { setLang('en'); };
+  var saved = '';
+  try { saved = localStorage.getItem('mg.site.lang') || ''; } catch (e) {}
+  var q = (location.search.match(/[?&]lang=(zh|en)/) || [])[1];
+  if (q) setLang(q);
+  else if (saved === 'en' || (!saved && /^en/i.test(navigator.language || ''))) setLang('en');
+
+  /* ---------- preview scaling (real DOM, lossless) ---------- */
+  function fit() {
+    [].forEach.call(document.querySelectorAll('.shot-box'), function (box) {
+      var f = box.querySelector('iframe'); if (!f) return;
+      var w = +(box.getAttribute('data-w') || 1320), h = +(box.getAttribute('data-h') || 1120);
+      var k = box.clientWidth / w;
+      box.style.height = Math.round(h * k) + 'px';
+      f.style.width = w + 'px'; f.style.height = h + 'px';
+      f.style.transform = 'scale(' + k + ')';
+    });
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('load', fit);
+  fit();
+  setTimeout(fit, 400);
+
+  /* ---------- TOC highlight ---------- */
+  var links = [].slice.call(document.querySelectorAll('#toc a.nav'));
+  var secs = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+  function onScroll() {
+    var y = window.scrollY + 140, cur = 0;
+    secs.forEach(function (s, i) { if (s && s.offsetTop <= y) cur = i; });
+    links.forEach(function (a, i) { a.classList.toggle('on', i === cur); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  /* ---------- copy the access password ---------- */
+  var cp = document.getElementById('copyPw');
+  if (cp) cp.onclick = function () {
+    var done = function () {
+      var old = cp.innerHTML;
+      cp.textContent = document.body.classList.contains('lang-en') ? 'Copied: 15' : '已复制：15';
+      setTimeout(function () { cp.innerHTML = old; }, 1400);
+    };
+    if (navigator.clipboard) navigator.clipboard.writeText('15').then(done, done);
+    else done();
+  };
+})();
+</script>
+</body>
+</html>
